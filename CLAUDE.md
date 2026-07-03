@@ -56,6 +56,7 @@ Each module owns its domain logic, Zod schemas, server actions, and components.
    MODULE STATUS — Completed / Partially Complete (only if blocked items exist) / Blocked (item + exact reason + category) / Future Phase / Technical Debt
    NEXT MODULE — Recommended · Why · Dependencies · Estimated work
 5. Tier review protocol + merge checklists still apply per ticket within a module.
+6. **Every new branch is created from up-to-date `main` — never from a parked/feature branch.** Verify with `git branch --show-current` before branching (a branch cut from a parked Tier-A branch will silently drag that un-reviewed work into the next merge).
 
 ## Two-Layer Development Rule (DR-029 — permanent engineering principle)
 
@@ -84,7 +85,7 @@ Each module owns its domain logic, Zod schemas, server actions, and components.
    `decideWebhookActions()` → execute returned actions in ONE Prisma tx → record WebhookEvent.
 2. Auth (Supabase OTP) → 3. Catalog+LMS (course player, enrollment, progress) →
 3. Payments (Razorpay order+webhook) → 5. Ledger + payment-gated commission →
-4. Affiliate dashboard (gated by D-01) → 7. KYC + Withdraw → 8. Admin (RBAC) → 9. Analytics.
+4. Affiliate dashboard (FULL build, payouts flag off — DR-029; only activation is D-01-gated) → 7. KYC + Withdraw (intake + PII lib now; payout execution flag-gated) → 8. Admin (RBAC) → 9. Analytics.
 
 ## Definition of done (per feature)
 

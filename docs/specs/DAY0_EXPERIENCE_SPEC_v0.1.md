@@ -1,6 +1,6 @@
-# Day-0 Experience Spec — Registration → First Session (v0.1 DRAFT)
+# Day-0 Experience Spec — Registration → First Session (v1.0 FROZEN)
 
-**Status:** DRAFT — awaiting founder freeze (LAUNCH_CONFIG #29). On freeze: becomes GPS-M2 delta + DR-030.
+**Status:** **FROZEN v1.0** — founder-approved 2026-07-04 (DR-030 LOCKED in Decision Register). GPS-M2 delta in effect; implementation may proceed per DR-027.
 **Scope:** everything a new user experiences from "Register Free" to the end of their first session, plus the Dashboard Hub shell all dashboard phases plug into.
 **Explicitly unchanged:** checkout flow (DR-023 — OTP-inside-checkout untouched) · auth backend (Supabase OTP, `syncUser`) · money rules · D-29.
 **Governed by:** DR-029 (uncertain values = config slots, registered in LAUNCH_CONFIG.md).
@@ -95,14 +95,16 @@ No changes: checkout, money spine, webhook, middleware policy (Hub stays behind 
 New analytics events: `register_started`, `account_created`, `welcome_viewed`, `checklist_item_done`, `referral_link_shared`.
 LAUNCH_CONFIG rows to add at build: Lesson 0 video (#10 exists) · Earn-card copy sets (#17 exists) · sample certificate image · register/welcome final copy.
 
-## 10. Open decision points (founder)
+## 10. Decision points — RESOLVED (founder-approved 2026-07-04)
 
-- **OPEN-1:** Post-purchase `/onboarding` (name/email/goal) — keep as-is, or merge goal-capture into `/welcome` for registered users? **Recommendation: keep as-is** (purchase context differs; avoid overloading welcome).
-- **OPEN-2:** Referral cookie attribution — first-touch or last-touch, and window length? **Recommendation: first-touch, 30 days** (fair to the person who introduced GoSkilled; matches acquisition goal). Business rule → your call; D-01 counsel may also weigh in.
-- **OPEN-3:** WhatsApp/email nudge opt-in checkbox on Day 0 — collect now (dormant) or skip until Phase 5? **Recommendation: skip** — one less consent surface until we can honor it.
+- **OPEN-1 → RESOLVED:** Post-purchase `/onboarding` stays as-is; `/welcome` handles registration moment only.
+- **OPEN-2 → RESOLVED:** Referral attribution = **first-touch, 30-day cookie**. (D-01 counsel may refine later — LAUNCH_CONFIG #1.)
+- **OPEN-3 → RESOLVED:** Nudge opt-in deferred to Phase 5; no consent surface on Day 0.
 
-## 11. DR-030 draft (locks on your approval)
+## 11. DR-030 (LOCKED 2026-07-04 — recorded in Decision Register)
 
 > **DR-030 — Free registration + Day-0 Experience.** Registration is decoupled from purchase: public `/register` (phone+OTP, optional name; no passwords ever, no forgot-password) creates a free account with auto-generated referral link; `/login` remains for returning users; checkout flow unchanged (DR-023). Post-registration one-time `/welcome` moment leads to **Lesson 0** (onboarding video as a real, skippable LMS lesson — no mandatory gates) and the **Dashboard Hub**: checklist-guided, all sections visible with truthful locked/zero/coming-soon states, webinar as opportunity (never prerequisite), universal referral link with invite-only framing pre-D-01 (link ≠ earning eligibility; no earn language until D-01 clears). Nav gains Register Free + Login (Blueprint v1.1 amendment). Fake data remains forbidden in all states (D-29 floor, DR-029).
 
-**Changelog:** v0.1 (2026-07-03) — initial draft from founder + Fable design sessions.
+**Changelog:**
+- v1.0 (2026-07-04) — FROZEN: founder approved all three open points per recommendations; DR-030 locked.
+- v0.1 (2026-07-03) — initial draft from founder + Fable design sessions.
