@@ -1,26 +1,11 @@
-// Profile tab (Blueprint §3): name, email, goal, logout.
-import Link from "next/link";
+// Profile tab (Blueprint §3 · GPS-M2 §2.5): editable name/email/goal, read-only phone, logout.
+// No self-serve account deletion in M2 (support-mediated; DPDP flows = LEGAL workstream).
 import { getCurrentUserRecord } from "../../../lib/auth/session";
-import { signOutAction } from "../actions";
+import { ProfileForm } from "../../../components/dashboard/profile-form";
+import { LogoutButton } from "../../../components/dashboard/logout-button";
 import { Card, CardTitle } from "../../../components/ui/card";
-import { Button } from "../../../components/ui/button";
 
 export const dynamic = "force-dynamic";
-
-const GOAL_LABEL: Record<string, string> = {
-  SKILL: "Learn a skill",
-  INCOME: "Earn income",
-  BOTH: "Both",
-};
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between border-b border-charcoal/5 py-3 last:border-0">
-      <span className="text-sm text-muted">{label}</span>
-      <span className="text-sm font-medium text-charcoal">{value}</span>
-    </div>
-  );
-}
 
 export default async function ProfilePage() {
   const user = await getCurrentUserRecord();
@@ -32,28 +17,28 @@ export default async function ProfilePage() {
       </h1>
 
       <Card>
-        <CardTitle className="mb-2 text-lg">Your details</CardTitle>
-        <Row label="Name" value={user?.name || "Not set"} />
-        <Row label="Email" value={user?.email || "Not set"} />
-        <Row label="Phone" value={user?.phone || "—"} />
-        <Row
-          label="Goal"
-          value={user?.goal ? GOAL_LABEL[user.goal] : "Not set"}
+        <CardTitle className="mb-4 text-lg">Your details</CardTitle>
+        <ProfileForm
+          initialName={user?.name ?? ""}
+          initialEmail={user?.email ?? ""}
+          initialGoal={user?.goal ?? "BOTH"}
         />
-        {!user?.onboardedAt && (
-          <div className="mt-4">
-            <Link href="/onboarding">
-              <Button variant="outline">Complete your profile</Button>
-            </Link>
-          </div>
-        )}
       </Card>
 
-      <form action={signOutAction}>
-        <Button type="submit" variant="outline">
-          Log out
-        </Button>
-      </form>
+      <Card>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-charcoal">Mobile number</p>
+            <p className="text-sm text-muted">
+              {user?.phone || "—"} · used to sign in
+            </p>
+          </div>
+          {/* Phone = auth identity: changing it is support-mediated (no self-serve in M2). */}
+          <span className="text-xs text-muted">Change via support</span>
+        </div>
+      </Card>
+
+      <LogoutButton />
     </section>
   );
 }

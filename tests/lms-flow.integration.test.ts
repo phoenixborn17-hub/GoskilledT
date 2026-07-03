@@ -9,8 +9,10 @@ import {
   getCoursePlayerView,
   getEnrolledCourses,
   isEnrolled,
+  resolvePlayback,
   LmsAccessError,
 } from "@/lib/lms/queries";
+import { mockVideoProvider } from "@/lib/video/provider";
 
 const HAS_DB = !!process.env.DATABASE_URL;
 const runId = `lms${Date.now()}`;
@@ -93,6 +95,19 @@ describe.skipIf(!HAS_DB)("LMS flow (integration)", () => {
     expect(flat.find((l) => l.id === l2)!.locked).toBe(true);
     expect(view!.resumeLessonId).toBe(l1);
     expect(view!.progress).toEqual({ completed: 0, total: 2, percent: 0 });
+  });
+
+  it("locked lesson NEVER yields a playback URL; free preview does (§1C URL-leak)", async () => {
+    const view = await getCoursePlayerView(userId, slug); // still not enrolled
+    const flat = view!.modules.flatMap((m) => m.lessons);
+    const locked = flat.find((l) => l.id === l2)!; // paid, not enrolled → locked
+    const preview = flat.find((l) => l.id === l1)!; // free preview
+
+    expect(locked.locked).toBe(true);
+    // The gate the player uses: a locked lesson resolves to NO source (no URL leaks to the client).
+    expect(resolvePlayback(locked, mockVideoProvider)).toBeNull();
+    // The free preview IS playable for the same unenrolled user.
+    expect(resolvePlayback(preview, mockVideoProvider)?.url).toBeTruthy();
   });
 
   it("enroll → complete lessons → progress updates; resume advances", async () => {

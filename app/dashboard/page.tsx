@@ -1,7 +1,7 @@
-// Learn tab (Blueprint §3): Continue Learning → Progress Ring → Enrolled Courses.
-// Never blank: shows a checkout CTA when there are no enrollments.
+// Learn tab (Blueprint §3 · GPS-M2 §2.1): goal-aware greeting → Continue Learning → Progress Ring
+// → Enrolled Courses. Never blank: shows a checkout CTA when there are no enrollments.
 import Link from "next/link";
-import { getCurrentUser } from "../../lib/auth/session";
+import { getCurrentUserRecord } from "../../lib/auth/session";
 import { getEnrolledCourses } from "../../lib/lms/queries";
 import { ProgressRing } from "../../components/dashboard/progress-ring";
 import { Card, CardTitle, CardDescription } from "../../components/ui/card";
@@ -9,9 +9,20 @@ import { Button } from "../../components/ui/button";
 
 export const dynamic = "force-dynamic";
 
+// Goal-aware subline (§2.1, DESIGN_DIRECTION §4.2 — copy tuning only, adaptive depth = GPS-M5).
+// D-29: strictly learning-outcome framing — the INCOME goal never earns an income promise.
+const GOAL_SUBLINE: Record<string, string> = {
+  SKILL: "Let's sharpen a skill today.",
+  INCOME: "Real skills come first — keep building.",
+  BOTH: "Keep learning at your own pace.",
+};
+
 export default async function LearnPage() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUserRecord();
   const courses = await getEnrolledCourses(user!.id);
+  const greeting = `Welcome back${user?.name ? `, ${user.name}` : ""}`;
+  const subline =
+    (user?.goal && GOAL_SUBLINE[user.goal]) ?? "Continue where you left off.";
 
   if (courses.length === 0) {
     return (
@@ -45,9 +56,13 @@ export default async function LearnPage() {
 
   return (
     <section aria-labelledby="learn-heading" className="space-y-6">
-      <h1 id="learn-heading" className="font-heading text-2xl font-bold">
-        Learn
-      </h1>
+      {/* Guru "ask-a-doubt" card slot (§1E, GPS-M5) reserved here — no UI shipped in M2. */}
+      <div>
+        <h1 id="learn-heading" className="font-heading text-2xl font-bold">
+          {greeting}
+        </h1>
+        <p className="text-sm text-muted">{subline}</p>
+      </div>
 
       <Card className="flex items-center gap-5">
         <ProgressRing percent={active.progress.percent} />
@@ -70,7 +85,15 @@ export default async function LearnPage() {
       </Card>
 
       <div className="space-y-3">
-        <h2 className="font-heading text-lg font-semibold">Your courses</h2>
+        <div className="flex items-end justify-between">
+          <h2 className="font-heading text-lg font-semibold">Your courses</h2>
+          <Link
+            href="/dashboard/courses"
+            className="text-sm font-semibold text-brand"
+          >
+            View all →
+          </Link>
+        </div>
         {courses.map((c) => (
           <Link
             key={c.slug}

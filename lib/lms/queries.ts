@@ -8,6 +8,7 @@ import {
   canAccessLesson,
   type ProgressSummary,
 } from "../../modules/lms/progress";
+import type { PlaybackSource, VideoProvider } from "../video/provider";
 
 export class LmsAccessError extends Error {
   constructor(message = "You don't have access to this lesson") {
@@ -40,6 +41,7 @@ export interface CoursePlayerView {
 }
 
 export interface EnrolledCourseCard {
+  courseId: string;
   slug: string;
   title: string;
   summary: string | null;
@@ -146,6 +148,7 @@ export async function getEnrolledCourses(
   return enrollments.map(({ course }) => {
     const ordered = course.modules.flatMap((m) => m.lessons.map((l) => l.id));
     return {
+      courseId: course.id,
       slug: course.slug,
       title: course.title,
       summary: course.summary,
@@ -153,6 +156,19 @@ export async function getEnrolledCourses(
       resumeLessonId: resumeLessonId(ordered, done),
     };
   });
+}
+
+/** All of a user's issued certificates, keyed by courseId — for the Progress tab (one query). */
+export async function getCertificatesByCourse(
+  userId: string,
+): Promise<Map<string, { serial: string; issuedAt: Date }>> {
+  const rows = await prisma.certificate.findMany({
+    where: { userId },
+    select: { courseId: true, serial: true, issuedAt: true },
+  });
+  return new Map(
+    rows.map((r) => [r.courseId, { serial: r.serial, issuedAt: r.issuedAt }]),
+  );
 }
 
 /** Throws LmsAccessError unless the user may watch this lesson (enrolled OR free preview). */
@@ -190,4 +206,72 @@ export async function completeLesson(
   const ordered = course.modules.flatMap((m) => m.lessons.map((l) => l.id));
   const completed = await completedLessonIds(userId, courseId);
   return { courseId, progress: courseProgress(ordered, completed) };
+}
+
+/**
+ * Resolve a lesson to a playback source ONLY if it is accessible — the single gate the player uses.
+ * Extracted so the "locked lesson never returns a URL" invariant (GPS-M2 §1C) is unit-testable
+ * rather than living only inside the page's JSX. A locked lesson (or one with no asset) → null.
+ */
+export function resolvePlayback(
+  lesson: { locked: boolean; videoAssetId: string | null },
+  provider: VideoProvider,
+): PlaybackSource | null {
+  if (lesson.locked || !lesson.videoAssetId) return null;
+  return provider.getPlayback(lesson.videoAssetId);
+}
+
+// ── My courses (§2.2) — entitlement view incl. the honest CB "as released" roadmap ──
+export interface RoadmapCourse {
+  slug: string;
+  title: string;
+  summary: string | null;
+}
+export interface EnrollmentsWithRoadmap {
+  enrolled: EnrolledCourseCard[];
+  /** Career Booster only: coming-soon catalog courses the learner will get "as released" (DR-021). */
+  hasCareerBooster: boolean;
+  roadmap: RoadmapCourse[];
+}
+
+/** True if the user has a PAID order for a package that includes future courses (Career Booster). */
+async function hasCareerBoosterEntitlement(userId: string): Promise<boolean> {
+  const order = await prisma.order.findFirst({
+    where: { userId, status: "PAID", package: { includesFutureCourses: true } },
+    select: { id: true },
+  });
+  return !!order;
+}
+
+/** My-courses view: enrolled courses (+progress) and, for CB buyers, the honest coming-soon roadmap. */
+export async function getEnrollmentsWithRoadmap(
+  userId: string,
+): Promise<EnrollmentsWithRoadmap> {
+  const [enrolled, hasCareerBooster] = await Promise.all([
+    getEnrolledCourses(userId),
+    hasCareerBoosterEntitlement(userId),
+  ]);
+
+  let roadmap: RoadmapCourse[] = [];
+  if (hasCareerBooster) {
+    const enrolledSlugs = new Set(enrolled.map((c) => c.slug));
+    const coming = await prisma.course.findMany({
+      where: { status: "COMING_SOON" },
+      orderBy: { order: "asc" },
+      select: { slug: true, title: true, summary: true },
+    });
+    roadmap = coming.filter((c) => !enrolledSlugs.has(c.slug));
+  }
+  return { enrolled, hasCareerBooster, roadmap };
+}
+
+/** The user's certificate for a course, if issued (read-only — issuance lives in lib/lms/certificate). */
+export async function getCertificateForCourse(
+  userId: string,
+  courseId: string,
+): Promise<{ serial: string; issuedAt: Date } | null> {
+  return prisma.certificate.findUnique({
+    where: { userId_courseId: { userId, courseId } },
+    select: { serial: true, issuedAt: true },
+  });
 }

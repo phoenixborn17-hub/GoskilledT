@@ -10,7 +10,9 @@ const TABS = [
     label: "Learn",
     Icon: BookOpen,
     match: (p: string) =>
-      p === "/dashboard" || p.startsWith("/dashboard/learn"),
+      p === "/dashboard" ||
+      p.startsWith("/dashboard/learn") ||
+      p.startsWith("/dashboard/courses"),
   },
   {
     href: "/dashboard/progress",

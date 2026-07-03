@@ -1,8 +1,12 @@
 // Progress tab (Blueprint §3): per-course progress with a Resume action. Never blank.
 import Link from "next/link";
 import { getCurrentUser } from "../../../lib/auth/session";
-import { getEnrolledCourses } from "../../../lib/lms/queries";
+import {
+  getEnrolledCourses,
+  getCertificatesByCourse,
+} from "../../../lib/lms/queries";
 import { ProgressRing } from "../../../components/dashboard/progress-ring";
+import { CertificateCard } from "../../../components/dashboard/certificate-card";
 import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 
@@ -10,7 +14,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ProgressPage() {
   const user = await getCurrentUser();
-  const courses = await getEnrolledCourses(user!.id);
+  const [courses, certs] = await Promise.all([
+    getEnrolledCourses(user!.id),
+    getCertificatesByCourse(user!.id),
+  ]);
 
   return (
     <section aria-labelledby="progress-heading" className="space-y-6">
@@ -32,29 +39,38 @@ export default async function ProgressPage() {
         </Card>
       ) : (
         courses.map((c) => (
-          <Card key={c.slug} className="flex items-center gap-5">
-            <ProgressRing percent={c.progress.percent} size={80} />
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-heading text-lg font-bold">
-                {c.title}
-              </p>
-              <p className="text-sm text-muted">
-                {c.progress.completed} / {c.progress.total} lessons
-              </p>
-              <div className="mt-3 max-w-[10rem]">
-                <Link href={`/dashboard/learn/${c.slug}`}>
-                  <Button
-                    variant={c.progress.percent === 100 ? "outline" : "primary"}
-                  >
-                    {c.progress.percent === 100
-                      ? "Review"
-                      : c.progress.completed === 0
-                        ? "Start"
-                        : "Resume"}
-                  </Button>
-                </Link>
+          <Card key={c.slug}>
+            <div className="flex items-center gap-5">
+              <ProgressRing percent={c.progress.percent} size={80} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-heading text-lg font-bold">
+                  {c.title}
+                </p>
+                <p className="text-sm text-muted">
+                  {c.progress.completed} / {c.progress.total} lessons
+                </p>
+                <div className="mt-3 max-w-[10rem]">
+                  <Link href={`/dashboard/learn/${c.slug}`}>
+                    <Button
+                      variant={
+                        c.progress.percent === 100 ? "outline" : "primary"
+                      }
+                    >
+                      {c.progress.percent === 100
+                        ? "Review"
+                        : c.progress.completed === 0
+                          ? "Start"
+                          : "Resume"}
+                    </Button>
+                  </Link>
+                </div>
               </div>
             </div>
+            {/* Certificate slot (§2.4). Guru "explain-my-gap" entry (§1E, GPS-M5) reserved here. */}
+            <CertificateCard
+              percent={c.progress.percent}
+              certificate={certs.get(c.courseId) ?? null}
+            />
           </Card>
         ))
       )}
