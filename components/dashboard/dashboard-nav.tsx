@@ -37,7 +37,7 @@ export function DashboardNav() {
       </nav>
 
       {/* Mobile: bottom navigation */}
-      <nav aria-label="Dashboard" className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-charcoal/10 bg-white md:hidden">
+      <nav aria-label="Dashboard" className="glass fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-charcoal/10 md:hidden">
         {TABS.map(({ href, label, Icon, match }) => {
           const active = match(pathname);
           return (

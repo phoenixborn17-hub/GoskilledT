@@ -57,7 +57,7 @@ export default async function PackagesPage() {
 
         {/* Pricing cards */}
         <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <Card className="flex flex-col">
+          <Card className="lift flex flex-col">
             <h2 className="font-heading text-xl font-bold">{sb.name}</h2>
             <p className="mt-1 text-3xl font-extrabold text-charcoal">{priceLabel(sb.priceInPaise)}</p>
             <p className="text-xs text-charcoal/50">GST-inclusive · one-time</p>
@@ -66,7 +66,7 @@ export default async function PackagesPage() {
             <div className="mt-auto pt-4"><Link href="/checkout?package=skill-builder"><Button variant="outline">Choose Skill Builder</Button></Link></div>
           </Card>
 
-          <Card className="flex flex-col border-brand ring-1 ring-brand">
+          <Card className="lift flex flex-col border-brand ring-1 ring-brand">
             <div className="flex items-center justify-between">
               <h2 className="font-heading text-xl font-bold">{cb.name}</h2>
               <Badge variant="gold">Recommended</Badge>
@@ -125,7 +125,7 @@ export default async function PackagesPage() {
       </main>
 
       {/* Sticky mobile CTA bar */}
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-charcoal/10 bg-white/95 p-3 backdrop-blur md:hidden">
+      <div className="glass fixed inset-x-0 bottom-0 z-30 border-t border-charcoal/10 p-3 md:hidden">
         <div className="mx-auto flex max-w-md gap-2">
           <Link href="/checkout?package=skill-builder" className="flex-1"><Button variant="outline">{priceLabel(sb.priceInPaise)}</Button></Link>
           <Link href="/checkout?package=career-booster" className="flex-1"><Button>Get {cb.name}</Button></Link>
