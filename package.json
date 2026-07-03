@@ -18,7 +18,8 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
-    "purge:test": "tsx scripts/purge-test-data.ts"
+    "purge:test": "tsx scripts/purge-test-data.ts",
+    "verify:loop": "tsx scripts/verify-founder-loop.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

@@ -19,11 +19,24 @@ describe.skipIf(!HAS_DB)("catalog queries (integration, seeded)", () => {
     expect(courseStats(ai!.modules).lessonCount).toBeGreaterThanOrEqual(6);
   });
 
-  it("keeps Digital Marketing honestly COMING_SOON", async () => {
+  it("lists Digital Marketing as PUBLISHED (2nd launch course, buyable — DR-011: 2 buyable)", async () => {
     const courses = await listCatalogCourses();
-    expect(courses.find((c) => c.slug === "digital-marketing")?.status).toBe(
-      "COMING_SOON",
-    );
+    const dm = courses.find((c) => c.slug === "digital-marketing");
+    expect(dm?.status).toBe("PUBLISHED");
+    expect(courseStats(dm!.modules).lessonCount).toBeGreaterThanOrEqual(6);
+  });
+
+  it("lists the 5 DR-011 roadmap courses as COMING_SOON", async () => {
+    const courses = await listCatalogCourses();
+    for (const slug of [
+      "stock-market",
+      "social-media-mastery",
+      "no-code-ai-website",
+      "ai-content-creation",
+      "personality-development",
+    ]) {
+      expect(courses.find((c) => c.slug === slug)?.status).toBe("COMING_SOON");
+    }
   });
 
   it("course detail has ordered modules, lessons, and a free preview", async () => {
@@ -45,9 +58,10 @@ describe.skipIf(!HAS_DB)("catalog queries (integration, seeded)", () => {
     expect(cb?.courseSlugs).toContain("ai-prompt-mastery");
   });
 
-  it("sitemap slugs include only published courses", async () => {
+  it("sitemap slugs include published courses only (both launch, no coming-soon)", async () => {
     const slugs = await publishedCourseSlugs();
     expect(slugs).toContain("ai-prompt-mastery");
-    expect(slugs).not.toContain("digital-marketing");
+    expect(slugs).toContain("digital-marketing");
+    expect(slugs).not.toContain("stock-market"); // COMING_SOON → excluded
   });
 });

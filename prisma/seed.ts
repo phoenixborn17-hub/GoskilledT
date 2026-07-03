@@ -1,51 +1,185 @@
-// Seed — DR-021 packaging + DR-010 pricing + system ledger accounts.
-// Idempotent: safe to re-run. Money in PAISE, GST-inclusive display prices (Golden Rule 12).
+// Seed — DR-021 packaging + DR-010 pricing + system ledger accounts + a full DR-029 dev/staging
+// dataset. Idempotent: safe to re-run. Money in PAISE, GST-inclusive display prices (Rule 12).
+//
+// DR-029 test-data policy: the two LAUNCH courses carry a clear "[PLACEHOLDER]" marker in their
+// titles and use MOCK video assets — this is staging content standing in for the real recorded
+// lessons (LAUNCH_CONFIG #7/#8), never presented as final. The 5 COMING_SOON courses are the
+// honest DR-011 roadmap (no content yet, truthfully "coming soon"). Nothing fabricated.
 import { PrismaClient, type AccountType } from "../lib/generated/prisma";
 
 const prisma = new PrismaClient();
 
-async function main() {
-  // ── Courses (2 launch courses) ─────────────────────────────────────────────
-  const aiPrompt = await prisma.course.upsert({
-    where: { slug: "ai-prompt-mastery" },
-    update: {
-      title: "AI Prompt Mastery",
-      status: "PUBLISHED",
-      category: "AI",
+// One placeholder curriculum shape reused for both launch courses. Lesson 1 = free preview.
+function curriculumFor(slug: string) {
+  return [
+    {
+      id: `${slug}-m1`,
+      title: "Module 1 — Foundations",
       order: 1,
+      lessons: [
+        { n: 1, title: "Welcome & overview", dur: 300, free: true },
+        { n: 2, title: "Core concepts", dur: 420, free: false },
+        { n: 3, title: "Common mistakes to avoid", dur: 360, free: false },
+      ],
     },
-    create: {
+    {
+      id: `${slug}-m2`,
+      title: "Module 2 — Putting it to work",
+      order: 2,
+      lessons: [
+        { n: 1, title: "Hands-on walkthrough", dur: 480, free: false },
+        { n: 2, title: "Real-world example", dur: 500, free: false },
+        { n: 3, title: "Your next steps", dur: 540, free: false },
+      ],
+    },
+  ];
+}
+
+async function seedCurriculum(courseId: string, slug: string) {
+  const modules = curriculumFor(slug);
+  const intendedModuleIds = modules.map((m) => m.id);
+
+  // Self-heal: remove any pre-existing modules for this course NOT in the intended set (e.g. from
+  // an older id scheme) so the course ends with EXACTLY this curriculum. Delete children first
+  // (lesson progress → lessons → modules). Certificates reference the course, not lessons — kept.
+  const stray = await prisma.module.findMany({
+    where: { courseId, id: { notIn: intendedModuleIds } },
+    select: { id: true },
+  });
+  if (stray.length > 0) {
+    const strayModuleIds = stray.map((s) => s.id);
+    const strayLessons = await prisma.lesson.findMany({
+      where: { moduleId: { in: strayModuleIds } },
+      select: { id: true },
+    });
+    const strayLessonIds = strayLessons.map((l) => l.id);
+    if (strayLessonIds.length > 0) {
+      await prisma.lessonProgress.deleteMany({
+        where: { lessonId: { in: strayLessonIds } },
+      });
+      await prisma.lesson.deleteMany({ where: { id: { in: strayLessonIds } } });
+    }
+    await prisma.module.deleteMany({ where: { id: { in: strayModuleIds } } });
+  }
+
+  for (const m of modules) {
+    await prisma.module.upsert({
+      where: { id: m.id },
+      update: { title: m.title, order: m.order, courseId },
+      create: { id: m.id, title: m.title, order: m.order, courseId },
+    });
+    for (const l of m.lessons) {
+      const id = `${m.id}-l${l.n}`;
+      const data = {
+        title: `[PLACEHOLDER] ${l.title}`,
+        durationSec: l.dur,
+        videoAssetId: `mock-${id}`, // any id → the mock provider maps it to a sample MP4
+        order: l.n,
+        isFreePreview: l.free,
+        moduleId: m.id,
+      };
+      await prisma.lesson.upsert({
+        where: { id },
+        update: data,
+        create: { id, ...data },
+      });
+    }
+  }
+}
+
+async function main() {
+  // ── Launch courses (2) — PUBLISHED, [PLACEHOLDER] titles, mock video, full curriculum ──────
+  const launch = [
+    {
       slug: "ai-prompt-mastery",
-      title: "AI Prompt Mastery",
+      title: "AI Prompt Mastery [PLACEHOLDER]",
       summary: "Master practical AI prompting for real work.",
       category: "AI",
-      status: "PUBLISHED",
       order: 1,
     },
-    select: { id: true },
-  });
-
-  const digitalMarketing = await prisma.course.upsert({
-    where: { slug: "digital-marketing" },
-    update: {
-      title: "Digital Marketing",
-      status: "COMING_SOON",
-      category: "Marketing",
-      order: 2,
-    },
-    create: {
+    {
       slug: "digital-marketing",
-      title: "Digital Marketing",
+      title: "Digital Marketing [PLACEHOLDER]",
       summary: "Grow brands with modern digital marketing.",
       category: "Marketing",
-      status: "COMING_SOON",
       order: 2,
     },
-    select: { id: true },
-  });
+  ];
+  const launchIds: string[] = [];
+  for (const c of launch) {
+    const row = await prisma.course.upsert({
+      where: { slug: c.slug },
+      update: {
+        title: c.title,
+        summary: c.summary,
+        category: c.category,
+        status: "PUBLISHED",
+        order: c.order,
+      },
+      create: { ...c, status: "PUBLISHED" },
+      select: { id: true },
+    });
+    launchIds.push(row.id);
+    await seedCurriculum(row.id, c.slug);
+  }
+
+  // ── Coming-soon roadmap (5) — DR-011 catalog. Honest "coming soon", no content, no placeholder. ──
+  const comingSoon = [
+    {
+      slug: "stock-market",
+      title: "Stock Market",
+      category: "Finance",
+      summary: "Understand investing and the stock market from the ground up.",
+    },
+    {
+      slug: "social-media-mastery",
+      title: "Social Media Mastery",
+      category: "Marketing",
+      summary: "Build and grow an audience across social platforms.",
+    },
+    {
+      slug: "no-code-ai-website",
+      title: "No-Code + AI Website Development",
+      category: "Tech",
+      summary:
+        "Build real websites with no-code tools and AI — no coding required.",
+    },
+    {
+      slug: "ai-content-creation",
+      title: "AI Content Creation",
+      category: "AI",
+      summary: "Create content faster with AI, the right way.",
+    },
+    {
+      slug: "personality-development",
+      title: "Personality Development",
+      category: "Skills",
+      summary: "Communication, confidence, and everyday soft skills.",
+    },
+  ];
+  for (let i = 0; i < comingSoon.length; i++) {
+    const c = comingSoon[i];
+    await prisma.course.upsert({
+      where: { slug: c.slug },
+      update: {
+        title: c.title,
+        summary: c.summary,
+        category: c.category,
+        status: "COMING_SOON",
+        order: 10 + i,
+      },
+      create: {
+        slug: c.slug,
+        title: c.title,
+        summary: c.summary,
+        category: c.category,
+        status: "COMING_SOON",
+        order: 10 + i,
+      },
+    });
+  }
 
   // ── Packages (DR-021 / DR-010) ─────────────────────────────────────────────
-  // Skill Builder ₹1,499 = 149900 paise — buyer's choice of ONE launch course (no future courses).
   const skillBuilder = await prisma.package.upsert({
     where: { slug: "skill-builder" },
     update: {
@@ -63,8 +197,6 @@ async function main() {
     },
     select: { id: true },
   });
-
-  // Career Booster ₹2,199 = 219900 paise — BOTH launch courses + future courses as released.
   const careerBooster = await prisma.package.upsert({
     where: { slug: "career-booster" },
     update: {
@@ -83,120 +215,13 @@ async function main() {
     select: { id: true },
   });
 
-  // ── PackageCourse links ────────────────────────────────────────────────────
-  // Both launch courses belong to both packages: Skill Builder buyer picks one; Career Booster gets all.
-  const links: Array<{ packageId: string; courseId: string }> = [
-    { packageId: skillBuilder.id, courseId: aiPrompt.id },
-    { packageId: skillBuilder.id, courseId: digitalMarketing.id },
-    { packageId: careerBooster.id, courseId: aiPrompt.id },
-    { packageId: careerBooster.id, courseId: digitalMarketing.id },
-  ];
-  for (const link of links) {
-    await prisma.packageCourse.upsert({
-      where: { packageId_courseId: link },
-      update: {},
-      create: link,
-    });
-  }
-
-  // ── AI & Prompt Mastery curriculum (Ticket 4): 2 modules × 3 lessons ─────────
-  // Explicit ids make the seed idempotent (Module/Lesson have no natural unique key).
-  // First lesson is a free preview; every lesson carries a mock videoAssetId.
-  const curriculum = [
-    {
-      id: "aipm-m1",
-      title: "Foundations of Prompting",
-      order: 1,
-      lessons: [
-        {
-          id: "aipm-m1-l1",
-          title: "What is a Prompt?",
-          durationSec: 300,
-          videoAssetId: "mock-aipm-101",
-          order: 1,
-          isFreePreview: true,
-        },
-        {
-          id: "aipm-m1-l2",
-          title: "Anatomy of a Great Prompt",
-          durationSec: 420,
-          videoAssetId: "mock-aipm-102",
-          order: 2,
-          isFreePreview: false,
-        },
-        {
-          id: "aipm-m1-l3",
-          title: "Common Prompting Mistakes",
-          durationSec: 360,
-          videoAssetId: "mock-aipm-103",
-          order: 3,
-          isFreePreview: false,
-        },
-      ],
-    },
-    {
-      id: "aipm-m2",
-      title: "Prompting for Real Work",
-      order: 2,
-      lessons: [
-        {
-          id: "aipm-m2-l1",
-          title: "Prompts for Writing",
-          durationSec: 480,
-          videoAssetId: "mock-aipm-201",
-          order: 1,
-          isFreePreview: false,
-        },
-        {
-          id: "aipm-m2-l2",
-          title: "Prompts for Analysis",
-          durationSec: 500,
-          videoAssetId: "mock-aipm-202",
-          order: 2,
-          isFreePreview: false,
-        },
-        {
-          id: "aipm-m2-l3",
-          title: "Building Prompt Workflows",
-          durationSec: 540,
-          videoAssetId: "mock-aipm-203",
-          order: 3,
-          isFreePreview: false,
-        },
-      ],
-    },
-  ];
-  for (const m of curriculum) {
-    await prisma.module.upsert({
-      where: { id: m.id },
-      update: { title: m.title, order: m.order, courseId: aiPrompt.id },
-      create: {
-        id: m.id,
-        title: m.title,
-        order: m.order,
-        courseId: aiPrompt.id,
-      },
-    });
-    for (const l of m.lessons) {
-      await prisma.lesson.upsert({
-        where: { id: l.id },
-        update: {
-          title: l.title,
-          durationSec: l.durationSec,
-          videoAssetId: l.videoAssetId,
-          order: l.order,
-          isFreePreview: l.isFreePreview,
-          moduleId: m.id,
-        },
-        create: {
-          id: l.id,
-          title: l.title,
-          durationSec: l.durationSec,
-          videoAssetId: l.videoAssetId,
-          order: l.order,
-          isFreePreview: l.isFreePreview,
-          moduleId: m.id,
-        },
+  // Both launch courses belong to both packages (SB buyer picks one; CB gets both).
+  for (const packageId of [skillBuilder.id, careerBooster.id]) {
+    for (const courseId of launchIds) {
+      await prisma.packageCourse.upsert({
+        where: { packageId_courseId: { packageId, courseId } },
+        update: {},
+        create: { packageId, courseId },
       });
     }
   }
@@ -217,7 +242,8 @@ async function main() {
   }
 
   console.log(
-    "Seed complete: 2 packages, 2 courses (AI & Prompt Mastery: 2 modules × 3 lessons, published), 4 package-course links, 4 system ledger accounts.",
+    "Seed complete: 2 launch courses ([PLACEHOLDER], PUBLISHED, 2 modules × 3 lessons, mock video), " +
+      "5 coming-soon courses (DR-011), 2 packages, 4 package-course links, 4 system ledger accounts.",
   );
 }
 

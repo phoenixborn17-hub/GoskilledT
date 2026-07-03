@@ -50,8 +50,10 @@
 | 27 | Webinar schedule (two-session model) | `/webinar` | Business | PENDING | Founder | Model built; no session dates | Recurring schedule + Event JSON-LD | LAUNCH | Pre-launch | |
 | 28 | `PII_ENCRYPTION_KEY` (32-byte base64) | kyc (Phase 4) | Configuration | PENDING | Engineering + Founder | Env-validated in prod; module not yet needed | Generated + stored in Vercel | LAUNCH (before KYC/payouts) | Phase 4 | Encryption lib ships with Phase 4. |
 | 29 | Day-0 experience spec (registration flow, Hub, Lesson 0) | auth/dashboard | Founder Decision | PENDING | Founder | Current: login-only entry (DR-023 checkout unchanged) | Approved GPS-M2 delta + DR-030 | LAUNCH | Before Phase 2 build of Hub | Design discussed 2026-07-03; awaiting founder sign-off. |
+| 33 | Razorpay TEST-MODE keys for staging | payments (staging) | External Service | PENDING | Founder | `PAYMENT_PROVIDER=mock` + `npm run verify:loop` (no Razorpay account) | Razorpay **test-mode** `RAZORPAY_KEY_ID`/`KEY_SECRET`/`WEBHOOK_SECRET` (signup only — dashboard → Test Mode; NO business activation/KYC) | OPTIONAL (pre-live testing step for #19) | Before #19 go-live | Lets staging run a real Razorpay sandbox checkout before the live account (#19) is activated. Mock loop already proves the pipeline end-to-end. |
 
 ---
 
 **Changelog**
 - 2026-07-03 — Created per DR-029 (Two-Layer Development Rule); seeded with all known pending items from GPS Master v1.1 §19, M1 close-out residuals, and CTO Audit 2026-07-03.
+- 2026-07-04 — Added #33 (Razorpay test-mode keys for staging) as the pre-live testing step for #19; full DR-029 dev dataset seeded + `npm run verify:loop` proves the mock checkout→certificate→verify loop end-to-end. (M3 rows #30–32 land with the GPS-M3 merge, post-Fable-review.)
