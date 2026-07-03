@@ -7,6 +7,7 @@ export type PaymentProviderName = "mock" | "razorpay";
 export type OtpProviderName = "test" | "live";
 export type VideoProviderName = "mock" | "stream";
 export type AnalyticsProviderName = "console" | "posthog";
+export type EmailProviderName = "console" | "resend";
 
 export function paymentProviderName(): PaymentProviderName {
   const v = (process.env.PAYMENT_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
@@ -37,6 +38,13 @@ export function analyticsProviderName(): AnalyticsProviderName {
     throw new Error(
       `Invalid ANALYTICS_PROVIDER: "${v}" (expected console|posthog)`,
     );
+  return v;
+}
+
+export function emailProviderName(): EmailProviderName {
+  const v = (process.env.EMAIL_PROVIDER || "console").toLowerCase(); // empty/unset → dev default
+  if (v !== "console" && v !== "resend")
+    throw new Error(`Invalid EMAIL_PROVIDER: "${v}" (expected console|resend)`);
   return v;
 }
 
@@ -86,6 +94,24 @@ export function softWarnProductionAnalytics(): void {
   );
 }
 
-// Startup guard — importing this module anywhere enforces it. (Analytics is intentionally
-// excluded here; see softWarnProductionAnalytics above.)
+let warnedEmail = false;
+
+/**
+ * Email mirrors the analytics exception (2a): `console` in production is DEGRADED (receipts are
+ * logged, not delivered) but NOT unsafe — money still moves correctly. So we WARN instead of
+ * throwing, and email is intentionally kept OUT of assertProductionProviderSafety(). Warns once.
+ */
+export function softWarnProductionEmail(): void {
+  if (process.env.NODE_ENV !== "production") return;
+  if (emailProviderName() !== "console") return;
+  if (warnedEmail) return;
+  warnedEmail = true;
+  console.warn(
+    "[email] WARNING: EMAIL_PROVIDER=console in production — purchase receipts are logged, NOT delivered. " +
+      "Set EMAIL_PROVIDER=resend with RESEND_API_KEY to send real emails.",
+  );
+}
+
+// Startup guard — importing this module anywhere enforces it. (Analytics and email are
+// intentionally excluded here; see softWarnProductionAnalytics/softWarnProductionEmail above.)
 assertProductionProviderSafety();
