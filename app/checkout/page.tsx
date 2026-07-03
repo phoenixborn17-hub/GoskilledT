@@ -37,7 +37,7 @@ export default async function CheckoutPage({
       <div className="mb-5">
         <p className="font-heading text-2xl font-bold text-charcoal">{pkg.name}</p>
         <p className="text-brand text-lg font-semibold">{formatINR(pkg.priceInPaise)}</p>
-        <p className="text-xs text-charcoal/50">GST-inclusive · one-time</p>
+        <p className="text-xs text-muted">GST-inclusive · one-time</p>
       </div>
       <CheckoutForm
         packageSlug={pkg.slug as "skill-builder" | "career-booster"}

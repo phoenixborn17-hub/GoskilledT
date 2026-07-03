@@ -47,7 +47,7 @@ export default async function WebinarPage() {
             <>
               {/* COPY: draft — no active webinar, still capture the lead */}
               <h1 className="mt-3 font-heading text-3xl font-extrabold leading-tight">Our next webinar is announced soon</h1>
-              <p className="mt-2 text-charcoal/60">Register now — we&apos;ll message you the moment the date is set.</p>
+              <p className="mt-2 text-muted">Register now — we&apos;ll message you the moment the date is set.</p>
             </>
           )}
 

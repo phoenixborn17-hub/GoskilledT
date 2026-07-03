@@ -64,7 +64,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
         <h1 className="font-heading text-3xl font-extrabold leading-tight">{course.title}</h1>
         {course.summary && <p className="mt-2 text-lg text-charcoal/70">{course.summary}</p>}
         {stats.lessonCount > 0 && (
-          <div className="mt-3 flex items-center gap-4 text-sm text-charcoal/50">
+          <div className="mt-3 flex items-center gap-4 text-sm text-muted">
             <span className="inline-flex items-center gap-1"><PlayCircle className="h-4 w-4" aria-hidden /> {stats.lessonCount} lessons</span>
             <span className="inline-flex items-center gap-1"><Clock className="h-4 w-4" aria-hidden /> {stats.durationLabel}</span>
           </div>
@@ -86,12 +86,12 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
         <section aria-labelledby="curriculum" className="reveal mt-8">
           <h2 id="curriculum" className="font-heading text-xl font-bold">Curriculum</h2>
           {course.modules.length === 0 ? (
-            <p className="mt-3 text-sm text-charcoal/60">{/* COPY: draft */}Lessons are being prepared — check back soon.</p>
+            <p className="mt-3 text-sm text-muted">{/* COPY: draft */}Lessons are being prepared — check back soon.</p>
           ) : (
             <div className="mt-3 space-y-4">
               {course.modules.map((m) => (
                 <div key={m.id}>
-                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-charcoal/40">{m.title}</p>
+                  <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">{m.title}</p>
                   <ul className="divide-y divide-charcoal/5 rounded-xl border border-charcoal/10">
                     {m.lessons.map((l) => (
                       <li key={l.id} className="flex items-center gap-3 px-4 py-3 text-sm">
@@ -100,7 +100,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
                         {l.isFreePreview && (
                           <Link href={`/dashboard/learn/${course.slug}?lesson=${l.id}`} className="shrink-0 text-xs font-semibold text-brand">Watch free →</Link>
                         )}
-                        <span className="shrink-0 text-xs text-charcoal/40">{formatDuration(l.durationSec)}</span>
+                        <span className="shrink-0 text-xs text-muted">{formatDuration(l.durationSec)}</span>
                       </li>
                     ))}
                   </ul>
@@ -118,7 +118,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
             <div>
               {/* COPY: draft */}
               <p className="font-semibold">Ashish · Founder, GoSkilled</p>
-              <p className="text-sm text-charcoal/60">IIM Rohtak. Teaches practical, no-fluff skills for real work.</p>
+              <p className="text-sm text-muted">IIM Rohtak. Teaches practical, no-fluff skills for real work.</p>
             </div>
           </Card>
         </section>
@@ -131,7 +131,7 @@ export default async function CourseDetailPage({ params }: { params: Promise<{ s
               <>
                 {/* COPY: draft — DR-021 honest labeling */}
                 <CardTitle className="text-lg">Coming soon</CardTitle>
-                <p className="mt-1 text-sm text-charcoal/60">
+                <p className="mt-1 text-sm text-muted">
                   This course isn&apos;t available yet. <strong>Career Booster</strong> includes future courses as they&apos;re
                   released{cb ? ` — ${priceLabel(cb.priceInPaise)}, GST-inclusive` : ""}.
                 </p>

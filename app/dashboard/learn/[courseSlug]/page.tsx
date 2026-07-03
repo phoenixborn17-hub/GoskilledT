@@ -31,7 +31,7 @@ export default async function CoursePlayerPage({
 
   const flat = view.modules.flatMap((m) => m.lessons);
   if (flat.length === 0) {
-    return <p className="text-sm text-charcoal/60">This course has no lessons yet.</p>;
+    return <p className="text-sm text-muted">This course has no lessons yet.</p>;
   }
 
   // Pick the lesson: a valid ?lesson= wins; otherwise resume; otherwise the first lesson.
@@ -46,7 +46,7 @@ export default async function CoursePlayerPage({
       <div>
         <Link href="/dashboard" className="text-sm text-brand">← Back</Link>
         <h1 className="font-heading text-2xl font-bold">{view.course.title}</h1>
-        <p className="text-sm text-charcoal/60">{view.progress.completed} / {view.progress.total} lessons complete</p>
+        <p className="text-sm text-muted">{view.progress.completed} / {view.progress.total} lessons complete</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-[1fr,18rem]">
@@ -64,7 +64,7 @@ export default async function CoursePlayerPage({
           ) : (
             <Card className="text-center">
               <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-charcoal/5" aria-hidden>
-                <Lock className="h-5 w-5 text-charcoal/50" />
+                <Lock className="h-5 w-5 text-muted" />
               </div>
               <CardTitle>This lesson is locked</CardTitle>
               <CardDescription>Enroll in this course to unlock all lessons. Lesson 1 is a free preview.</CardDescription>
@@ -78,7 +78,7 @@ export default async function CoursePlayerPage({
         <aside aria-label="Lessons" className="space-y-4">
           {view.modules.map((m) => (
             <div key={m.id}>
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-charcoal/40">{m.title}</p>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">{m.title}</p>
               <ul className="space-y-1">
                 {m.lessons.map((l) => {
                   const isCurrent = l.id === selected.id;
@@ -89,7 +89,7 @@ export default async function CoursePlayerPage({
                         aria-current={isCurrent ? "true" : undefined}
                         className={cn("flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors",
                           isCurrent ? "bg-brand/10 font-semibold text-brand" : "text-charcoal/70 hover:bg-charcoal/5")}>
-                        <Icon className={cn("h-4 w-4 shrink-0", l.completed ? "text-brand" : "text-charcoal/40")} aria-hidden />
+                        <Icon className={cn("h-4 w-4 shrink-0", l.completed ? "text-brand" : "text-muted")} aria-hidden />
                         <span className="min-w-0 flex-1 truncate">{l.title}</span>
                         {l.isFreePreview && !l.completed && (
                           <span className="shrink-0 rounded bg-gold px-1.5 py-0.5 text-[10px] font-bold text-charcoal">FREE</span>

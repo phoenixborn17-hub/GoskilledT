@@ -9,10 +9,12 @@ const config: Config = {
         brand: {
           DEFAULT: "#137E49", // gs-green
           fg: "#FEFEFE",
+          deep: "var(--gs-green-deep)", // #0C5A34 — accessible green TEXT on light/tinted bg (AA)
         },
         gold: "#EDC825",
         charcoal: "#2A302A",
         offwhite: "#FEFEFE",
+        muted: "var(--gs-muted)", // accessible muted text (~6:1 on offwhite) — use `text-muted`
       },
       fontFamily: {
         heading: ["Sora", "system-ui", "sans-serif"],

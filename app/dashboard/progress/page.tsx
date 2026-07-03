@@ -30,7 +30,7 @@ export default async function ProgressPage() {
             <ProgressRing percent={c.progress.percent} size={80} />
             <div className="min-w-0 flex-1">
               <p className="truncate font-heading text-lg font-bold">{c.title}</p>
-              <p className="text-sm text-charcoal/60">{c.progress.completed} / {c.progress.total} lessons</p>
+              <p className="text-sm text-muted">{c.progress.completed} / {c.progress.total} lessons</p>
               <div className="mt-3 max-w-[10rem]">
                 <Link href={`/dashboard/learn/${c.slug}`}>
                   <Button variant={c.progress.percent === 100 ? "outline" : "primary"}>

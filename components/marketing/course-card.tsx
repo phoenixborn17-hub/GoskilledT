@@ -26,17 +26,17 @@ export function CourseCard({ course }: { course: CourseCardData }) {
         </div>
 
         <h3 className="font-heading text-lg font-bold leading-snug">{course.title}</h3>
-        {course.summary && <p className="line-clamp-2 text-sm text-charcoal/60">{course.summary}</p>}
+        {course.summary && <p className="line-clamp-2 text-sm text-muted">{course.summary}</p>}
 
         <div className="mt-auto space-y-2 pt-2">
           {course.lessonCount > 0 && (
-            <div className="flex items-center gap-4 text-xs text-charcoal/50">
+            <div className="flex items-center gap-4 text-xs text-muted">
               <span className="inline-flex items-center gap-1"><PlayCircle className="h-3.5 w-3.5" aria-hidden /> {course.lessonCount} lessons</span>
               <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" aria-hidden /> {course.durationLabel}</span>
             </div>
           )}
           {/* COPY: draft — price context (DR-023 package pricing) */}
-          <p className="text-xs text-charcoal/50">
+          <p className="text-xs text-muted">
             {course.packageNames.length > 0 ? `Included in ${course.packageNames.join(" & ")}` : "Available in our packages"}
           </p>
           <span className="inline-block text-sm font-semibold text-brand">{comingSoon ? "Preview details →" : "View course →"}</span>

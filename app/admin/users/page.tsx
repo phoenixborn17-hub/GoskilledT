@@ -19,7 +19,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-heading text-2xl font-bold">Users <span className="text-base font-normal text-charcoal/50">({total})</span></h1>
+        <h1 className="font-heading text-2xl font-bold">Users <span className="text-base font-normal text-muted">({total})</span></h1>
         <form method="get" className="flex gap-2">
           <input name="q" defaultValue={q ?? ""} placeholder="Search phone / referral code"
             className="h-9 w-56 rounded-lg border border-charcoal/15 px-3 text-sm" aria-label="Search users" />
@@ -29,7 +29,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
 
       <div className="overflow-x-auto rounded-xl border border-charcoal/10 bg-white">
         <table className="w-full min-w-[40rem] text-sm">
-          <thead className="border-b border-charcoal/10 text-left text-charcoal/50">
+          <thead className="border-b border-charcoal/10 text-left text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Phone</th>
               <th className="px-4 py-3 font-medium">Referral code</th>
@@ -40,15 +40,15 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
           </thead>
           <tbody>
             {rows.length === 0 ? (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-charcoal/50">No users found.</td></tr>
+              <tr><td colSpan={5} className="px-4 py-8 text-center text-muted">No users found.</td></tr>
             ) : (
               rows.map((u) => (
                 <tr key={u.id} className="border-b border-charcoal/5 last:border-0">
                   <td className="px-4 py-3 font-medium">{u.phone ?? "—"}</td>
                   <td className="px-4 py-3">{u.referralCode}</td>
-                  <td className="px-4 py-3 text-charcoal/60">{u.referredBy?.referralCode ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted">{u.referredBy?.referralCode ?? "—"}</td>
                   <td className="px-4 py-3">{u._count.enrollments}</td>
-                  <td className="px-4 py-3 text-charcoal/60">{fmtDate(u.createdAt)}</td>
+                  <td className="px-4 py-3 text-muted">{fmtDate(u.createdAt)}</td>
                 </tr>
               ))
             )}
@@ -57,7 +57,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
       </div>
 
       <div className="flex items-center justify-between text-sm">
-        <span className="text-charcoal/50">Page {page} of {pageCount}</span>
+        <span className="text-muted">Page {page} of {pageCount}</span>
         <div className="flex gap-2">
           {page > 1 && <Link href={qs(page - 1)} className="rounded-lg border border-charcoal/15 px-3 py-1.5">← Prev</Link>}
           {page < pageCount && <Link href={qs(page + 1)} className="rounded-lg border border-charcoal/15 px-3 py-1.5">Next →</Link>}

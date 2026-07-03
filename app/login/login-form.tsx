@@ -59,7 +59,7 @@ export function LoginForm() {
             <Label htmlFor="otp">Enter OTP</Label>
             <Input id="otp" name="otp" type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code"
               value={token} onChange={(e) => setToken(e.target.value)} maxLength={8} required />
-            <p className="mt-1 text-xs text-charcoal/50">Sent to +91 {phone}</p>
+            <p className="mt-1 text-xs text-muted">Sent to +91 {phone}</p>
           </div>
           {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
           <Button type="submit" disabled={busy}>{busy ? "Verifying…" : "Verify & log in"}</Button>

@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 
 export function SiteHeader() {
   return (
-    <header className="glass sticky top-0 z-30">
+    <header className="glass sticky top-0 z-30 border-b border-charcoal/10">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
         <Link href="/" className="font-heading text-lg font-bold text-brand">GoSkilled</Link>
         <nav aria-label="Primary" className="flex items-center gap-1 sm:gap-2">

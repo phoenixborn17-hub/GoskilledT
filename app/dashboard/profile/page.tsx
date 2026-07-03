@@ -12,7 +12,7 @@ const GOAL_LABEL: Record<string, string> = { SKILL: "Learn a skill", INCOME: "Ea
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between border-b border-charcoal/5 py-3 last:border-0">
-      <span className="text-sm text-charcoal/50">{label}</span>
+      <span className="text-sm text-muted">{label}</span>
       <span className="text-sm font-medium text-charcoal">{value}</span>
     </div>
   );

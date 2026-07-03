@@ -39,9 +39,9 @@ export default async function LearnPage() {
       <Card className="flex items-center gap-5">
         <ProgressRing percent={active.progress.percent} />
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-charcoal/50">Continue learning</p>
+          <p className="text-xs font-medium uppercase tracking-wide text-muted">Continue learning</p>
           <p className="truncate font-heading text-lg font-bold">{active.title}</p>
-          <p className="text-sm text-charcoal/60">{active.progress.completed} / {active.progress.total} lessons</p>
+          <p className="text-sm text-muted">{active.progress.completed} / {active.progress.total} lessons</p>
           <div className="mt-3 max-w-[10rem]">
             <Link href={`/dashboard/learn/${active.slug}`}><Button>{cta}</Button></Link>
           </div>
@@ -55,7 +55,7 @@ export default async function LearnPage() {
             <Card className="flex items-center justify-between gap-4 transition-colors hover:border-brand/30">
               <div className="min-w-0">
                 <p className="truncate font-medium">{c.title}</p>
-                <p className="text-sm text-charcoal/60">{c.progress.completed} / {c.progress.total} lessons · {c.progress.percent}%</p>
+                <p className="text-sm text-muted">{c.progress.completed} / {c.progress.total} lessons · {c.progress.percent}%</p>
               </div>
               <span className="shrink-0 text-sm font-semibold text-brand">Open →</span>
             </Card>

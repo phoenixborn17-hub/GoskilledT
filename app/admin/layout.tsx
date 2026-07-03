@@ -18,7 +18,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <header className="flex h-14 items-center justify-between border-b border-charcoal/10 bg-white px-4">
           <span className="font-heading text-sm font-bold text-charcoal md:hidden">Admin</span>
           <div className="ml-auto flex items-center gap-3">
-            <span className="max-w-[12rem] truncate text-sm text-charcoal/60" title={admin.email ?? undefined}>{admin.email ?? "admin"}</span>
+            <span className="max-w-[12rem] truncate text-sm text-muted" title={admin.email ?? undefined}>{admin.email ?? "admin"}</span>
             <form action={signOutAction}>
               <button type="submit" className="rounded-lg border border-charcoal/15 px-3 py-1.5 text-sm font-medium text-charcoal hover:bg-charcoal/5">Log out</button>
             </form>

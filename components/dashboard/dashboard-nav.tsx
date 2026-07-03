@@ -43,7 +43,7 @@ export function DashboardNav() {
           return (
             <Link key={href} href={href} aria-current={active ? "page" : undefined}
               className={cn("flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors",
-                active ? "text-brand" : "text-charcoal/50")}>
+                active ? "text-brand" : "text-muted")}>
               <Icon className="h-5 w-5" aria-hidden />
               {label}
             </Link>
