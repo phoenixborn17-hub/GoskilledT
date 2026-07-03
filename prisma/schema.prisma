@@ -1,0 +1,367 @@
+// GoSkilled vNext — data model
+// Principles: money in PAISE (Int); real FKs; double-entry ledger; idempotent webhooks;
+// commissions ONLY on verified payment; PII encrypted at rest. See CLAUDE.md.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────── Identity ───────────────
+enum Role {
+  USER
+  ADMIN
+}
+
+// goal-based onboarding (Blueprint §3 /onboarding)
+enum UserGoal {
+  SKILL
+  INCOME
+  BOTH
+}
+
+model User {
+  id            String   @id @default(cuid())
+  supabaseId    String?  @unique            // Supabase Auth user id
+  phone         String?  @unique
+  email         String?  @unique
+  name          String?
+  role          Role     @default(USER)
+  referralCode  String   @unique
+  referredById  String?
+  referredBy    User?    @relation("Referrals", fields: [referredById], references: [id])
+  referrals     User[]   @relation("Referrals")
+  isVerified    Boolean  @default(false)
+  goal          UserGoal?
+  onboardedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  enrollments   Enrollment[]
+  lessonProgress LessonProgress[]
+  certificates  Certificate[]
+  orders        Order[]
+  affiliate     Affiliate?
+  ledgerAccount LedgerAccount?
+  withdrawals   Withdrawal[]
+  kyc           Kyc?
+  uplineEdges   Referral[] @relation("Downline")
+  downlineEdges Referral[] @relation("Upline")
+}
+
+// ─────────────── Catalog / LMS ───────────────
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  COMING_SOON
+}
+
+model Package {
+  id            String   @id @default(cuid())
+  slug          String   @unique            // skill-builder | career-booster
+  name          String
+  priceInPaise  Int                          // GST-INCLUSIVE display price (DR-023)
+  gstRateBps    Int      @default(1800)     // 18% in basis points
+  isActive      Boolean  @default(true)
+  includesFutureCourses Boolean @default(false) // DR-021: true for Career Booster
+  courses       PackageCourse[]
+  orders        Order[]
+}
+
+model Course {
+  id        String       @id @default(cuid())
+  slug      String       @unique
+  title     String
+  summary   String?
+  category  String?
+  status    CourseStatus @default(DRAFT)
+  order     Int          @default(0)
+  modules   Module[]
+  packages  PackageCourse[]
+  enrollments Enrollment[]
+  certificates Certificate[]
+}
+
+model PackageCourse {
+  packageId String
+  courseId  String
+  package   Package @relation(fields: [packageId], references: [id])
+  course    Course  @relation(fields: [courseId], references: [id])
+  @@id([packageId, courseId])
+}
+
+model Module {
+  id       String  @id @default(cuid())
+  courseId String
+  course   Course  @relation(fields: [courseId], references: [id])
+  title    String
+  order    Int     @default(0)
+  lessons  Lesson[]
+}
+
+model Lesson {
+  id            String  @id @default(cuid())
+  moduleId      String
+  module        Module  @relation(fields: [moduleId], references: [id])
+  title         String
+  videoAssetId  String?
+  durationSec   Int     @default(0)
+  order         Int     @default(0)
+  isFreePreview Boolean @default(false)
+  progress      LessonProgress[]
+}
+
+enum EnrollmentSource {
+  PACKAGE
+  DIRECT
+}
+
+model Enrollment {
+  id         String           @id @default(cuid())
+  userId     String
+  courseId   String
+  user       User             @relation(fields: [userId], references: [id])
+  course     Course           @relation(fields: [courseId], references: [id])
+  source     EnrollmentSource @default(PACKAGE)
+  enrolledAt DateTime         @default(now())
+  @@unique([userId, courseId])
+}
+
+model LessonProgress {
+  id          String   @id @default(cuid())
+  userId      String
+  lessonId    String
+  user        User     @relation(fields: [userId], references: [id])
+  lesson      Lesson   @relation(fields: [lessonId], references: [id])
+  completedAt DateTime @default(now())
+  @@unique([userId, lessonId])
+}
+
+model Certificate {
+  id       String   @id @default(cuid())
+  userId   String
+  courseId String
+  user     User     @relation(fields: [userId], references: [id])
+  course   Course   @relation(fields: [courseId], references: [id])
+  serial   String   @unique
+  issuedAt DateTime @default(now())
+  @@unique([userId, courseId])
+}
+
+// ─────────────── Commerce / Payments ───────────────
+enum OrderStatus {
+  CREATED
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id               String      @id @default(cuid())
+  userId           String
+  packageId        String
+  user             User        @relation(fields: [userId], references: [id])
+  package          Package     @relation(fields: [packageId], references: [id])
+  amountInPaise    Int
+  gstInPaise       Int         @default(0)
+  chosenCourseId   String?                  // DR-021: Skill Builder buyer's course choice
+  status           OrderStatus @default(CREATED)
+  razorpayOrderId  String?     @unique
+  razorpayPaymentId String?    @unique
+  createdAt        DateTime    @default(now())
+  paidAt           DateTime?
+}
+
+// Idempotency ledger for provider webhooks — the anti-double-credit guard.
+model WebhookEvent {
+  id          String   @id @default(cuid())
+  provider    String                        // "razorpay"
+  eventId     String                        // provider event id
+  payloadHash String
+  processedAt DateTime @default(now())
+  @@unique([provider, eventId])
+}
+
+// ─────────────── Affiliate ───────────────
+// REGISTERED = free signup; ACTIVE = purchased & credited
+enum ReferralStatus {
+  REGISTERED
+  ACTIVE
+}
+
+enum AffiliateStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+model Affiliate {
+  id        String          @id @default(cuid())
+  userId    String          @unique
+  user      User            @relation(fields: [userId], references: [id])
+  status    AffiliateStatus @default(ACTIVE)
+  createdAt DateTime        @default(now())
+}
+
+model Referral {
+  id             String         @id @default(cuid())
+  uplineUserId   String
+  downlineUserId String
+  upline         User           @relation("Upline", fields: [uplineUserId], references: [id])
+  downline       User           @relation("Downline", fields: [downlineUserId], references: [id])
+  level          Int                                   // 1 | 2 | 3
+  packageId      String?
+  status         ReferralStatus @default(REGISTERED)
+  commissionInPaise Int         @default(0)
+  activatedAt    DateTime?
+  createdAt      DateTime       @default(now())
+  @@unique([uplineUserId, downlineUserId, level])
+  @@index([downlineUserId])
+}
+
+// ─────────────── Double-entry Ledger ───────────────
+enum AccountType {
+  USER_WALLET
+  REVENUE
+  COMMISSION_PAYABLE
+  PAYOUT_CLEARING
+  GST_PAYABLE
+}
+
+model LedgerAccount {
+  id      String      @id @default(cuid())
+  type    AccountType
+  userId  String?     @unique               // null for system accounts
+  user    User?       @relation(fields: [userId], references: [id])
+  entries LedgerEntry[]
+  // Balance is DERIVED = sum(entries.amountInPaise). Never stored as a mutable column.
+}
+
+// A LedgerTransaction groups >=2 entries whose signed amounts sum to ZERO.
+// CLAWBACK = within-window refund reversal (DR-025). ADJUSTMENT = post-window manual
+// refund — negative entry nets against FUTURE earnings; never reclaim paid-out money.
+enum LedgerTxType {
+  COMMISSION
+  PAYOUT
+  ADJUSTMENT
+  CLAWBACK
+}
+
+model LedgerTransaction {
+  id             String       @id @default(cuid())
+  type           LedgerTxType
+  idempotencyKey String   @unique              // "commission:{orderId}:{uplineId}:{level}" | "clawback:{orderId}:{uplineId}:{level}"
+  refType        String?
+  refId          String?
+  createdAt      DateTime @default(now())
+  entries        LedgerEntry[]
+}
+
+model LedgerEntry {
+  id            String   @id @default(cuid())
+  transactionId String
+  transaction   LedgerTransaction @relation(fields: [transactionId], references: [id])
+  accountId     String
+  account       LedgerAccount     @relation(fields: [accountId], references: [id])
+  amountInPaise Int                            // signed: +credit / -debit
+  holdUntil     DateTime?                      // DR-025: commission credits are HELD until refund window closes.
+                                               // AVAILABLE balance = entries where holdUntil is null OR holdUntil <= now.
+                                               // UI must show Held vs Available separately (held = visible, not withdrawable).
+  createdAt     DateTime @default(now())
+  @@index([accountId])
+}
+
+enum WithdrawalStatus {
+  APPLIED
+  IN_PROGRESS
+  PAID
+  REJECTED
+}
+
+model Withdrawal {
+  id            String           @id @default(cuid())
+  userId        String
+  user          User             @relation(fields: [userId], references: [id])
+  amountInPaise Int
+  status        WithdrawalStatus @default(APPLIED)
+  adminNote     String?
+  requestedAt   DateTime         @default(now())
+  paidAt        DateTime?
+  // Single-pending enforced in logic + partial unique index (see migration).
+}
+
+// ─────────────── KYC (PII encrypted at rest) ───────────────
+enum KycStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model Kyc {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  user          User      @relation(fields: [userId], references: [id])
+  panEnc        String?                        // AES-256-GCM ciphertext
+  bankNameEnc   String?
+  accountNoEnc  String?
+  ifsc          String?
+  upi           String?
+  whatsapp      String?
+  status        KycStatus @default(DRAFT)
+  submittedAt   DateTime?
+  updatedAt     DateTime  @updatedAt
+}
+
+// ─────────────── CRM / Marketing ───────────────
+enum LeadStage {
+  NEW
+  CONTACTED
+  WEBINAR_REGISTERED
+  CONVERTED
+  LOST
+}
+
+model Lead {
+  id              String    @id @default(cuid())
+  name            String?
+  phone           String?
+  email           String?
+  source          String?
+  utmSource       String?                     // KB-10 lead-handoff contract (Blueprint §5)
+  utmMedium       String?
+  utmCampaign     String?
+  stage           LeadStage @default(NEW)
+  packageInterest String?
+  createdAt       DateTime  @default(now())
+  @@unique([phone, source])                   // dedup: same phone from same source = one lead
+  @@index([stage])
+}
+
+model Webinar {
+  id        String   @id @default(cuid())
+  title     String
+  startsAt  DateTime
+  joinUrl   String?
+  isActive  Boolean  @default(true)
+}
+
+// ─────────────── Admin audit ───────────────
+// DR-024: ONE auth authority — Supabase Auth for users AND admins (role claim + RBAC).
+// No OtpCode table (Supabase owns OTP), no AdminUser/passwordHash (no hand-rolled auth).
+model AdminAction {
+  id             String   @id @default(cuid())
+  actorSupabaseId String                       // Supabase Auth user id of the admin
+  actorEmail     String?                       // denormalized for readable audit trails
+  action         String
+  entity         String
+  entityId       String?
+  meta           Json?
+  createdAt      DateTime @default(now())
+  @@index([actorSupabaseId])
+}

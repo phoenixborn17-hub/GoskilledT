@@ -1,0 +1,17 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* GoSkilled brand tokens (DR-012). LMS = green-forward, Affiliate = gold-forward. */
+:root {
+  --gs-green: #137E49;
+  --gs-gold: #EDC825;
+  --gs-charcoal: #2A302A;
+  --gs-offwhite: #FEFEFE;
+  --font-heading: "Sora", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-hindi: "Noto Sans Devanagari", sans-serif;
+  /* default theme = green (marketing + LMS) */
+  --brand: var(--gs-green);
+}
+[data-theme="affiliate"] { --brand: var(--gs-gold); }   /* gold-forward affiliate surface */
