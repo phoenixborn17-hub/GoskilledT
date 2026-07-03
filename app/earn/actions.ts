@@ -7,6 +7,7 @@ import { phoneSchema } from "../../modules/payments/schemas";
 import { buildLeadData } from "../../modules/crm/lead";
 import { upsertLead } from "../../lib/crm/leads";
 import { rateLimit } from "../../lib/rate-limit";
+import { track, anonId } from "../../lib/analytics/track";
 
 const utmSchema = z.object({ source: z.string().nullable(), medium: z.string().nullable(), campaign: z.string().nullable() });
 
@@ -31,15 +32,19 @@ export async function joinWaitlist(input: z.input<typeof schema>): Promise<Waitl
   if (!rl.ok) return { ok: false, error: "Too many attempts. Please try again in a few minutes." };
 
   try {
-    await upsertLead(
-      buildLeadData({
-        name: parsed.data.name,
-        phone: parsed.data.phone,
-        source: "earn-waitlist",
-        stage: "NEW",
-        utm: parsed.data.utm,
-      }),
-    );
+    const lead = buildLeadData({
+      name: parsed.data.name,
+      phone: parsed.data.phone,
+      source: "earn-waitlist",
+      stage: "NEW",
+      utm: parsed.data.utm,
+    });
+    await upsertLead(lead);
+    await track("waitlist_joined", anonId(lead.phone), {
+      source: "earn-waitlist",
+      utm_source: lead.utmSource,
+      utm_campaign: lead.utmCampaign,
+    });
     return { ok: true };
   } catch {
     return { ok: false, error: "Could not join. Please try again." };

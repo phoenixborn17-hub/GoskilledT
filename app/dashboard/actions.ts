@@ -7,6 +7,7 @@ import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { getCurrentUser } from "../../lib/auth/session";
 import { completeLesson } from "../../lib/lms/queries";
 import type { ProgressSummary } from "../../modules/lms/progress";
+import { track } from "../../lib/analytics/track";
 
 export async function signOutAction(): Promise<void> {
   const supabase = await createSupabaseServerClient();
@@ -23,6 +24,12 @@ export async function completeLessonAction(input: { courseSlug: string; lessonId
   if (!user) return { ok: false, error: "Please sign in." };
   try {
     const { progress } = await completeLesson(user.id, input.lessonId);
+    await track("lesson_complete", user.id, {
+      course_slug: input.courseSlug,
+      lesson_id: input.lessonId,
+      completed: progress.completed,
+      total: progress.total,
+    });
     revalidatePath(`/dashboard/learn/${input.courseSlug}`);
     revalidatePath("/dashboard");
     return { ok: true, progress };

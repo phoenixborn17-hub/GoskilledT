@@ -39,4 +39,17 @@ describe.skipIf(!HAS_DB)("lead flow (integration)", () => {
     expect(waitlist?.source).toBe("earn-waitlist");
     expect(await prisma.lead.count({ where: { phone: e164 } })).toBe(2); // webinar + waitlist
   });
+
+  it("re-registration NEVER downgrades a CONVERTED lead (sticky, Ticket 8 Task 0)", async () => {
+    const p = "8" + String(Date.now()).slice(-9);
+    const e = `+91${p}`;
+    await upsertLead(buildLeadData({ phone: p, source: "webinar", stage: "WEBINAR_REGISTERED" }));
+    // Simulate a completed sale (the admin/webhook path would set this).
+    await prisma.lead.update({ where: { phone_source: { phone: e, source: "webinar" } }, data: { stage: "CONVERTED" } });
+    // The buyer re-submits the webinar form weeks later — must not undo the sale.
+    await upsertLead(buildLeadData({ name: "Later", phone: p, source: "webinar", stage: "WEBINAR_REGISTERED" }));
+    const lead = await prisma.lead.findUnique({ where: { phone_source: { phone: e, source: "webinar" } } });
+    expect(lead?.stage).toBe("CONVERTED"); // stage held
+    expect(lead?.name).toBe("Later"); // name still refreshes
+  });
 });

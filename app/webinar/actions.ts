@@ -7,6 +7,7 @@ import { phoneSchema } from "../../modules/payments/schemas";
 import { buildLeadData } from "../../modules/crm/lead";
 import { upsertLead } from "../../lib/crm/leads";
 import { rateLimit } from "../../lib/rate-limit";
+import { track, anonId } from "../../lib/analytics/track";
 
 const utmSchema = z.object({ source: z.string().nullable(), medium: z.string().nullable(), campaign: z.string().nullable() });
 
@@ -32,16 +33,21 @@ export async function registerWebinar(input: z.input<typeof schema>): Promise<Re
   if (!rl.ok) return { ok: false, error: "Too many attempts. Please try again in a few minutes." };
 
   try {
-    await upsertLead(
-      buildLeadData({
-        name: parsed.data.name,
-        phone: parsed.data.phone,
-        source: "webinar",
-        stage: "WEBINAR_REGISTERED",
-        utm: parsed.data.utm,
-        packageInterest: parsed.data.packageInterest,
-      }),
-    );
+    const lead = buildLeadData({
+      name: parsed.data.name,
+      phone: parsed.data.phone,
+      source: "webinar",
+      stage: "WEBINAR_REGISTERED",
+      utm: parsed.data.utm,
+      packageInterest: parsed.data.packageInterest,
+    });
+    await upsertLead(lead);
+    await track("webinar_registered", anonId(lead.phone), {
+      source: "webinar",
+      utm_source: lead.utmSource,
+      utm_campaign: lead.utmCampaign,
+      package_interest: lead.packageInterest,
+    });
     return { ok: true }; // never echo PII back
   } catch {
     return { ok: false, error: "Could not register. Please try again." };

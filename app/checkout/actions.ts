@@ -10,6 +10,7 @@ import { getOtpProvider } from "../../lib/auth/otp";
 import { syncUser } from "../../lib/auth/user-sync";
 import { startCheckout as placeOrder } from "../../lib/payments/checkout";
 import { getPaymentProvider } from "../../lib/payments/provider";
+import { track, anonId } from "../../lib/analytics/track";
 
 // ≤3 inputs before pay: phone, package, optional course. No name/email here (DR-023).
 const startSchema = z
@@ -43,8 +44,11 @@ export type VerifyCheckoutResult =
 export async function startCheckout(input: z.input<typeof startSchema>): Promise<CheckoutActionResult> {
   const parsed = startSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid details" };
+  const id = anonId(parsed.data.phone);
+  await track("begin_checkout", id, { package: parsed.data.packageSlug });
   try {
     await getOtpProvider().sendOtp(parsed.data.phone);
+    await track("checkout_otp_sent", id, { package: parsed.data.packageSlug });
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Could not send OTP" };
@@ -67,6 +71,13 @@ export async function verifyCheckoutOtp(input: z.input<typeof verifySchema>): Pr
       { packageSlug: data.packageSlug, chosenCourseId: data.chosenCourseId, phone: data.phone, referralCode: data.referralCode },
       (i) => provider.createOrder(i),
     );
+    // Funnel: OTP verified + order created. distinctId = our user id so this stitches to the
+    // webhook `purchase` event. Amount is not PII; never send phone/name here.
+    await track("checkout_verified", user.id, {
+      package: data.packageSlug,
+      order_id: order.orderId,
+      amount_paise: order.amountInPaise,
+    });
     return { ok: true, orderId: order.orderId, paymentOrderId: order.razorpayOrderId, amountInPaise: order.amountInPaise, provider: provider.name };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Checkout failed" };
