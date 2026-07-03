@@ -1,19 +1,55 @@
-// Marketing site header (server component, links only). Sticky, mobile-first.
+// Marketing site header (server component, links only — zero client JS). Sticky, mobile-first.
+// Desktop (md+): inline primary nav + Log in. Mobile: CSS-only <details> disclosure menu
+// (keyboard-toggleable, no JS, no hydration cost). Nav set per Blueprint: Courses, Packages,
+// Webinar, Earn, About, FAQ.
 import Link from "next/link";
+import { Menu, X } from "lucide-react";
 import { Button } from "../ui/button";
+
+const NAV = [
+  { href: "/courses", label: "Courses" },
+  { href: "/packages", label: "Packages" },
+  { href: "/webinar", label: "Webinar" },
+  { href: "/earn", label: "Earn" },
+  { href: "/about", label: "About" },
+  { href: "/faq", label: "FAQ" },
+];
 
 export function SiteHeader() {
   return (
     <header className="glass sticky top-0 z-30 border-b border-charcoal/10">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
         <Link href="/" className="font-heading text-lg font-bold text-brand">GoSkilled</Link>
-        <nav aria-label="Primary" className="flex items-center gap-1 sm:gap-2">
-          <Link href="/courses" className="rounded-lg px-3 py-2 text-sm font-medium text-charcoal/70 hover:text-brand">Courses</Link>
-          <Link href="/packages" className="rounded-lg px-3 py-2 text-sm font-medium text-charcoal/70 hover:text-brand">Packages</Link>
-          <Link href="/login" className="ml-1 hidden sm:block">
-            <span className="inline-flex h-9 items-center rounded-xl border border-brand/30 px-4 text-sm font-semibold text-charcoal hover:bg-brand/5">Log in</span>
+
+        {/* Desktop nav */}
+        <nav aria-label="Primary" className="hidden items-center gap-1 md:flex">
+          {NAV.map((l) => (
+            <Link key={l.href} href={l.href} className="press rounded-lg px-3 py-2 text-sm font-medium text-charcoal/70 hover:text-brand">
+              {l.label}
+            </Link>
+          ))}
+          <Link href="/login" className="ml-1">
+            <span className="press inline-flex h-9 items-center rounded-xl border border-brand/30 px-4 text-sm font-semibold text-charcoal hover:bg-brand/5">Log in</span>
           </Link>
         </nav>
+
+        {/* Mobile menu — CSS-only <details> disclosure, no JS */}
+        <details className="group relative md:hidden">
+          <summary aria-label="Open menu" className="press flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg text-charcoal hover:bg-charcoal/5 [&::-webkit-details-marker]:hidden">
+            <Menu className="h-6 w-6 group-open:hidden" aria-hidden />
+            <X className="hidden h-6 w-6 group-open:block" aria-hidden />
+          </summary>
+          <nav aria-label="Primary" className="glass absolute right-0 top-12 w-56 rounded-2xl border border-charcoal/10 p-2 shadow-lg">
+            {NAV.map((l) => (
+              <Link key={l.href} href={l.href} className="block rounded-lg px-3 py-2.5 text-sm font-medium text-charcoal/80 hover:bg-brand/5 hover:text-brand">
+                {l.label}
+              </Link>
+            ))}
+            <div className="mt-1 border-t border-charcoal/10 pt-2">
+              <Link href="/login" className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-brand hover:bg-brand/5">Log in →</Link>
+            </div>
+          </nav>
+        </details>
       </div>
     </header>
   );
