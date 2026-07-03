@@ -31,6 +31,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Run on everything except static assets so the session cookie stays fresh site-wide.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
+  // Run on everything except static assets AND the Razorpay webhook (raw-body signed route
+  // that must never pass through session/auth machinery — Ticket 3 deferred finding).
+  matcher: ["/((?!api/webhooks/razorpay|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)"],
 };

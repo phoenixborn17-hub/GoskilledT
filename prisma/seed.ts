@@ -53,6 +53,42 @@ async function main() {
     });
   }
 
+  // ── AI & Prompt Mastery curriculum (Ticket 4): 2 modules × 3 lessons ─────────
+  // Explicit ids make the seed idempotent (Module/Lesson have no natural unique key).
+  // First lesson is a free preview; every lesson carries a mock videoAssetId.
+  const curriculum = [
+    {
+      id: "aipm-m1", title: "Foundations of Prompting", order: 1,
+      lessons: [
+        { id: "aipm-m1-l1", title: "What is a Prompt?", durationSec: 300, videoAssetId: "mock-aipm-101", order: 1, isFreePreview: true },
+        { id: "aipm-m1-l2", title: "Anatomy of a Great Prompt", durationSec: 420, videoAssetId: "mock-aipm-102", order: 2, isFreePreview: false },
+        { id: "aipm-m1-l3", title: "Common Prompting Mistakes", durationSec: 360, videoAssetId: "mock-aipm-103", order: 3, isFreePreview: false },
+      ],
+    },
+    {
+      id: "aipm-m2", title: "Prompting for Real Work", order: 2,
+      lessons: [
+        { id: "aipm-m2-l1", title: "Prompts for Writing", durationSec: 480, videoAssetId: "mock-aipm-201", order: 1, isFreePreview: false },
+        { id: "aipm-m2-l2", title: "Prompts for Analysis", durationSec: 500, videoAssetId: "mock-aipm-202", order: 2, isFreePreview: false },
+        { id: "aipm-m2-l3", title: "Building Prompt Workflows", durationSec: 540, videoAssetId: "mock-aipm-203", order: 3, isFreePreview: false },
+      ],
+    },
+  ];
+  for (const m of curriculum) {
+    await prisma.module.upsert({
+      where: { id: m.id },
+      update: { title: m.title, order: m.order, courseId: aiPrompt.id },
+      create: { id: m.id, title: m.title, order: m.order, courseId: aiPrompt.id },
+    });
+    for (const l of m.lessons) {
+      await prisma.lesson.upsert({
+        where: { id: l.id },
+        update: { title: l.title, durationSec: l.durationSec, videoAssetId: l.videoAssetId, order: l.order, isFreePreview: l.isFreePreview, moduleId: m.id },
+        create: { id: l.id, title: l.title, durationSec: l.durationSec, videoAssetId: l.videoAssetId, order: l.order, isFreePreview: l.isFreePreview, moduleId: m.id },
+      });
+    }
+  }
+
   // ── System ledger accounts (userId = null; USER_WALLET created on demand) ────
   const systemAccounts: AccountType[] = ["REVENUE", "COMMISSION_PAYABLE", "PAYOUT_CLEARING", "GST_PAYABLE"];
   for (const type of systemAccounts) {
@@ -60,7 +96,7 @@ async function main() {
     if (!exists) await prisma.ledgerAccount.create({ data: { type } });
   }
 
-  console.log("Seed complete: 2 packages, 2 courses, 4 package-course links, 4 system ledger accounts.");
+  console.log("Seed complete: 2 packages, 2 courses (AI & Prompt Mastery: 2 modules × 3 lessons, published), 4 package-course links, 4 system ledger accounts.");
 }
 
 main()

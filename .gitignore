@@ -25,7 +25,9 @@ dist/
 
 # ── TypeScript build info ─────────────────────────────────────
 *.tsbuildinfo
-# NOTE: next-env.d.ts is intentionally tracked (referenced by tsconfig; keeps a fresh clone typecheckable).
+# next-env.d.ts is auto-generated per-environment by `next dev`/`next build` and references
+# ./.next/types (which is git-ignored), so it is git-ignored per Next.js convention (Ticket 3 finding).
+next-env.d.ts
 
 # ── Tests / coverage ──────────────────────────────────────────
 /coverage

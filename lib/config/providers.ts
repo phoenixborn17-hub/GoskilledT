@@ -5,6 +5,7 @@
 
 export type PaymentProviderName = "mock" | "razorpay";
 export type OtpProviderName = "test" | "live";
+export type VideoProviderName = "mock" | "stream";
 
 export function paymentProviderName(): PaymentProviderName {
   const v = (process.env.PAYMENT_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
@@ -18,9 +19,15 @@ export function otpProviderName(): OtpProviderName {
   return v;
 }
 
-/** True when a development/mock provider is active for either dependency. */
+export function videoProviderName(): VideoProviderName {
+  const v = (process.env.VIDEO_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
+  if (v !== "mock" && v !== "stream") throw new Error(`Invalid VIDEO_PROVIDER: "${v}" (expected mock|stream)`);
+  return v;
+}
+
+/** True when a development/mock provider is active for any dependency. */
 export function usingDevProviders(): boolean {
-  return paymentProviderName() === "mock" || otpProviderName() === "test";
+  return paymentProviderName() === "mock" || otpProviderName() === "test" || videoProviderName() === "mock";
 }
 
 /**
@@ -32,10 +39,11 @@ export function assertProductionProviderSafety(): void {
   const offenders: string[] = [];
   if (paymentProviderName() === "mock") offenders.push("PAYMENT_PROVIDER=mock");
   if (otpProviderName() === "test") offenders.push("OTP_PROVIDER=test");
+  if (videoProviderName() === "mock") offenders.push("VIDEO_PROVIDER=mock");
   if (offenders.length > 0) {
     throw new Error(
       `FATAL: development providers enabled in production (${offenders.join(", ")}). ` +
-        `Set PAYMENT_PROVIDER=razorpay and OTP_PROVIDER=live with real credentials before deploying.`,
+        `Set PAYMENT_PROVIDER=razorpay, OTP_PROVIDER=live and VIDEO_PROVIDER=stream with real credentials before deploying.`,
     );
   }
 }
