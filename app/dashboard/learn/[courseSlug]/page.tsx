@@ -5,7 +5,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Lock, CheckCircle2, PlayCircle } from "lucide-react";
 import { getCurrentUser } from "../../../../lib/auth/session";
-import { getCoursePlayerView } from "../../../../lib/lms/queries";
+import {
+  getCoursePlayerView,
+  resolvePlayback,
+} from "../../../../lib/lms/queries";
 import { getVideoProvider } from "../../../../lib/video/provider";
 import { nextLessonId } from "../../../../modules/lms/progress";
 import { LessonPlayer } from "../../../../components/dashboard/lesson-player";
@@ -48,10 +51,7 @@ export default async function CoursePlayerPage({
   const next = nextLessonId(view.orderedLessonIds, selected.id);
 
   // Only resolve a playback URL if the lesson is actually accessible (server-side gate).
-  const playback =
-    selected.locked || !selected.videoAssetId
-      ? null
-      : getVideoProvider().getPlayback(selected.videoAssetId);
+  const playback = resolvePlayback(selected, getVideoProvider());
 
   return (
     <div className="space-y-6">

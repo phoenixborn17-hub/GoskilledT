@@ -1,8 +1,10 @@
-// Dashboard server actions (Ticket 4). Access is enforced server-side — the client is never
-// trusted for completion or auth.
+// Dashboard server actions (Ticket 4 · GPS-M2 §2.5). Access is enforced server-side — the client
+// is never trusted for completion, profile writes, or auth.
 "use server";
+import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { prisma } from "../../lib/prisma";
 import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { getCurrentUser } from "../../lib/auth/session";
 import { completeLesson } from "../../lib/lms/queries";
@@ -13,6 +15,49 @@ export async function signOutAction(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
   redirect("/");
+}
+
+// Profile edit (§2.5): name/email/goal only. Phone is auth identity (read-only). Zod-validated;
+// the client is never trusted. Email is unique — a collision is reported, not thrown.
+const profileSchema = z.object({
+  name: z.string().trim().min(1, "Enter your name").max(80),
+  email: z.string().trim().email("Enter a valid email"),
+  goal: z.enum(["SKILL", "INCOME", "BOTH"]),
+});
+
+export type UpdateProfileResult = { ok: true } | { ok: false; error: string };
+
+export async function updateProfile(
+  input: z.input<typeof profileSchema>,
+): Promise<UpdateProfileResult> {
+  const parsed = profileSchema.safeParse(input);
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid details",
+    };
+
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Please sign in." };
+
+  try {
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name: parsed.data.name,
+        email: parsed.data.email,
+        goal: parsed.data.goal,
+      },
+    });
+    revalidatePath("/dashboard/profile");
+    revalidatePath("/dashboard");
+    return { ok: true };
+  } catch {
+    return {
+      ok: false,
+      error: "Could not save (email may already be in use).",
+    };
+  }
 }
 
 export type CompleteLessonResult =

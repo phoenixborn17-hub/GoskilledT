@@ -26,6 +26,12 @@ export function LessonPlayer({
   const [completed, setCompleted] = useState(initiallyCompleted);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Video load-error failure path (§2.3): retry (reload) + WhatsApp "report issue" deep-link.
+  const [videoError, setVideoError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const REPORT_HREF = `https://wa.me/918572887888?text=${encodeURIComponent(
+    `Hi, I hit a video problem on the lesson: ${title}`,
+  )}`; // // REPLACE: temp support number (matches /contact)
 
   async function markComplete() {
     setBusy(true);
@@ -45,18 +51,50 @@ export function LessonPlayer({
   return (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-2xl bg-charcoal">
-        {/* Native <video> plays the mock MP4. HLS (Cloudflare Stream) is wired for a later ticket. */}
-        <video
-          key={src}
-          controls
-          playsInline
-          poster={poster}
-          className="aspect-video w-full"
-          preload="metadata"
-        >
-          <source src={src} />
-          Your browser does not support video playback.
-        </video>
+        {/* Guru companion-panel slot (§1E, GPS-M5) reserved alongside the player — no UI in M2. */}
+        {videoError ? (
+          <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 p-6 text-center">
+            <p className="text-sm font-medium text-white">
+              This video didn&apos;t load.
+            </p>
+            <div className="flex flex-wrap justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setVideoError(false);
+                  setAttempt((a) => a + 1);
+                }}
+                className="press rounded-xl bg-white px-4 py-2 text-sm font-semibold text-charcoal"
+              >
+                Retry
+              </button>
+              <a
+                href={REPORT_HREF}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-xl border border-white/40 px-4 py-2 text-sm font-semibold text-white hover:bg-white/10"
+              >
+                Report issue
+              </a>
+            </div>
+          </div>
+        ) : (
+          // Native <video> plays the mock MP4. HLS (Cloudflare Stream) resolves via the video
+          // provider when the account lands — the player interface stays identical (DR-022).
+          <video
+            key={`${src}-${attempt}`}
+            controls
+            playsInline
+            poster={poster}
+            className="aspect-video w-full"
+            preload="metadata"
+            onError={() => setVideoError(true)}
+          >
+            <source src={src} />
+            {/* Captions slot: Hinglish <track kind="captions"> added when caption files land (§2.3). */}
+            Your browser does not support video playback.
+          </video>
+        )}
       </div>
 
       <h2 className="font-heading text-xl font-bold">{title}</h2>
