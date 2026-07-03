@@ -38,7 +38,10 @@ async function resolveAccountId(tx: Tx, ref: AccountRef): Promise<string> {
     where: { type: ref.kind, userId: null },
     select: { id: true },
   });
-  if (!acct) throw new Error(`System ledger account ${ref.kind} not found — run prisma/seed.ts`);
+  if (!acct)
+    throw new Error(
+      `System ledger account ${ref.kind} not found — run prisma/seed.ts`,
+    );
   return acct.id;
 }
 
@@ -47,7 +50,10 @@ async function resolveAccountId(tx: Tx, ref: AccountRef): Promise<string> {
  * Idempotent: if the idempotencyKey already exists → { skipped: true } (no double-credit).
  * Only that unique violation is swallowed; every other error propagates.
  */
-export async function executeTxSpec(tx: Tx, spec: TxSpec): Promise<ExecuteResult> {
+export async function executeTxSpec(
+  tx: Tx,
+  spec: TxSpec,
+): Promise<ExecuteResult> {
   assertBalanced(spec.legs); // reuse the domain rule — never re-implement it here
 
   // Primary idempotency guard: a pre-check avoids poisoning the shared Postgres tx on replay.

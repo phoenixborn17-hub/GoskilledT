@@ -2,7 +2,9 @@
 // no money/auth logic — just published catalog data for display.
 import { prisma } from "../prisma";
 
-const lessonStatsSelect = { select: { durationSec: true, isFreePreview: true } } as const;
+const lessonStatsSelect = {
+  select: { durationSec: true, isFreePreview: true },
+} as const;
 
 /** All catalog courses (PUBLISHED first, then COMING_SOON) with lesson stats for cards. */
 export async function listCatalogCourses() {
@@ -38,7 +40,12 @@ export async function getCourseDetail(slug: string) {
           title: true,
           lessons: {
             orderBy: { order: "asc" },
-            select: { id: true, title: true, durationSec: true, isFreePreview: true },
+            select: {
+              id: true,
+              title: true,
+              durationSec: true,
+              isFreePreview: true,
+            },
           },
         },
       },
@@ -59,11 +66,17 @@ export async function listPackages() {
       courses: { select: { course: { select: { slug: true } } } },
     },
   });
-  return packages.map((p) => ({ ...p, courseSlugs: p.courses.map((c) => c.course.slug) }));
+  return packages.map((p) => ({
+    ...p,
+    courseSlugs: p.courses.map((c) => c.course.slug),
+  }));
 }
 
 /** Published course slugs for the sitemap. */
 export async function publishedCourseSlugs(): Promise<string[]> {
-  const rows = await prisma.course.findMany({ where: { status: "PUBLISHED" }, select: { slug: true } });
+  const rows = await prisma.course.findMany({
+    where: { status: "PUBLISHED" },
+    select: { slug: true },
+  });
   return rows.map((r) => r.slug);
 }

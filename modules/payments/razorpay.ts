@@ -16,11 +16,25 @@ export function verifyPaymentSignature(
   const expected = createHmac("sha256", keySecret)
     .update(`${p.razorpayOrderId}|${p.razorpayPaymentId}`)
     .digest("hex");
-  try { return safeEqualHex(expected, p.signature); } catch { return false; }
+  try {
+    return safeEqualHex(expected, p.signature);
+  } catch {
+    return false;
+  }
 }
 
 /** Webhook: signature = HMAC_SHA256(rawBody, webhook_secret). Verify BEFORE parsing JSON. */
-export function verifyWebhookSignature(rawBody: string, signature: string, webhookSecret: string): boolean {
-  const expected = createHmac("sha256", webhookSecret).update(rawBody).digest("hex");
-  try { return safeEqualHex(expected, signature); } catch { return false; }
+export function verifyWebhookSignature(
+  rawBody: string,
+  signature: string,
+  webhookSecret: string,
+): boolean {
+  const expected = createHmac("sha256", webhookSecret)
+    .update(rawBody)
+    .digest("hex");
+  try {
+    return safeEqualHex(expected, signature);
+  } catch {
+    return false;
+  }
 }

@@ -10,37 +10,37 @@
    ───────────────────────────────────────────────────────────────────────────── */
 :root {
   /* Brand */
-  --gs-green: #137E49;
-  --gs-green-deep: #0C5A34;
-  --gs-green-bright: #1AA05E;
-  --gs-gold: #EDC825;
-  --gs-charcoal: #2A302A;
-  --gs-offwhite: #FEFEFE;
+  --gs-green: #137e49;
+  --gs-green-deep: #0c5a34;
+  --gs-green-bright: #1aa05e;
+  --gs-gold: #edc825;
+  --gs-charcoal: #2a302a;
+  --gs-offwhite: #fefefe;
 
   /* Neutrals ramp (off charcoal — use instead of ad-hoc opacities where possible) */
-  --gs-n-900: #2A302A;
-  --gs-n-700: #4A524A;
-  --gs-n-500: #6E766E;
-  --gs-n-300: #B7BDB7;
-  --gs-n-150: #E2E6E2;
-  --gs-n-050: #F4F6F4;
+  --gs-n-900: #2a302a;
+  --gs-n-700: #4a524a;
+  --gs-n-500: #6e766e;
+  --gs-n-300: #b7bdb7;
+  --gs-n-150: #e2e6e2;
+  --gs-n-050: #f4f6f4;
 
   /* Accessible muted TEXT token — ~6:1 on offwhite (WCAG AA for normal text). Use `text-muted`
      for body/informational text instead of low-opacity charcoal, which fails contrast. */
-  --gs-muted: #5B635B;
+  --gs-muted: #5b635b;
 
   /* Semantic */
-  --gs-success: #137E49;
-  --gs-warning: #B87A00;   /* accessible amber for text — gold stays decorative */
-  --gs-danger:  #C0392B;
-  --gs-info:    #1D6FA5;
+  --gs-success: #137e49;
+  --gs-warning: #b87a00; /* accessible amber for text — gold stays decorative */
+  --gs-danger: #c0392b;
+  --gs-info: #1d6fa5;
 
   /* Elevation & shape */
   --gs-radius-sm: 0.5rem;
   --gs-radius: 0.75rem;
   --gs-radius-lg: 1rem;
   --gs-shadow-sm: 0 1px 2px rgb(42 48 42 / 0.06);
-  --gs-shadow:    0 2px 8px rgb(42 48 42 / 0.08);
+  --gs-shadow: 0 2px 8px rgb(42 48 42 / 0.08);
   --gs-shadow-lg: 0 8px 28px rgb(42 48 42 / 0.12);
 
   /* Fonts (populated by next/font variables in app/layout.tsx) */
@@ -51,10 +51,14 @@
   /* default theme = green (marketing + LMS) */
   --brand: var(--gs-green);
 }
-[data-theme="affiliate"] { --brand: var(--gs-gold); }   /* gold-forward affiliate surface */
+[data-theme="affiliate"] {
+  --brand: var(--gs-gold);
+} /* gold-forward affiliate surface */
 
 /* ── Base polish ─────────────────────────────────────────────────────────── */
-::selection { background: rgb(19 126 73 / 0.18); }
+::selection {
+  background: rgb(19 126 73 / 0.18);
+}
 
 /* Visible, on-brand focus everywhere (a11y) — never removed, only styled. */
 :focus-visible {
@@ -62,10 +66,18 @@
   outline-offset: 2px;
   border-radius: 4px;
 }
-[data-theme="affiliate"] :focus-visible { outline-color: var(--gs-charcoal); }
+[data-theme="affiliate"] :focus-visible {
+  outline-color: var(--gs-charcoal);
+}
 
-html { scroll-behavior: smooth; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
 
 /* ── Glass (used intentionally: nav, floating bars — a depth tool, not decor) ──
       No border here — the separator is direction-specific, so call sites add an explicit
@@ -76,7 +88,9 @@ html { scroll-behavior: smooth; }
   backdrop-filter: blur(12px) saturate(1.4);
 }
 @supports not ((backdrop-filter: blur(1px))) {
-  .glass { background: rgb(254 254 254 / 0.96); } /* graceful fallback */
+  .glass {
+    background: rgb(254 254 254 / 0.96);
+  } /* graceful fallback */
 }
 
 /* ── Micro-interactions (CSS-only) ───────────────────────────────────────── */
@@ -85,11 +99,15 @@ html { scroll-behavior: smooth; }
      color/border transition set by Tailwind's `transition-colors` on the same element (e.g. the
      course card hovers border AND lifts). Includes those properties so both animate together. */
   .lift {
-    transition-property: transform, box-shadow, color, background-color, border-color;
+    transition-property:
+      transform, box-shadow, color, background-color, border-color;
     transition-duration: 180ms;
     transition-timing-function: ease;
   }
-  .lift:hover { transform: translateY(-2px); box-shadow: var(--gs-shadow-lg); }
+  .lift:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--gs-shadow-lg);
+  }
   /* Longhand (not the `transition` shorthand) so it doesn't reset the color/bg/border
      transition set by Tailwind's `transition-colors`; the property list includes them so
      hover-color fades AND the press-scale both animate. */
@@ -98,7 +116,9 @@ html { scroll-behavior: smooth; }
     transition-duration: 120ms;
     transition-timing-function: ease;
   }
-  .press:active { transform: scale(0.985); }
+  .press:active {
+    transform: scale(0.985);
+  }
 }
 
 /* ── Hero signature moment: soft green aurora (pure CSS, zero JS, zero risk).
@@ -119,25 +139,59 @@ html { scroll-behavior: smooth; }
   pointer-events: none;
 }
 .hero-aurora::before {
-  width: 34rem; height: 34rem;
-  right: -12rem; top: -14rem;
-  background: radial-gradient(closest-side, rgb(26 160 94 / 0.35), transparent 70%);
+  width: 34rem;
+  height: 34rem;
+  right: -12rem;
+  top: -14rem;
+  background: radial-gradient(
+    closest-side,
+    rgb(26 160 94 / 0.35),
+    transparent 70%
+  );
 }
 .hero-aurora::after {
-  width: 26rem; height: 26rem;
-  left: -10rem; bottom: -12rem;
-  background: radial-gradient(closest-side, rgb(237 200 37 / 0.22), transparent 70%);
+  width: 26rem;
+  height: 26rem;
+  left: -10rem;
+  bottom: -12rem;
+  background: radial-gradient(
+    closest-side,
+    rgb(237 200 37 / 0.22),
+    transparent 70%
+  );
 }
 @media (prefers-reduced-motion: no-preference) {
-  .hero-aurora::before { animation: aurora-a 16s ease-in-out infinite alternate; }
-  .hero-aurora::after  { animation: aurora-b 20s ease-in-out infinite alternate; }
-  @keyframes aurora-a { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(-3rem,2rem,0) scale(1.08); } }
-  @keyframes aurora-b { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(2.5rem,-1.5rem,0) scale(1.06); } }
+  .hero-aurora::before {
+    animation: aurora-a 16s ease-in-out infinite alternate;
+  }
+  .hero-aurora::after {
+    animation: aurora-b 20s ease-in-out infinite alternate;
+  }
+  @keyframes aurora-a {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(-3rem, 2rem, 0) scale(1.08);
+    }
+  }
+  @keyframes aurora-b {
+    from {
+      transform: translate3d(0, 0, 0) scale(1);
+    }
+    to {
+      transform: translate3d(2.5rem, -1.5rem, 0) scale(1.06);
+    }
+  }
 }
 
 /* Brand gradient text for ONE hero accent word (green — never gold on light). */
 .text-brand-gradient {
-  background: linear-gradient(100deg, var(--gs-green-deep), var(--gs-green-bright));
+  background: linear-gradient(
+    100deg,
+    var(--gs-green-deep),
+    var(--gs-green-bright)
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -145,12 +199,24 @@ html { scroll-behavior: smooth; }
 
 /* Staged hero entrance — content fully visible when motion is reduced/unsupported. */
 @media (prefers-reduced-motion: no-preference) {
-  .enter { animation: enter-up 640ms cubic-bezier(0.16, 1, 0.3, 1) both; }
-  .enter-2 { animation-delay: 120ms; }
-  .enter-3 { animation-delay: 240ms; }
+  .enter {
+    animation: enter-up 640ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .enter-2 {
+    animation-delay: 120ms;
+  }
+  .enter-3 {
+    animation-delay: 240ms;
+  }
   @keyframes enter-up {
-    from { opacity: 0; transform: translateY(16px); }
-    to { opacity: 1; transform: none; }
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 
@@ -166,8 +232,12 @@ html { scroll-behavior: smooth; }
       animation-range: entry 5% cover 20%;
     }
     @keyframes reveal-in {
-      from { transform: translateY(14px); }
-      to { transform: none; }
+      from {
+        transform: translateY(14px);
+      }
+      to {
+        transform: none;
+      }
     }
   }
 }

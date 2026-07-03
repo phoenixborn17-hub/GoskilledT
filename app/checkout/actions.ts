@@ -22,28 +22,45 @@ const startSchema = z
   })
   .superRefine((v, ctx) => {
     if (v.packageSlug === "skill-builder" && !v.chosenCourseId)
-      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["chosenCourseId"], message: "Choose your course (Skill Builder includes 1 course)" });
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["chosenCourseId"],
+        message: "Choose your course (Skill Builder includes 1 course)",
+      });
   });
 
 const verifySchema = z.object({
   phone: phoneSchema,
-  token: z.string().trim().regex(/^\d{4,8}$/, "Enter the OTP"),
+  token: z
+    .string()
+    .trim()
+    .regex(/^\d{4,8}$/, "Enter the OTP"),
   packageSlug: z.enum(["skill-builder", "career-booster"]),
   chosenCourseId: z.string().min(1).optional(),
   referralCode: z.string().trim().toUpperCase().optional(),
 });
 
-export type CheckoutActionResult =
-  | { ok: true }
-  | { ok: false; error: string };
+export type CheckoutActionResult = { ok: true } | { ok: false; error: string };
 
 export type VerifyCheckoutResult =
-  | { ok: true; orderId: string; paymentOrderId: string; amountInPaise: number; provider: string }
+  | {
+      ok: true;
+      orderId: string;
+      paymentOrderId: string;
+      amountInPaise: number;
+      provider: string;
+    }
   | { ok: false; error: string };
 
-export async function startCheckout(input: z.input<typeof startSchema>): Promise<CheckoutActionResult> {
+export async function startCheckout(
+  input: z.input<typeof startSchema>,
+): Promise<CheckoutActionResult> {
   const parsed = startSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid details" };
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid details",
+    };
   const id = anonId(parsed.data.phone);
   await track("begin_checkout", id, { package: parsed.data.packageSlug });
   try {
@@ -51,13 +68,22 @@ export async function startCheckout(input: z.input<typeof startSchema>): Promise
     await track("checkout_otp_sent", id, { package: parsed.data.packageSlug });
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not send OTP" };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Could not send OTP",
+    };
   }
 }
 
-export async function verifyCheckoutOtp(input: z.input<typeof verifySchema>): Promise<VerifyCheckoutResult> {
+export async function verifyCheckoutOtp(
+  input: z.input<typeof verifySchema>,
+): Promise<VerifyCheckoutResult> {
   const parsed = verifySchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid details" };
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid details",
+    };
   const data = parsed.data;
 
   try {
@@ -68,7 +94,12 @@ export async function verifyCheckoutOtp(input: z.input<typeof verifySchema>): Pr
     // 3) Create Order + payment-provider order (mock or razorpay) via the Ticket 2 flow.
     const provider = getPaymentProvider();
     const order = await placeOrder(
-      { packageSlug: data.packageSlug, chosenCourseId: data.chosenCourseId, phone: data.phone, referralCode: data.referralCode },
+      {
+        packageSlug: data.packageSlug,
+        chosenCourseId: data.chosenCourseId,
+        phone: data.phone,
+        referralCode: data.referralCode,
+      },
       (i) => provider.createOrder(i),
     );
     // Funnel: OTP verified + order created. distinctId = our user id so this stitches to the
@@ -78,8 +109,17 @@ export async function verifyCheckoutOtp(input: z.input<typeof verifySchema>): Pr
       order_id: order.orderId,
       amount_paise: order.amountInPaise,
     });
-    return { ok: true, orderId: order.orderId, paymentOrderId: order.razorpayOrderId, amountInPaise: order.amountInPaise, provider: provider.name };
+    return {
+      ok: true,
+      orderId: order.orderId,
+      paymentOrderId: order.razorpayOrderId,
+      amountInPaise: order.amountInPaise,
+      provider: provider.name,
+    };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Checkout failed" };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Checkout failed",
+    };
   }
 }

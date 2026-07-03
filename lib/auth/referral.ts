@@ -7,7 +7,9 @@ export function generateReferralCode(): string {
 }
 
 /** Normalize any Supabase/user phone to canonical +91XXXXXXXXXX (India), or null. */
-export function normalizePhoneE164(raw: string | null | undefined): string | null {
+export function normalizePhoneE164(
+  raw: string | null | undefined,
+): string | null {
   if (!raw) return null;
   const digits = raw.replace(/\D/g, "");
   if (digits.length < 10) return null;

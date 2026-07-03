@@ -1,6 +1,12 @@
 // Ticket 6, Task 4 — rate-limit logic. Pure, deterministic (fixed `now`).
 import { describe, it, expect, beforeEach } from "vitest";
-import { withinLimit, rateLimit, pruneBuckets, __resetRateLimits, __bucketCount } from "../lib/rate-limit";
+import {
+  withinLimit,
+  rateLimit,
+  pruneBuckets,
+  __resetRateLimits,
+  __bucketCount,
+} from "../lib/rate-limit";
 
 describe("withinLimit (pure)", () => {
   it("allows under the max", () => {

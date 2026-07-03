@@ -35,19 +35,35 @@ type Tx = Prisma.TransactionClient;
 
 // Full order context needed to execute actions (enroll / credit / clawback).
 type OrderContext = Prisma.OrderGetPayload<{
-  include: { package: { include: { courses: { select: { courseId: true } } } } };
+  include: {
+    package: { include: { courses: { select: { courseId: true } } } };
+  };
 }>;
 
 /** Map a verified envelope + the located order to the pure WebhookEventKind. */
-function toEventKind(event: string, envelope: ReturnType<typeof webhookEnvelopeSchema.parse>, orderId: string): WebhookEventKind | null {
+function toEventKind(
+  event: string,
+  envelope: ReturnType<typeof webhookEnvelopeSchema.parse>,
+  orderId: string,
+): WebhookEventKind | null {
   const payment = envelope.payload.payment?.entity;
   const refund = envelope.payload.refund?.entity;
   if (event === "payment.captured" && payment)
-    return { kind: "payment.captured", orderId, paymentId: payment.id, amountInPaise: payment.amount };
+    return {
+      kind: "payment.captured",
+      orderId,
+      paymentId: payment.id,
+      amountInPaise: payment.amount,
+    };
   if (event === "payment.failed" && payment)
     return { kind: "payment.failed", orderId, paymentId: payment.id };
   if (event === "refund.processed" && refund)
-    return { kind: "refund.processed", orderId, refundId: refund.id, amountInPaise: refund.amount };
+    return {
+      kind: "refund.processed",
+      orderId,
+      refundId: refund.id,
+      amountInPaise: refund.amount,
+    };
   return null;
 }
 
@@ -67,11 +83,18 @@ function toAccountRef(type: string, userId: string | null): AccountRef {
 }
 
 /** Walk up the referral chain (max `hops`) — the input to resolveUplines(). */
-async function fetchReferralChain(tx: Tx, buyerId: string, hops = 3): Promise<string[]> {
+async function fetchReferralChain(
+  tx: Tx,
+  buyerId: string,
+  hops = 3,
+): Promise<string[]> {
   const chain: string[] = [];
   let current = buyerId;
   for (let i = 0; i < hops; i++) {
-    const u = await tx.user.findUnique({ where: { id: current }, select: { referredById: true } });
+    const u = await tx.user.findUnique({
+      where: { id: current },
+      select: { referredById: true },
+    });
     if (!u?.referredById) break;
     chain.push(u.referredById);
     current = u.referredById;
@@ -80,10 +103,17 @@ async function fetchReferralChain(tx: Tx, buyerId: string, hops = 3): Promise<st
 }
 
 /** Reconstruct the persisted COMMISSION TxSpecs of an order — input to buildClawbackTxns(). */
-async function loadCommissionTxSpecs(tx: Tx, orderId: string): Promise<TxSpec[]> {
+async function loadCommissionTxSpecs(
+  tx: Tx,
+  orderId: string,
+): Promise<TxSpec[]> {
   const txns = await tx.ledgerTransaction.findMany({
     where: { type: "COMMISSION", refType: "Order", refId: orderId },
-    include: { entries: { include: { account: { select: { type: true, userId: true } } } } },
+    include: {
+      entries: {
+        include: { account: { select: { type: true, userId: true } } },
+      },
+    },
   });
   return txns.map((t) => ({
     type: "COMMISSION" as const,
@@ -112,31 +142,52 @@ function grantedCourseIds(order: OrderContext): string[] {
   return result.courseIds;
 }
 
-async function executeAction(tx: Tx, action: Action, order: OrderContext, now: Date): Promise<void> {
+async function executeAction(
+  tx: Tx,
+  action: Action,
+  order: OrderContext,
+  now: Date,
+): Promise<void> {
   switch (action.do) {
     case "MARK_PAID":
       await tx.order.update({
         where: { id: order.id },
-        data: { status: "PAID", razorpayPaymentId: action.paymentId, paidAt: now },
+        data: {
+          status: "PAID",
+          razorpayPaymentId: action.paymentId,
+          paidAt: now,
+        },
       });
       return;
     case "MARK_FAILED":
-      await tx.order.update({ where: { id: order.id }, data: { status: "FAILED" } });
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: "FAILED" },
+      });
       return;
     case "MARK_REFUNDED":
-      await tx.order.update({ where: { id: order.id }, data: { status: "REFUNDED" } });
+      await tx.order.update({
+        where: { id: order.id },
+        data: { status: "REFUNDED" },
+      });
       return;
     case "ENROLL": {
       const courseIds = grantedCourseIds(order);
       await tx.enrollment.createMany({
-        data: courseIds.map((courseId) => ({ userId: order.userId, courseId, source: "PACKAGE" as const })),
+        data: courseIds.map((courseId) => ({
+          userId: order.userId,
+          courseId,
+          source: "PACKAGE" as const,
+        })),
         skipDuplicates: true,
       });
       return;
     }
     case "REVOKE_ENROLLMENTS": {
       const courseIds = grantedCourseIds(order);
-      await tx.enrollment.deleteMany({ where: { userId: order.userId, courseId: { in: courseIds } } });
+      await tx.enrollment.deleteMany({
+        where: { userId: order.userId, courseId: { in: courseIds } },
+      });
       return;
     }
     case "CREDIT_COMMISSIONS": {
@@ -173,14 +224,25 @@ async function executeAction(tx: Tx, action: Action, order: OrderContext, now: D
 }
 
 /** Locate our internal order from the webhook payload (razorpay order id / payment id). */
-async function locateOrder(event: string, envelope: ReturnType<typeof webhookEnvelopeSchema.parse>): Promise<OrderContext | null> {
-  const include = { package: { include: { courses: { select: { courseId: true } } } } } as const;
+async function locateOrder(
+  event: string,
+  envelope: ReturnType<typeof webhookEnvelopeSchema.parse>,
+): Promise<OrderContext | null> {
+  const include = {
+    package: { include: { courses: { select: { courseId: true } } } },
+  } as const;
   const payment = envelope.payload.payment?.entity;
   const refund = envelope.payload.refund?.entity;
   if ((event === "payment.captured" || event === "payment.failed") && payment)
-    return prisma.order.findUnique({ where: { razorpayOrderId: payment.order_id }, include });
+    return prisma.order.findUnique({
+      where: { razorpayOrderId: payment.order_id },
+      include,
+    });
   if (event === "refund.processed" && refund)
-    return prisma.order.findUnique({ where: { razorpayPaymentId: refund.payment_id }, include });
+    return prisma.order.findUnique({
+      where: { razorpayPaymentId: refund.payment_id },
+      include,
+    });
   return null;
 }
 
@@ -194,36 +256,54 @@ export async function handleRazorpayWebhook(
   eventIdHeader?: string | null,
 ): Promise<WebhookResult> {
   const secret = requireEnv("RAZORPAY_WEBHOOK_SECRET");
-  if (!signature || !verifyWebhookSignature(rawBody, signature, secret)) return { status: 400, note: "bad signature" };
+  if (!signature || !verifyWebhookSignature(rawBody, signature, secret))
+    return { status: 400, note: "bad signature" };
 
   // Signature verified → safe to parse.
   const envelope = webhookEnvelopeSchema.parse(JSON.parse(rawBody));
   const event = envelope.event;
 
   const entityId =
-    envelope.payload.payment?.entity.id ?? envelope.payload.refund?.entity.id ?? "unknown";
-  const eventId = eventIdHeader && eventIdHeader.length > 0 ? eventIdHeader : `${event}:${entityId}`;
+    envelope.payload.payment?.entity.id ??
+    envelope.payload.refund?.entity.id ??
+    "unknown";
+  const eventId =
+    eventIdHeader && eventIdHeader.length > 0
+      ? eventIdHeader
+      : `${event}:${entityId}`;
   const payloadHash = createHash("sha256").update(rawBody).digest("hex");
 
   // We only act on the three money events; ack everything else so Razorpay stops retrying.
-  if (!["payment.captured", "payment.failed", "refund.processed"].includes(event)) return { status: 200, note: "ignored event" };
+  if (
+    !["payment.captured", "payment.failed", "refund.processed"].includes(event)
+  )
+    return { status: 200, note: "ignored event" };
 
   const alreadyProcessed = !!(await prisma.webhookEvent.findUnique({
     where: { provider_eventId: { provider: PROVIDER, eventId } },
     select: { id: true },
   }));
-  if (alreadyProcessed) return { status: 200, note: "duplicate — idempotent skip" };
+  if (alreadyProcessed)
+    return { status: 200, note: "duplicate — idempotent skip" };
 
   const order = await locateOrder(event, envelope);
   const orderState: OrderState | null = order
-    ? { id: order.id, status: order.status, amountInPaise: order.amountInPaise, paidAt: order.paidAt }
+    ? {
+        id: order.id,
+        status: order.status,
+        amountInPaise: order.amountInPaise,
+        paidAt: order.paidAt,
+      }
     : null;
 
   const eventKind = toEventKind(event, envelope, order?.id ?? "");
   if (!eventKind) return { status: 200, note: "unmappable payload" };
 
   const now = new Date();
-  const decision = decideWebhookActions(eventKind, orderState, { alreadyProcessed: false, now });
+  const decision = decideWebhookActions(eventKind, orderState, {
+    alreadyProcessed: false,
+    now,
+  });
 
   try {
     await prisma.$transaction(
@@ -232,13 +312,16 @@ export async function handleRazorpayWebhook(
           if (!order) throw new Error("action decided for a missing order"); // defensive — decide returns [] when order is null
           await executeAction(tx, action, order, now);
         }
-        await tx.webhookEvent.create({ data: { provider: PROVIDER, eventId, payloadHash } });
+        await tx.webhookEvent.create({
+          data: { provider: PROVIDER, eventId, payloadHash },
+        });
       },
       { timeout: 20_000 },
     );
   } catch (e) {
     // A concurrent delivery recorded the same event first → treat as an idempotent duplicate.
-    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") return { status: 200, note: "duplicate — raced" };
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")
+      return { status: 200, note: "duplicate — raced" };
     throw e;
   }
 
@@ -251,7 +334,10 @@ export async function handleRazorpayWebhook(
 }
 
 /** Map the committed webhook actions to at most one funnel event and capture it (best-effort). */
-async function emitWebhookAnalytics(actions: readonly Action[], order: OrderContext): Promise<void> {
+async function emitWebhookAnalytics(
+  actions: readonly Action[],
+  order: OrderContext,
+): Promise<void> {
   const dos = new Set(actions.map((a) => a.do));
   const name: AnalyticsEventName | null = dos.has("MARK_PAID")
     ? "purchase"

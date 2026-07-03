@@ -17,17 +17,27 @@ export async function POST(req: Request): Promise<Response> {
 
   const parsed = checkoutStartSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Validation failed", issues: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: "Validation failed", issues: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
   try {
     // Route through the provider adapter (Ticket 3 deferred finding) so mock mode works here too.
     const provider = getPaymentProvider();
-    const result = await startCheckout(parsed.data, (i) => provider.createOrder(i));
-    const keyId = provider.name === "razorpay" ? requireEnv("RAZORPAY_KEY_ID") : null;
-    return NextResponse.json({ ...result, provider: provider.name, keyId }, { status: 201 });
+    const result = await startCheckout(parsed.data, (i) =>
+      provider.createOrder(i),
+    );
+    const keyId =
+      provider.name === "razorpay" ? requireEnv("RAZORPAY_KEY_ID") : null;
+    return NextResponse.json(
+      { ...result, provider: provider.name, keyId },
+      { status: 201 },
+    );
   } catch (e) {
-    if (e instanceof ZodError) return NextResponse.json({ error: "Validation failed" }, { status: 400 });
+    if (e instanceof ZodError)
+      return NextResponse.json({ error: "Validation failed" }, { status: 400 });
     const message = e instanceof Error ? e.message : "Checkout failed";
     return NextResponse.json({ error: message }, { status: 400 });
   }

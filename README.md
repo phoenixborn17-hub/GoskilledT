@@ -10,6 +10,7 @@ See `CLAUDE.md` for the golden rules + module build order, and `SETUP.md` to run
 Architecture rationale: `../Genesis/03_Canonical_KB/domains/KB-14_Technology/vNext_Architecture_Decision_Record_v1_2026-07-03.md`.
 
 ## Quick start
+
 ```bash
 npm install
 cp .env.example .env      # fill in Supabase + Razorpay keys

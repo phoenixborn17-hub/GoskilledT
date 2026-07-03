@@ -5,7 +5,13 @@ import { cn } from "../../lib/utils";
 
 const STAGES = ["NEW", "CONTACTED", "WEBINAR_REGISTERED", "CONVERTED", "LOST"];
 
-export function LeadStageSelect({ leadId, stage }: { leadId: string; stage: string }) {
+export function LeadStageSelect({
+  leadId,
+  stage,
+}: {
+  leadId: string;
+  stage: string;
+}) {
   const [value, setValue] = useState(stage);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -26,10 +32,15 @@ export function LeadStageSelect({ leadId, stage }: { leadId: string; stage: stri
       onChange={onChange}
       disabled={busy}
       aria-label="Lead stage"
-      className={cn("h-8 rounded-lg border bg-white px-2 text-xs font-medium", error ? "border-red-400" : "border-charcoal/15")}
+      className={cn(
+        "h-8 rounded-lg border bg-white px-2 text-xs font-medium",
+        error ? "border-red-400" : "border-charcoal/15",
+      )}
     >
       {STAGES.map((s) => (
-        <option key={s} value={s}>{s.replace("_", " ")}</option>
+        <option key={s} value={s}>
+          {s.replace("_", " ")}
+        </option>
       ))}
     </select>
   );

@@ -14,14 +14,20 @@ export default async function ProgressPage() {
 
   return (
     <section aria-labelledby="progress-heading" className="space-y-6">
-      <h1 id="progress-heading" className="font-heading text-2xl font-bold">Progress</h1>
+      <h1 id="progress-heading" className="font-heading text-2xl font-bold">
+        Progress
+      </h1>
 
       {courses.length === 0 ? (
         <Card className="text-center">
           <CardTitle>Nothing to track yet</CardTitle>
-          <CardDescription>Enroll in a course to start building your progress.</CardDescription>
+          <CardDescription>
+            Enroll in a course to start building your progress.
+          </CardDescription>
           <div className="mx-auto mt-5 max-w-xs">
-            <Link href="/checkout?package=career-booster"><Button>Explore courses</Button></Link>
+            <Link href="/checkout?package=career-booster">
+              <Button>Explore courses</Button>
+            </Link>
           </div>
         </Card>
       ) : (
@@ -29,12 +35,22 @@ export default async function ProgressPage() {
           <Card key={c.slug} className="flex items-center gap-5">
             <ProgressRing percent={c.progress.percent} size={80} />
             <div className="min-w-0 flex-1">
-              <p className="truncate font-heading text-lg font-bold">{c.title}</p>
-              <p className="text-sm text-muted">{c.progress.completed} / {c.progress.total} lessons</p>
+              <p className="truncate font-heading text-lg font-bold">
+                {c.title}
+              </p>
+              <p className="text-sm text-muted">
+                {c.progress.completed} / {c.progress.total} lessons
+              </p>
               <div className="mt-3 max-w-[10rem]">
                 <Link href={`/dashboard/learn/${c.slug}`}>
-                  <Button variant={c.progress.percent === 100 ? "outline" : "primary"}>
-                    {c.progress.percent === 100 ? "Review" : c.progress.completed === 0 ? "Start" : "Resume"}
+                  <Button
+                    variant={c.progress.percent === 100 ? "outline" : "primary"}
+                  >
+                    {c.progress.percent === 100
+                      ? "Review"
+                      : c.progress.completed === 0
+                        ? "Start"
+                        : "Resume"}
                   </Button>
                 </Link>
               </div>

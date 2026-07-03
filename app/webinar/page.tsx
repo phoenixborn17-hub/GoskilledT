@@ -13,7 +13,8 @@ import { Badge } from "../../components/ui/badge";
 
 export const metadata = pageMetadata({
   title: "Free Webinar",
-  description: "Join our free webinar and learn a practical, job-ready skill. Register with just your name and phone.",
+  description:
+    "Join our free webinar and learn a practical, job-ready skill. Register with just your name and phone.",
   path: "/webinar",
 });
 export const dynamic = "force-dynamic";
@@ -26,7 +27,11 @@ const LEARN = [
 ];
 
 function formatWhen(d: Date): string {
-  return new Intl.DateTimeFormat("en-IN", { dateStyle: "full", timeStyle: "short", timeZone: "Asia/Kolkata" }).format(d);
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(d);
 }
 
 export default async function WebinarPage() {
@@ -40,22 +45,40 @@ export default async function WebinarPage() {
           <Badge variant="gold">Free webinar</Badge>
           {webinar ? (
             <>
-              <h1 className="mt-3 font-heading text-3xl font-extrabold leading-tight">{webinar.title}</h1>
-              <p className="mt-2 font-medium text-brand">{formatWhen(webinar.startsAt)} IST</p>
+              <h1 className="mt-3 font-heading text-3xl font-extrabold leading-tight">
+                {webinar.title}
+              </h1>
+              <p className="mt-2 font-medium text-brand">
+                {formatWhen(webinar.startsAt)} IST
+              </p>
             </>
           ) : (
             <>
               {/* COPY: draft — no active webinar, still capture the lead */}
-              <h1 className="mt-3 font-heading text-3xl font-extrabold leading-tight">Our next webinar is announced soon</h1>
-              <p className="mt-2 text-muted">Register now — we&apos;ll message you the moment the date is set.</p>
+              <h1 className="mt-3 font-heading text-3xl font-extrabold leading-tight">
+                Our next webinar is announced soon
+              </h1>
+              <p className="mt-2 text-muted">
+                Register now — we&apos;ll message you the moment the date is
+                set.
+              </p>
             </>
           )}
 
-          <h2 className="mt-6 font-heading text-lg font-bold">What you&apos;ll learn</h2>
+          <h2 className="mt-6 font-heading text-lg font-bold">
+            What you&apos;ll learn
+          </h2>
           <ul className="mt-2 space-y-2">
             {LEARN.map((l) => (
-              <li key={l} className="flex items-start gap-2 text-sm text-charcoal/70">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden /> {l}
+              <li
+                key={l}
+                className="flex items-start gap-2 text-sm text-charcoal/70"
+              >
+                <CheckCircle2
+                  className="mt-0.5 h-4 w-4 shrink-0 text-brand"
+                  aria-hidden
+                />{" "}
+                {l}
               </li>
             ))}
           </ul>
@@ -69,7 +92,10 @@ export default async function WebinarPage() {
               submitLabel="Register free"
               successTitle="You're registered! 🎉"
               successBody="We'll send the joining details to your phone. Add the session to your calendar so you don't miss it."
-              successCta={{ href: "/packages", label: "Explore packages meanwhile" }}
+              successCta={{
+                href: "/packages",
+                label: "Explore packages meanwhile",
+              }}
             />
           </Suspense>
         </section>

@@ -54,20 +54,40 @@ export default function OnboardingPage() {
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
       <Card>
         <CardTitle>Tell us about you</CardTitle>
-        <CardDescription>Optional — helps us personalise your experience.</CardDescription>
+        <CardDescription>
+          Optional — helps us personalise your experience.
+        </CardDescription>
 
         <form onSubmit={onSave} className="mt-6 space-y-4">
           <div>
             <Label htmlFor="name">Name</Label>
-            <Input id="name" value={name} onChange={(e) => setName(e.target.value)} autoComplete="name" placeholder="Your name" />
+            <Input
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoComplete="name"
+              placeholder="Your name"
+            />
           </div>
           <div>
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" />
+            <Input
+              id="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              placeholder="you@example.com"
+            />
           </div>
           <div>
             <Label htmlFor="goal">Your goal</Label>
-            <div id="goal" className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Your goal">
+            <div
+              id="goal"
+              className="grid grid-cols-3 gap-2"
+              role="radiogroup"
+              aria-label="Your goal"
+            >
               {GOALS.map((g) => (
                 <button
                   key={g.value}
@@ -77,7 +97,9 @@ export default function OnboardingPage() {
                   onClick={() => setGoal(g.value)}
                   className={
                     "rounded-xl border px-2 py-2.5 text-sm font-medium transition-colors " +
-                    (goal === g.value ? "border-brand bg-brand text-brand-fg" : "border-charcoal/15 text-charcoal/80 hover:bg-brand/5")
+                    (goal === g.value
+                      ? "border-brand bg-brand text-brand-fg"
+                      : "border-charcoal/15 text-charcoal/80 hover:bg-brand/5")
                   }
                 >
                   {g.label}
@@ -85,9 +107,22 @@ export default function OnboardingPage() {
               ))}
             </div>
           </div>
-          {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
-          <Button type="submit" disabled={busy}>{busy ? "Saving…" : "Save & continue"}</Button>
-          <Button type="button" variant="ghost" onClick={onSkip} disabled={busy}>Skip for now</Button>
+          {error && (
+            <p role="alert" className="text-sm text-red-600">
+              {error}
+            </p>
+          )}
+          <Button type="submit" disabled={busy}>
+            {busy ? "Saving…" : "Save & continue"}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            onClick={onSkip}
+            disabled={busy}
+          >
+            Skip for now
+          </Button>
         </form>
       </Card>
     </main>

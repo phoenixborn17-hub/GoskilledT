@@ -17,9 +17,19 @@ const HAS_DB = !!process.env.DATABASE_URL;
 const CB_PRICE = 219900;
 const runId = `t3${Date.now()}`;
 
-async function makeUser(prefix: string, referredById: string | null): Promise<{ id: string; phone: string }> {
+async function makeUser(
+  prefix: string,
+  referredById: string | null,
+): Promise<{ id: string; phone: string }> {
   const phone = `+91${prefix}${String(Date.now()).slice(-9)}`;
-  const u = await prisma.user.create({ data: { phone, referralCode: `${runId}${prefix}`.toUpperCase(), referredById }, select: { id: true } });
+  const u = await prisma.user.create({
+    data: {
+      phone,
+      referralCode: `${runId}${prefix}`.toUpperCase(),
+      referredById,
+    },
+    select: { id: true },
+  });
   return { id: u.id, phone };
 }
 
@@ -32,14 +42,59 @@ describe.skipIf(!HAS_DB)("checkout with mock provider (e2e dev flow)", () => {
     process.env.RAZORPAY_WEBHOOK_SECRET = secret;
     process.env.PAYMENT_PROVIDER = "mock";
 
-    const ai = await prisma.course.upsert({ where: { slug: "ai-prompt-mastery" }, update: {}, create: { slug: "ai-prompt-mastery", title: "AI Prompt Mastery", status: "PUBLISHED" }, select: { id: true } });
-    const dm = await prisma.course.upsert({ where: { slug: "digital-marketing" }, update: {}, create: { slug: "digital-marketing", title: "Digital Marketing", status: "COMING_SOON" }, select: { id: true } });
-    const cb = await prisma.package.upsert({ where: { slug: "career-booster" }, update: { priceInPaise: CB_PRICE, includesFutureCourses: true, isActive: true }, create: { slug: "career-booster", name: "Career Booster", priceInPaise: CB_PRICE, includesFutureCourses: true, isActive: true }, select: { id: true } });
+    const ai = await prisma.course.upsert({
+      where: { slug: "ai-prompt-mastery" },
+      update: {},
+      create: {
+        slug: "ai-prompt-mastery",
+        title: "AI Prompt Mastery",
+        status: "PUBLISHED",
+      },
+      select: { id: true },
+    });
+    const dm = await prisma.course.upsert({
+      where: { slug: "digital-marketing" },
+      update: {},
+      create: {
+        slug: "digital-marketing",
+        title: "Digital Marketing",
+        status: "COMING_SOON",
+      },
+      select: { id: true },
+    });
+    const cb = await prisma.package.upsert({
+      where: { slug: "career-booster" },
+      update: {
+        priceInPaise: CB_PRICE,
+        includesFutureCourses: true,
+        isActive: true,
+      },
+      create: {
+        slug: "career-booster",
+        name: "Career Booster",
+        priceInPaise: CB_PRICE,
+        includesFutureCourses: true,
+        isActive: true,
+      },
+      select: { id: true },
+    });
     for (const courseId of [ai.id, dm.id]) {
-      await prisma.packageCourse.upsert({ where: { packageId_courseId: { packageId: cb.id, courseId } }, update: {}, create: { packageId: cb.id, courseId } });
+      await prisma.packageCourse.upsert({
+        where: { packageId_courseId: { packageId: cb.id, courseId } },
+        update: {},
+        create: { packageId: cb.id, courseId },
+      });
     }
-    for (const type of ["REVENUE", "COMMISSION_PAYABLE", "PAYOUT_CLEARING", "GST_PAYABLE"] as const) {
-      const exists = await prisma.ledgerAccount.findFirst({ where: { type, userId: null }, select: { id: true } });
+    for (const type of [
+      "REVENUE",
+      "COMMISSION_PAYABLE",
+      "PAYOUT_CLEARING",
+      "GST_PAYABLE",
+    ] as const) {
+      const exists = await prisma.ledgerAccount.findFirst({
+        where: { type, userId: null },
+        select: { id: true },
+      });
       if (!exists) await prisma.ledgerAccount.create({ data: { type } });
     }
 
@@ -56,26 +111,48 @@ describe.skipIf(!HAS_DB)("checkout with mock provider (e2e dev flow)", () => {
     const provider = getPaymentProvider();
     expect(provider.name).toBe("mock");
 
-    const order = await placeOrder({ packageSlug: "career-booster", phone: buyerPhone10 }, (i) => provider.createOrder(i));
+    const order = await placeOrder(
+      { packageSlug: "career-booster", phone: buyerPhone10 },
+      (i) => provider.createOrder(i),
+    );
     expect(order.razorpayOrderId).toMatch(/^mock_order_[0-9a-f]{20}$/);
     expect(order.amountInPaise).toBe(CB_PRICE);
 
-    const signed = buildSignedCapture({ razorpayOrderId: order.razorpayOrderId, amountInPaise: order.amountInPaise, webhookSecret: secret });
+    const signed = buildSignedCapture({
+      razorpayOrderId: order.razorpayOrderId,
+      amountInPaise: order.amountInPaise,
+      webhookSecret: secret,
+    });
     expect(signed.paymentId).toMatch(/^mock_pay_/);
 
-    const res = await handleRazorpayWebhook(signed.body, signed.signature, signed.eventId);
+    const res = await handleRazorpayWebhook(
+      signed.body,
+      signed.signature,
+      signed.eventId,
+    );
     expect(res.status).toBe(200);
 
-    const paid = await prisma.order.findUniqueOrThrow({ where: { id: order.orderId } });
+    const paid = await prisma.order.findUniqueOrThrow({
+      where: { id: order.orderId },
+    });
     expect(paid.status).toBe("PAID");
     expect(paid.razorpayPaymentId).toBe(signed.paymentId);
 
-    const buyer = await prisma.user.findFirstOrThrow({ where: { phone: `+91${buyerPhone10}` }, select: { id: true } });
-    expect(await prisma.enrollment.count({ where: { userId: buyer.id } })).toBe(2);
+    const buyer = await prisma.user.findFirstOrThrow({
+      where: { phone: `+91${buyerPhone10}` },
+      select: { id: true },
+    });
+    expect(await prisma.enrollment.count({ where: { userId: buyer.id } })).toBe(
+      2,
+    );
 
-    const commissions = await prisma.ledgerTransaction.findMany({ where: { type: "COMMISSION", refType: "Order", refId: order.orderId }, include: { entries: true } });
+    const commissions = await prisma.ledgerTransaction.findMany({
+      where: { type: "COMMISSION", refType: "Order", refId: order.orderId },
+      include: { entries: true },
+    });
     expect(commissions.length).toBe(3);
-    for (const t of commissions) expect(t.entries.reduce((s, e) => s + e.amountInPaise, 0)).toBe(0);
+    for (const t of commissions)
+      expect(t.entries.reduce((s, e) => s + e.amountInPaise, 0)).toBe(0);
 
     const upline = await loadWalletEntries(uplineIds);
     expect(balanceOf(upline)).toBe(165000); // ₹1650 held across L1+L2+L3
@@ -84,18 +161,42 @@ describe.skipIf(!HAS_DB)("checkout with mock provider (e2e dev flow)", () => {
 
   it("simulator is idempotent — re-sending the same event changes nothing", async () => {
     const provider = getPaymentProvider();
-    const order = await placeOrder({ packageSlug: "career-booster", phone: buyerPhone10 }, (i) => provider.createOrder(i));
-    const signed = buildSignedCapture({ razorpayOrderId: order.razorpayOrderId, amountInPaise: order.amountInPaise, webhookSecret: secret });
+    const order = await placeOrder(
+      { packageSlug: "career-booster", phone: buyerPhone10 },
+      (i) => provider.createOrder(i),
+    );
+    const signed = buildSignedCapture({
+      razorpayOrderId: order.razorpayOrderId,
+      amountInPaise: order.amountInPaise,
+      webhookSecret: secret,
+    });
 
-    const first = await handleRazorpayWebhook(signed.body, signed.signature, signed.eventId);
-    const second = await handleRazorpayWebhook(signed.body, signed.signature, signed.eventId);
+    const first = await handleRazorpayWebhook(
+      signed.body,
+      signed.signature,
+      signed.eventId,
+    );
+    const second = await handleRazorpayWebhook(
+      signed.body,
+      signed.signature,
+      signed.eventId,
+    );
     expect(first.status).toBe(200);
     expect(second.status).toBe(200);
-    expect(await prisma.ledgerTransaction.count({ where: { type: "COMMISSION", refType: "Order", refId: order.orderId } })).toBe(3);
+    expect(
+      await prisma.ledgerTransaction.count({
+        where: { type: "COMMISSION", refType: "Order", refId: order.orderId },
+      }),
+    ).toBe(3);
   });
 });
 
-async function loadWalletEntries(userIds: string[]): Promise<{ amountInPaise: number; holdUntil: Date | null }[]> {
-  const accounts = await prisma.ledgerAccount.findMany({ where: { userId: { in: userIds } }, include: { entries: { select: { amountInPaise: true, holdUntil: true } } } });
+async function loadWalletEntries(
+  userIds: string[],
+): Promise<{ amountInPaise: number; holdUntil: Date | null }[]> {
+  const accounts = await prisma.ledgerAccount.findMany({
+    where: { userId: { in: userIds } },
+    include: { entries: { select: { amountInPaise: true, holdUntil: true } } },
+  });
   return accounts.flatMap((a) => a.entries);
 }

@@ -23,12 +23,27 @@ export function buildSignedCapture(opts: {
   paymentId?: string;
   eventId?: string;
 }): SignedWebhook {
-  const paymentId = opts.paymentId ?? `mock_pay_${randomBytes(10).toString("hex")}`;
+  const paymentId =
+    opts.paymentId ?? `mock_pay_${randomBytes(10).toString("hex")}`;
   const body = JSON.stringify({
     event: "payment.captured",
-    payload: { payment: { entity: { id: paymentId, order_id: opts.razorpayOrderId, amount: opts.amountInPaise, status: "captured" } } },
+    payload: {
+      payment: {
+        entity: {
+          id: paymentId,
+          order_id: opts.razorpayOrderId,
+          amount: opts.amountInPaise,
+          status: "captured",
+        },
+      },
+    },
   });
-  return { body, signature: sign(body, opts.webhookSecret), eventId: opts.eventId ?? `mock_evt_${paymentId}`, paymentId };
+  return {
+    body,
+    signature: sign(body, opts.webhookSecret),
+    eventId: opts.eventId ?? `mock_evt_${paymentId}`,
+    paymentId,
+  };
 }
 
 /** refund.processed for a paid order — drives the within-window clawback path. */
@@ -39,10 +54,24 @@ export function buildSignedRefund(opts: {
   refundId?: string;
   eventId?: string;
 }): SignedWebhook {
-  const refundId = opts.refundId ?? `mock_rfnd_${randomBytes(10).toString("hex")}`;
+  const refundId =
+    opts.refundId ?? `mock_rfnd_${randomBytes(10).toString("hex")}`;
   const body = JSON.stringify({
     event: "refund.processed",
-    payload: { refund: { entity: { id: refundId, payment_id: opts.paymentId, amount: opts.amountInPaise } } },
+    payload: {
+      refund: {
+        entity: {
+          id: refundId,
+          payment_id: opts.paymentId,
+          amount: opts.amountInPaise,
+        },
+      },
+    },
   });
-  return { body, signature: sign(body, opts.webhookSecret), eventId: opts.eventId ?? `mock_evt_${refundId}`, paymentId: opts.paymentId };
+  return {
+    body,
+    signature: sign(body, opts.webhookSecret),
+    eventId: opts.eventId ?? `mock_evt_${refundId}`,
+    paymentId: opts.paymentId,
+  };
 }

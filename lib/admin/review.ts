@@ -4,7 +4,11 @@ import { prisma } from "../prisma";
 import type { AdminIdentity } from "../auth/admin";
 import { recordAdminAction } from "./audit";
 
-export async function resolveReview(actor: AdminIdentity, orderId: string, note?: string) {
+export async function resolveReview(
+  actor: AdminIdentity,
+  orderId: string,
+  note?: string,
+) {
   return prisma.$transaction(async (tx) => {
     return recordAdminAction(tx, {
       actor,

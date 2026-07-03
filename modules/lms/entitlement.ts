@@ -9,18 +9,28 @@ export interface PackageDef {
 }
 
 export type EntitlementResult =
-  | { ok: true; courseIds: string[] }
-  | { ok: false; reason: string };
+  { ok: true; courseIds: string[] } | { ok: false; reason: string };
 
-export function coursesToEnroll(pkg: PackageDef, chosenCourseId?: string | null): EntitlementResult {
+export function coursesToEnroll(
+  pkg: PackageDef,
+  chosenCourseId?: string | null,
+): EntitlementResult {
   if (pkg.slug === "skill-builder") {
-    if (!chosenCourseId) return { ok: false, reason: "Skill Builder requires a course choice (DR-021)" };
+    if (!chosenCourseId)
+      return {
+        ok: false,
+        reason: "Skill Builder requires a course choice (DR-021)",
+      };
     if (!pkg.courseIds.includes(chosenCourseId))
-      return { ok: false, reason: "Chosen course is not in the Skill Builder package" };
+      return {
+        ok: false,
+        reason: "Chosen course is not in the Skill Builder package",
+      };
     return { ok: true, courseIds: [chosenCourseId] };
   }
   // Career Booster: everything currently in the package.
-  if (pkg.courseIds.length === 0) return { ok: false, reason: "Package has no courses configured" };
+  if (pkg.courseIds.length === 0)
+    return { ok: false, reason: "Package has no courses configured" };
   return { ok: true, courseIds: [...pkg.courseIds] };
 }
 

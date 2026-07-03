@@ -6,14 +6,24 @@ import { getAdminUser } from "../../../lib/auth/admin";
 import { updateLeadStage } from "../../../lib/crm/leads";
 import type { LeadStage } from "../../../modules/crm/lead";
 
-const STAGES: LeadStage[] = ["NEW", "CONTACTED", "WEBINAR_REGISTERED", "CONVERTED", "LOST"];
+const STAGES: LeadStage[] = [
+  "NEW",
+  "CONTACTED",
+  "WEBINAR_REGISTERED",
+  "CONVERTED",
+  "LOST",
+];
 
 export type StageResult = { ok: true } | { ok: false; error: string };
 
-export async function updateLeadStageAction(leadId: string, stage: string): Promise<StageResult> {
+export async function updateLeadStageAction(
+  leadId: string,
+  stage: string,
+): Promise<StageResult> {
   const admin = await getAdminUser();
   if (!admin) return { ok: false, error: "Not authorized" }; // defence in depth (middleware also gates)
-  if (!STAGES.includes(stage as LeadStage)) return { ok: false, error: "Invalid stage" };
+  if (!STAGES.includes(stage as LeadStage))
+    return { ok: false, error: "Invalid stage" };
   try {
     await updateLeadStage(admin, leadId, stage as LeadStage);
     revalidatePath("/admin/leads");

@@ -19,7 +19,11 @@ export function totalCommission(pkg: PackageSlug): number {
 }
 
 /** Idempotency key for a single commission credit — prevents double-credit on webhook retry. */
-export function commissionIdempotencyKey(orderId: string, uplineUserId: string, level: Level): string {
+export function commissionIdempotencyKey(
+  orderId: string,
+  uplineUserId: string,
+  level: Level,
+): string {
   return `commission:${orderId}:${uplineUserId}:${level}`;
 }
 
@@ -34,7 +38,10 @@ export function commissionHoldUntil(paidAt: Date): Date {
 }
 
 /** Whether an order paid at `paidAt` is still inside the self-serve refund window. */
-export function isWithinRefundWindow(paidAt: Date, now: Date = new Date()): boolean {
+export function isWithinRefundWindow(
+  paidAt: Date,
+  now: Date = new Date(),
+): boolean {
   return now < commissionHoldUntil(paidAt);
 }
 
@@ -43,6 +50,10 @@ export function isWithinRefundWindow(paidAt: Date, now: Date = new Date()): bool
  * Post-window refunds are MANUAL: a negative ADJUSTMENT entry that nets against
  * future earnings — never reclaim money already paid out to a bank (DR-025).
  */
-export function clawbackIdempotencyKey(orderId: string, uplineUserId: string, level: Level): string {
+export function clawbackIdempotencyKey(
+  orderId: string,
+  uplineUserId: string,
+  level: Level,
+): string {
   return `clawback:${orderId}:${uplineUserId}:${level}`;
 }

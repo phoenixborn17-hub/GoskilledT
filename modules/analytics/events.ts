@@ -61,13 +61,27 @@ export interface AnalyticsEvent {
 
 // Golden Rule 6: PII (and secret-looking values) must never reach a log or external sink.
 // Defence-in-depth — even if a caller passes a bad key, we drop it here in the PURE core.
-const PII_KEY_FRAGMENTS = ["phone", "email", "pan", "bank", "account", "ifsc", "name", "address", "otp", "token", "secret", "password"];
+const PII_KEY_FRAGMENTS = [
+  "phone",
+  "email",
+  "pan",
+  "bank",
+  "account",
+  "ifsc",
+  "name",
+  "address",
+  "otp",
+  "token",
+  "secret",
+  "password",
+];
 
 /** Pure: strip any property whose key looks like PII/a secret. */
 export function stripPii(properties: AnalyticsProperties): AnalyticsProperties {
   const out: AnalyticsProperties = {};
   for (const [k, v] of Object.entries(properties)) {
-    if (PII_KEY_FRAGMENTS.some((bad) => k.toLowerCase().includes(bad))) continue;
+    if (PII_KEY_FRAGMENTS.some((bad) => k.toLowerCase().includes(bad)))
+      continue;
     out[k] = v;
   }
   return out;

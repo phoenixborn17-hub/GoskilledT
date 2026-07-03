@@ -4,7 +4,12 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import {
-  assertLessonAccess, completeLesson, getCoursePlayerView, getEnrolledCourses, isEnrolled, LmsAccessError,
+  assertLessonAccess,
+  completeLesson,
+  getCoursePlayerView,
+  getEnrolledCourses,
+  isEnrolled,
+  LmsAccessError,
 } from "@/lib/lms/queries";
 
 const HAS_DB = !!process.env.DATABASE_URL;
@@ -17,20 +22,67 @@ describe.skipIf(!HAS_DB)("LMS flow (integration)", () => {
   let l2: string; // paid
 
   beforeAll(async () => {
-    const course = await prisma.course.create({ data: { slug, title: "Test Course", status: "PUBLISHED" }, select: { id: true } });
-    const mod = await prisma.module.create({ data: { courseId: course.id, title: "Module 1", order: 1 }, select: { id: true } });
-    const a = await prisma.lesson.create({ data: { moduleId: mod.id, title: "L1 (preview)", order: 1, isFreePreview: true, videoAssetId: `${runId}-v1`, durationSec: 120 }, select: { id: true } });
-    const b = await prisma.lesson.create({ data: { moduleId: mod.id, title: "L2", order: 2, isFreePreview: false, videoAssetId: `${runId}-v2`, durationSec: 150 }, select: { id: true } });
-    l1 = a.id; l2 = b.id;
-    const u = await prisma.user.create({ data: { phone: `+919${String(Date.now()).slice(-9)}`, referralCode: runId.toUpperCase() }, select: { id: true } });
+    const course = await prisma.course.create({
+      data: { slug, title: "Test Course", status: "PUBLISHED" },
+      select: { id: true },
+    });
+    const mod = await prisma.module.create({
+      data: { courseId: course.id, title: "Module 1", order: 1 },
+      select: { id: true },
+    });
+    const a = await prisma.lesson.create({
+      data: {
+        moduleId: mod.id,
+        title: "L1 (preview)",
+        order: 1,
+        isFreePreview: true,
+        videoAssetId: `${runId}-v1`,
+        durationSec: 120,
+      },
+      select: { id: true },
+    });
+    const b = await prisma.lesson.create({
+      data: {
+        moduleId: mod.id,
+        title: "L2",
+        order: 2,
+        isFreePreview: false,
+        videoAssetId: `${runId}-v2`,
+        durationSec: 150,
+      },
+      select: { id: true },
+    });
+    l1 = a.id;
+    l2 = b.id;
+    const u = await prisma.user.create({
+      data: {
+        phone: `+919${String(Date.now()).slice(-9)}`,
+        referralCode: runId.toUpperCase(),
+      },
+      select: { id: true },
+    });
     userId = u.id;
   });
 
   it("access control before enrollment: free preview allowed, paid lesson denied", async () => {
-    expect(await isEnrolled(userId, (await prisma.course.findUniqueOrThrow({ where: { slug }, select: { id: true } })).id)).toBe(false);
+    expect(
+      await isEnrolled(
+        userId,
+        (
+          await prisma.course.findUniqueOrThrow({
+            where: { slug },
+            select: { id: true },
+          })
+        ).id,
+      ),
+    ).toBe(false);
     await expect(assertLessonAccess(userId, l1)).resolves.toBeTruthy(); // free preview
-    await expect(assertLessonAccess(userId, l2)).rejects.toBeInstanceOf(LmsAccessError); // paid, not enrolled
-    await expect(completeLesson(userId, l2)).rejects.toBeInstanceOf(LmsAccessError); // cannot complete locked lesson
+    await expect(assertLessonAccess(userId, l2)).rejects.toBeInstanceOf(
+      LmsAccessError,
+    ); // paid, not enrolled
+    await expect(completeLesson(userId, l2)).rejects.toBeInstanceOf(
+      LmsAccessError,
+    ); // cannot complete locked lesson
   });
 
   it("player view before enrollment: paid lessons locked, resume = first lesson", async () => {
@@ -44,7 +96,10 @@ describe.skipIf(!HAS_DB)("LMS flow (integration)", () => {
   });
 
   it("enroll → complete lessons → progress updates; resume advances", async () => {
-    const course = await prisma.course.findUniqueOrThrow({ where: { slug }, select: { id: true } });
+    const course = await prisma.course.findUniqueOrThrow({
+      where: { slug },
+      select: { id: true },
+    });
     await prisma.enrollment.create({ data: { userId, courseId: course.id } });
 
     const p1 = await completeLesson(userId, l1);

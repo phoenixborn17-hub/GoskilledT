@@ -18,28 +18,45 @@ export interface CourseCardData {
 export function CourseCard({ course }: { course: CourseCardData }) {
   const comingSoon = course.status === "COMING_SOON";
   return (
-    <Link href={`/courses/${course.slug}`} className="block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 rounded-2xl">
+    <Link
+      href={`/courses/${course.slug}`}
+      className="block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 rounded-2xl"
+    >
       <Card className="lift flex h-full flex-col gap-3 transition-colors hover:border-brand/30">
         <div className="flex items-center justify-between gap-2">
           {course.category && <Badge variant="brand">{course.category}</Badge>}
           {comingSoon && <Badge variant="gold">Coming soon</Badge>}
         </div>
 
-        <h3 className="font-heading text-lg font-bold leading-snug">{course.title}</h3>
-        {course.summary && <p className="line-clamp-2 text-sm text-muted">{course.summary}</p>}
+        <h3 className="font-heading text-lg font-bold leading-snug">
+          {course.title}
+        </h3>
+        {course.summary && (
+          <p className="line-clamp-2 text-sm text-muted">{course.summary}</p>
+        )}
 
         <div className="mt-auto space-y-2 pt-2">
           {course.lessonCount > 0 && (
             <div className="flex items-center gap-4 text-xs text-muted">
-              <span className="inline-flex items-center gap-1"><PlayCircle className="h-3.5 w-3.5" aria-hidden /> {course.lessonCount} lessons</span>
-              <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5" aria-hidden /> {course.durationLabel}</span>
+              <span className="inline-flex items-center gap-1">
+                <PlayCircle className="h-3.5 w-3.5" aria-hidden />{" "}
+                {course.lessonCount} lessons
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Clock className="h-3.5 w-3.5" aria-hidden />{" "}
+                {course.durationLabel}
+              </span>
             </div>
           )}
           {/* COPY: draft — price context (DR-023 package pricing) */}
           <p className="text-xs text-muted">
-            {course.packageNames.length > 0 ? `Included in ${course.packageNames.join(" & ")}` : "Available in our packages"}
+            {course.packageNames.length > 0
+              ? `Included in ${course.packageNames.join(" & ")}`
+              : "Available in our packages"}
           </p>
-          <span className="inline-block text-sm font-semibold text-brand">{comingSoon ? "Preview details →" : "View course →"}</span>
+          <span className="inline-block text-sm font-semibold text-brand">
+            {comingSoon ? "Preview details →" : "View course →"}
+          </span>
         </div>
       </Card>
     </Link>

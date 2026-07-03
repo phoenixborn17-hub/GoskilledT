@@ -7,7 +7,9 @@ import { resolveReview } from "../../../lib/admin/review";
 
 export type ResolveResult = { ok: true } | { ok: false; error: string };
 
-export async function resolveReviewAction(orderId: string): Promise<ResolveResult> {
+export async function resolveReviewAction(
+  orderId: string,
+): Promise<ResolveResult> {
   const admin = await getAdminUser();
   if (!admin) return { ok: false, error: "Not authorized" };
   if (!orderId) return { ok: false, error: "Missing order" };

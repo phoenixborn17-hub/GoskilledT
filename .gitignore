@@ -19,6 +19,7 @@ out/
 build/
 dist/
 .vercel
+.build-home/   # temp HOME redirect used to work around the Windows junction EPERM in `next build`
 
 # ── Prisma generated client (regenerated via `prisma generate`) ─
 /lib/generated

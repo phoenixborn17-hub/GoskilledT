@@ -3,7 +3,12 @@
 // Fine for launch abuse-dampening; swap for Redis/Upstash when we scale horizontally.
 
 /** Pure, testable core: is a new request allowed given prior timestamps in the window? */
-export function withinLimit(timestamps: number[], now: number, windowMs: number, max: number): boolean {
+export function withinLimit(
+  timestamps: number[],
+  now: number,
+  windowMs: number,
+  max: number,
+): boolean {
   const recent = timestamps.filter((t) => now - t < windowMs);
   return recent.length < max;
 }
@@ -47,7 +52,10 @@ export function rateLimit(
 
   if (recent.length >= max) {
     const oldest = Math.min(...recent);
-    return { ok: false, retryAfterSec: Math.ceil((windowMs - (now - oldest)) / 1000) };
+    return {
+      ok: false,
+      retryAfterSec: Math.ceil((windowMs - (now - oldest)) / 1000),
+    };
   }
   recent.push(now);
   buckets.set(key, recent); // prune-on-access: this key only ever holds in-window timestamps

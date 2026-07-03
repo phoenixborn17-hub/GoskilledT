@@ -37,16 +37,24 @@ export function SiteFooter() {
       <div className="mx-auto w-full max-w-5xl px-4 py-12">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <div className="max-w-sm">
-            <p className="font-heading text-lg font-bold text-brand">GoSkilled</p>
+            <p className="font-heading text-lg font-bold text-brand">
+              GoSkilled
+            </p>
             {/* COPY: draft — D-29 honest positioning */}
             <p className="mt-2 text-sm text-muted">
-              We sell skills, not dreams. Practical courses in simple Hinglish — honest,
-              GST-inclusive pricing and a 48-hour refund window.
+              We sell skills, not dreams. Practical courses in simple Hinglish —
+              honest, GST-inclusive pricing and a 48-hour refund window.
             </p>
             {SOCIALS.length > 0 && (
               <nav aria-label="Social" className="mt-4 flex gap-3">
                 {SOCIALS.map((s) => (
-                  <Link key={s.href} href={s.href} className="text-sm text-charcoal/70 hover:text-brand">{s.label}</Link>
+                  <Link
+                    key={s.href}
+                    href={s.href}
+                    className="text-sm text-charcoal/70 hover:text-brand"
+                  >
+                    {s.label}
+                  </Link>
                 ))}
               </nav>
             )}
@@ -69,12 +77,26 @@ export function SiteFooter() {
   );
 }
 
-function FooterNav({ label, links }: { label: string; links: { href: string; label: string }[] }) {
+function FooterNav({
+  label,
+  links,
+}: {
+  label: string;
+  links: { href: string; label: string }[];
+}) {
   return (
     <nav aria-label={label} className="flex flex-col gap-2">
-      <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+        {label}
+      </p>
       {links.map((l) => (
-        <Link key={l.href} href={l.href} className="text-sm text-charcoal/70 hover:text-brand">{l.label}</Link>
+        <Link
+          key={l.href}
+          href={l.href}
+          className="text-sm text-charcoal/70 hover:text-brand"
+        >
+          {l.label}
+        </Link>
       ))}
     </nav>
   );

@@ -1,4 +1,5 @@
 # GoSkilled Website — Blueprint v1.1 (FROZEN)
+
 ### Architecture · Flows · Data Model · Design System · Launch-critical specs
 
 **Status:** **FROZEN v1.1** — implementation-ready · **Date:** 2026-07-03
@@ -14,25 +15,25 @@
 
 ## 1. Ratified decisions embedded in this version (v0.1 → v1.1)
 
-| Ref | Decision |
-|---|---|
-| DR-019/020 | vNext greenfield (`goskilled-vnext`), Next 15 stack, solo + Claude Code. All legacy `goskilled-web` references superseded; legacy repo = reference only. |
-| **DR-021** | **Packages:** Skill Builder = 1 launch course (buyer's choice AI *or* DM). Career Booster = both + all future courses as released (roadmap honestly labeled). |
-| **DR-022** | **Video = Cloudflare Stream** (signed URLs, HLS adaptive). YouTube-unlisted only for free previews. |
-| **DR-023** | **Checkout = OTP-inside-checkout** (phone → OTP → pay; account is a by-product; name/email post-purchase). **GST-inclusive single price** ("₹X — no hidden charges"). |
-| **DR-024** | **Auth = Supabase Auth for users AND admins** (role claim + RBAC). `OtpCode` + `AdminUser.passwordHash` removed from schema. |
-| **DR-025** | **Refunds = 48-hour window + commission hold (refined).** Lifecycle: payment ⇒ commissions **HELD** → 48h → no refund ⇒ **AVAILABLE**; refund ⇒ **CANCELLED** via `clawback` ledger reversal (never becomes available). Post-window exceptional refund = **manual**: negative ledger entry adjusts *future earnings* — **never pull money back from the bank**. **Held commissions are visible to affiliates but not withdrawable until the refund validation window expires** (UX rule — wallet shows Held vs Available). |
+| Ref        | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| DR-019/020 | vNext greenfield (`goskilled-vnext`), Next 15 stack, solo + Claude Code. All legacy `goskilled-web` references superseded; legacy repo = reference only.                                                                                                                                                                                                                                                                                                                                                                   |
+| **DR-021** | **Packages:** Skill Builder = 1 launch course (buyer's choice AI _or_ DM). Career Booster = both + all future courses as released (roadmap honestly labeled).                                                                                                                                                                                                                                                                                                                                                              |
+| **DR-022** | **Video = Cloudflare Stream** (signed URLs, HLS adaptive). YouTube-unlisted only for free previews.                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| **DR-023** | **Checkout = OTP-inside-checkout** (phone → OTP → pay; account is a by-product; name/email post-purchase). **GST-inclusive single price** ("₹X — no hidden charges").                                                                                                                                                                                                                                                                                                                                                      |
+| **DR-024** | **Auth = Supabase Auth for users AND admins** (role claim + RBAC). `OtpCode` + `AdminUser.passwordHash` removed from schema.                                                                                                                                                                                                                                                                                                                                                                                               |
+| **DR-025** | **Refunds = 48-hour window + commission hold (refined).** Lifecycle: payment ⇒ commissions **HELD** → 48h → no refund ⇒ **AVAILABLE**; refund ⇒ **CANCELLED** via `clawback` ledger reversal (never becomes available). Post-window exceptional refund = **manual**: negative ledger entry adjusts _future earnings_ — **never pull money back from the bank**. **Held commissions are visible to affiliates but not withdrawable until the refund validation window expires** (UX rule — wallet shows Held vs Available). |
 
 ## 2. Scope discipline — architect all, build launch-critical first
 
-| | Launch-critical (build now — Slice 1) | Design-only / build later |
-|---|---|---|
-| **Marketing** | Home, Courses, Course detail, Packages, Webinar | Blog, Videos, Success stories, About, Contact, FAQ |
-| **Legal** | Privacy · Terms · **Refund (48h, DR-025)** · Disclaimer — required for Razorpay activation; content owned by D-01 legal workstream | — |
-| **Auth** | Supabase phone-OTP (inside checkout + standalone login) | — |
-| **LMS (green)** | Dashboard, My courses, Course player (Cloudflare Stream), Progress | Certificates + `/verify/[serial]`, Assignments, Leaderboard |
-| **Affiliate (gold)** | *Designed fully; signup/earnings GATED by D-01* — dashboard, referrals, wallet (held/available split) | Commissions detail, Payouts, KYC, Rewards (Slice 2, post-D-01) |
-| **Admin** | Users, Payments, Leads + **`AFFILIATE_PAYOUTS_ENABLED` master flag** | KYC, Withdraw, Popups, Rewards, Webinar admin, Settings |
+|                      | Launch-critical (build now — Slice 1)                                                                                              | Design-only / build later                                      |
+| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| **Marketing**        | Home, Courses, Course detail, Packages, Webinar                                                                                    | Blog, Videos, Success stories, About, Contact, FAQ             |
+| **Legal**            | Privacy · Terms · **Refund (48h, DR-025)** · Disclaimer — required for Razorpay activation; content owned by D-01 legal workstream | —                                                              |
+| **Auth**             | Supabase phone-OTP (inside checkout + standalone login)                                                                            | —                                                              |
+| **LMS (green)**      | Dashboard, My courses, Course player (Cloudflare Stream), Progress                                                                 | Certificates + `/verify/[serial]`, Assignments, Leaderboard    |
+| **Affiliate (gold)** | _Designed fully; signup/earnings GATED by D-01_ — dashboard, referrals, wallet (held/available split)                              | Commissions detail, Payouts, KYC, Rewards (Slice 2, post-D-01) |
+| **Admin**            | Users, Payments, Leads + **`AFFILIATE_PAYOUTS_ENABLED` master flag**                                                               | KYC, Withdraw, Popups, Rewards, Webinar admin, Settings        |
 
 ## 3. Surfaces & sitemap (vNext routes)
 
@@ -62,6 +63,7 @@ Refund ≤48h ⇒ Order REFUNDED + clawback txn reverses all 3 commission legs.
 ## 5. Data model — deltas on the scaffold schema
 
 Bounded contexts per vNext ADR §4. Changes ratified by this freeze:
+
 - **Remove** `OtpCode`, `AdminUser.passwordHash` (DR-024) — admin = Supabase role claim; keep `AdminAction` audit (actor = Supabase user id).
 - **Ledger:** `LedgerTransaction.type` → enum incl. `"clawback"`; add `holdUntil DateTime?` on commission credit legs (or a `HELD` flag) — **available balance = sum(entries) where holdUntil passed**; DB CHECK/trigger enforcing zero-sum per transaction; monthly reconciliation job.
 - **Package:** CB future-inclusion flag (DR-021); SB course-choice recorded on Order.
@@ -92,16 +94,16 @@ Bounded contexts per vNext ADR §4. Changes ratified by this freeze:
 
 ## 8. Execution plan
 
-| Slice | Work | Gate |
-|---|---|---|
-| **1 (launch)** | Money core (ledger+hold+clawback, webhook) → auth (Supabase) → catalog/LMS (Stream player) → checkout → marketing pages → minimal admin + payout flag | this freeze · ₹1 test · legal pages live |
-| **1.5 fast-follow** | Guru v1 (course-transcript RAG, Hinglish, D-29 guardrails, cost caps) · quiz-gen (admin-side) · webinar WhatsApp nurture · certificates + `/verify` · PWA shell | Slice 1 live |
-| **2 (post-D-01)** | Affiliate activation, KYC, withdraw, full admin | **D-01** |
-| **3** | Dark mode · Hindi i18n · offline lessons · community · 3D hero · adaptive paths | data/headroom |
+| Slice               | Work                                                                                                                                                            | Gate                                     |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- |
+| **1 (launch)**      | Money core (ledger+hold+clawback, webhook) → auth (Supabase) → catalog/LMS (Stream player) → checkout → marketing pages → minimal admin + payout flag           | this freeze · ₹1 test · legal pages live |
+| **1.5 fast-follow** | Guru v1 (course-transcript RAG, Hinglish, D-29 guardrails, cost caps) · quiz-gen (admin-side) · webinar WhatsApp nurture · certificates + `/verify` · PWA shell | Slice 1 live                             |
+| **2 (post-D-01)**   | Affiliate activation, KYC, withdraw, full admin                                                                                                                 | **D-01**                                 |
+| **3**               | Dark mode · Hindi i18n · offline lessons · community · 3D hero · adaptive paths                                                                                 | data/headroom                            |
 
 **Parallel non-website critical path (unchanged, true bottleneck):** D-01/03/04 legal · **course recording (AI + DM)** · D-26 IP.
 
 ## 9. Division of labour (two-account workflow)
 
 - **Fable/Max ("Chief Architect"):** architecture, design decisions, reviews, money-code review before merge, final audits. Never production code.
-- **Claude Pro + Claude Code ("Development"):** implementation ticket-by-ticket. Every session starts: *"Implement per frozen Blueprint v1.1 + CLAUDE.md. Do not redesign."* Money modules (ledger/commission/webhook/clawback) require Fable review + Vites
+- **Claude Pro + Claude Code ("Development"):** implementation ticket-by-ticket. Every session starts: _"Implement per frozen Blueprint v1.1 + CLAUDE.md. Do not redesign."_ Money modules (ledger/commission/webhook/clawback) require Fable review + Vites

@@ -18,20 +18,37 @@ export default function NotFound() {
     <>
       <SiteHeader />
       <main className="mx-auto flex w-full max-w-2xl flex-col items-center px-4 py-20 text-center">
-        <div className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand" aria-hidden>
+        <div
+          className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand"
+          aria-hidden
+        >
           <Compass className="h-8 w-8" />
         </div>
         <p className="font-heading text-5xl font-extrabold text-brand">404</p>
-        <h1 className="mt-2 font-heading text-2xl font-bold">This page took a wrong turn</h1>
-        <p className="mt-2 max-w-md text-muted">The page you&apos;re looking for doesn&apos;t exist or may have moved. Let&apos;s get you back on track.</p>
+        <h1 className="mt-2 font-heading text-2xl font-bold">
+          This page took a wrong turn
+        </h1>
+        <p className="mt-2 max-w-md text-muted">
+          The page you&apos;re looking for doesn&apos;t exist or may have moved.
+          Let&apos;s get you back on track.
+        </p>
 
         <div className="mt-6 w-full max-w-xs">
-          <Link href="/"><Button>Back to home</Button></Link>
+          <Link href="/">
+            <Button>Back to home</Button>
+          </Link>
         </div>
 
-        <nav aria-label="Helpful links" className="mt-6 flex flex-wrap justify-center gap-2">
+        <nav
+          aria-label="Helpful links"
+          className="mt-6 flex flex-wrap justify-center gap-2"
+        >
           {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="rounded-full border border-charcoal/15 px-4 py-1.5 text-sm font-medium text-charcoal/70 hover:bg-brand/5 hover:text-brand">
+            <Link
+              key={l.href}
+              href={l.href}
+              className="rounded-full border border-charcoal/15 px-4 py-1.5 text-sm font-medium text-charcoal/70 hover:bg-brand/5 hover:text-brand"
+            >
               {l.label}
             </Link>
           ))}

@@ -11,8 +11,19 @@ const variants: Record<Variant, string> = {
   outline: "border border-charcoal/15 text-charcoal/70",
 };
 
-export function Badge({ className, variant = "brand", ...props }: React.HTMLAttributes<HTMLSpanElement> & { variant?: Variant }) {
+export function Badge({
+  className,
+  variant = "brand",
+  ...props
+}: React.HTMLAttributes<HTMLSpanElement> & { variant?: Variant }) {
   return (
-    <span className={cn("inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold", variants[variant], className)} {...props} />
+    <span
+      className={cn(
+        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+        variants[variant],
+        className,
+      )}
+      {...props}
+    />
   );
 }

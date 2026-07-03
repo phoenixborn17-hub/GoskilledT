@@ -9,7 +9,11 @@ import { upsertLead } from "../../lib/crm/leads";
 import { rateLimit } from "../../lib/rate-limit";
 import { track, anonId } from "../../lib/analytics/track";
 
-const utmSchema = z.object({ source: z.string().nullable(), medium: z.string().nullable(), campaign: z.string().nullable() });
+const utmSchema = z.object({
+  source: z.string().nullable(),
+  medium: z.string().nullable(),
+  campaign: z.string().nullable(),
+});
 
 const schema = z.object({
   name: z.string().trim().max(80).optional(),
@@ -21,15 +25,29 @@ export type WaitlistResult = { ok: true } | { ok: false; error: string };
 
 async function clientIp(): Promise<string> {
   const h = await headers();
-  return h.get("x-forwarded-for")?.split(",")[0]?.trim() || h.get("x-real-ip") || "local";
+  return (
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    h.get("x-real-ip") ||
+    "local"
+  );
 }
 
-export async function joinWaitlist(input: z.input<typeof schema>): Promise<WaitlistResult> {
+export async function joinWaitlist(
+  input: z.input<typeof schema>,
+): Promise<WaitlistResult> {
   const parsed = schema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid details" };
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid details",
+    };
 
   const rl = rateLimit(`earn:${await clientIp()}`);
-  if (!rl.ok) return { ok: false, error: "Too many attempts. Please try again in a few minutes." };
+  if (!rl.ok)
+    return {
+      ok: false,
+      error: "Too many attempts. Please try again in a few minutes.",
+    };
 
   try {
     const lead = buildLeadData({

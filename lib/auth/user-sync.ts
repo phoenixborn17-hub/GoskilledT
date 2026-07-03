@@ -19,11 +19,16 @@ export interface SyncResult {
 }
 
 function isUniqueViolation(e: unknown): boolean {
-  return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
+  return (
+    e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002"
+  );
 }
 
 /** Resolve a referral code to an upline user id, ignoring unknown codes and self-referral. */
-async function resolveReferrer(refCode: string | undefined, selfSupabaseId: string): Promise<string | null> {
+async function resolveReferrer(
+  refCode: string | undefined,
+  selfSupabaseId: string,
+): Promise<string | null> {
   if (!refCode) return null;
   const referrer = await prisma.user.findUnique({
     where: { referralCode: refCode.trim().toUpperCase() },
@@ -34,7 +39,10 @@ async function resolveReferrer(refCode: string | undefined, selfSupabaseId: stri
   return referrer.id;
 }
 
-export async function syncUser(supabaseUser: SyncableUser, refCode?: string): Promise<SyncResult> {
+export async function syncUser(
+  supabaseUser: SyncableUser,
+  refCode?: string,
+): Promise<SyncResult> {
   const supabaseId = supabaseUser.id;
   const phone = normalizePhoneE164(supabaseUser.phone);
 
@@ -64,7 +72,13 @@ export async function syncUser(supabaseUser: SyncableUser, refCode?: string): Pr
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       return await prisma.user.create({
-        data: { supabaseId, phone, referralCode: generateReferralCode(), referredById, isVerified: true },
+        data: {
+          supabaseId,
+          phone,
+          referralCode: generateReferralCode(),
+          referredById,
+          isVerified: true,
+        },
       });
     } catch (e) {
       // A concurrent request may have created the row by supabaseId/phone first — re-read it.

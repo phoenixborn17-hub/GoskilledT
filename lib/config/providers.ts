@@ -10,31 +10,43 @@ export type AnalyticsProviderName = "console" | "posthog";
 
 export function paymentProviderName(): PaymentProviderName {
   const v = (process.env.PAYMENT_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
-  if (v !== "mock" && v !== "razorpay") throw new Error(`Invalid PAYMENT_PROVIDER: "${v}" (expected mock|razorpay)`);
+  if (v !== "mock" && v !== "razorpay")
+    throw new Error(
+      `Invalid PAYMENT_PROVIDER: "${v}" (expected mock|razorpay)`,
+    );
   return v;
 }
 
 export function otpProviderName(): OtpProviderName {
   const v = (process.env.OTP_PROVIDER || "test").toLowerCase(); // empty/unset → dev default
-  if (v !== "test" && v !== "live") throw new Error(`Invalid OTP_PROVIDER: "${v}" (expected test|live)`);
+  if (v !== "test" && v !== "live")
+    throw new Error(`Invalid OTP_PROVIDER: "${v}" (expected test|live)`);
   return v;
 }
 
 export function videoProviderName(): VideoProviderName {
   const v = (process.env.VIDEO_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
-  if (v !== "mock" && v !== "stream") throw new Error(`Invalid VIDEO_PROVIDER: "${v}" (expected mock|stream)`);
+  if (v !== "mock" && v !== "stream")
+    throw new Error(`Invalid VIDEO_PROVIDER: "${v}" (expected mock|stream)`);
   return v;
 }
 
 export function analyticsProviderName(): AnalyticsProviderName {
   const v = (process.env.ANALYTICS_PROVIDER || "console").toLowerCase(); // empty/unset → dev default
-  if (v !== "console" && v !== "posthog") throw new Error(`Invalid ANALYTICS_PROVIDER: "${v}" (expected console|posthog)`);
+  if (v !== "console" && v !== "posthog")
+    throw new Error(
+      `Invalid ANALYTICS_PROVIDER: "${v}" (expected console|posthog)`,
+    );
   return v;
 }
 
 /** True when a development/mock provider is active for any dependency. */
 export function usingDevProviders(): boolean {
-  return paymentProviderName() === "mock" || otpProviderName() === "test" || videoProviderName() === "mock";
+  return (
+    paymentProviderName() === "mock" ||
+    otpProviderName() === "test" ||
+    videoProviderName() === "mock"
+  );
 }
 
 /**

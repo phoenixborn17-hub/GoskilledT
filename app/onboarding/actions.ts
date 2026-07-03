@@ -21,9 +21,15 @@ async function currentUserId(): Promise<string | null> {
   return user.id;
 }
 
-export async function saveOnboarding(input: z.input<typeof onboardingSchema>): Promise<OnboardingResult> {
+export async function saveOnboarding(
+  input: z.input<typeof onboardingSchema>,
+): Promise<OnboardingResult> {
   const parsed = onboardingSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid details" };
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid details",
+    };
 
   const userId = await currentUserId();
   if (!userId) return { ok: false, error: "Please sign in first." };
@@ -31,18 +37,32 @@ export async function saveOnboarding(input: z.input<typeof onboardingSchema>): P
   try {
     await prisma.user.update({
       where: { id: userId },
-      data: { name: parsed.data.name, email: parsed.data.email, goal: parsed.data.goal, onboardedAt: new Date() },
+      data: {
+        name: parsed.data.name,
+        email: parsed.data.email,
+        goal: parsed.data.goal,
+        onboardedAt: new Date(),
+      },
     });
     return { ok: true };
   } catch (e) {
     // Unique email collision is the likely failure.
-    return { ok: false, error: e instanceof Error ? "Could not save (email may already be in use)." : "Could not save" };
+    return {
+      ok: false,
+      error:
+        e instanceof Error
+          ? "Could not save (email may already be in use)."
+          : "Could not save",
+    };
   }
 }
 
 export async function skipOnboarding(): Promise<OnboardingResult> {
   const userId = await currentUserId();
   if (!userId) return { ok: false, error: "Please sign in first." };
-  await prisma.user.update({ where: { id: userId }, data: { onboardedAt: new Date() } });
+  await prisma.user.update({
+    where: { id: userId },
+    data: { onboardedAt: new Date() },
+  });
   return { ok: true };
 }
