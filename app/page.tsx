@@ -116,15 +116,16 @@ export default async function HomePage() {
               Practical, job-ready skills in simple Hinglish — learn at your own
               pace, right from your phone.
             </p>
+            {/* GPS-M1 §2.1: cold-traffic primary CTA → free Webinar; secondary ghost → /packages. */}
             <div className="enter enter-3 mt-8 flex flex-col gap-3 sm:flex-row">
               <div className="sm:w-56">
-                <Link href="/packages">
-                  <Button>Explore packages</Button>
+                <Link href="/webinar">
+                  <Button>Join a free webinar</Button>
                 </Link>
               </div>
-              <div className="sm:w-40">
-                <Link href="/login">
-                  <Button variant="ghost">Log in</Button>
+              <div className="sm:w-44">
+                <Link href="/packages">
+                  <Button variant="ghost">See packages</Button>
                 </Link>
               </div>
             </div>
