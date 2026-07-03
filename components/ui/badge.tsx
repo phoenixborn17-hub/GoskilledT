@@ -5,8 +5,8 @@ type Variant = "brand" | "muted" | "gold" | "outline";
 
 // Gold rule (Golden Rule 14): gold is a FILL with charcoal text — never gold text on light.
 const variants: Record<Variant, string> = {
-  brand: "bg-brand/10 text-brand",
-  muted: "bg-charcoal/5 text-charcoal/60",
+  brand: "bg-brand/10 text-brand-deep",
+  muted: "bg-charcoal/5 text-muted",
   gold: "bg-gold text-charcoal",
   outline: "border border-charcoal/15 text-charcoal/70",
 };

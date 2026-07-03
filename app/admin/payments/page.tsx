@@ -11,7 +11,7 @@ const STATUSES: OrderStatus[] = ["CREATED", "PAID", "FAILED", "REFUNDED"];
 
 const statusStyle: Record<OrderStatus, string> = {
   PAID: "bg-brand/10 text-brand",
-  CREATED: "bg-charcoal/5 text-charcoal/60",
+  CREATED: "bg-charcoal/5 text-muted",
   FAILED: "bg-red-100 text-red-700",
   REFUNDED: "bg-gold/20 text-charcoal",
 };
@@ -38,7 +38,7 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
 
       <div className="overflow-x-auto rounded-xl border border-charcoal/10 bg-white">
         <table className="w-full min-w-[48rem] text-sm">
-          <thead className="border-b border-charcoal/10 text-left text-charcoal/50">
+          <thead className="border-b border-charcoal/10 text-left text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Phone</th>
               <th className="px-4 py-3 font-medium">Package</th>
@@ -50,7 +50,7 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
           </thead>
           <tbody>
             {orders.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-charcoal/50">No orders.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No orders.</td></tr>
             ) : (
               orders.map((o) => (
                 <tr key={o.id} className="border-b border-charcoal/5 last:border-0">
@@ -58,15 +58,15 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
                   <td className="px-4 py-3">{o.package.name}</td>
                   <td className="px-4 py-3 font-medium">{formatINR(o.amountInPaise)}</td>
                   <td className="px-4 py-3"><span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", statusStyle[o.status])}>{o.status}</span></td>
-                  <td className="px-4 py-3 text-charcoal/60">{fmtDate(o.paidAt)}</td>
-                  <td className="px-4 py-3 text-xs text-charcoal/40">{o.razorpayPaymentId ?? o.razorpayOrderId ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted">{fmtDate(o.paidAt)}</td>
+                  <td className="px-4 py-3 text-xs text-muted">{o.razorpayPaymentId ?? o.razorpayOrderId ?? "—"}</td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-charcoal/40">Showing up to 100 most recent orders.</p>
+      <p className="text-xs text-muted">Showing up to 100 most recent orders.</p>
     </section>
   );
 }

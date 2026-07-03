@@ -31,7 +31,7 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
 
       <div className="overflow-x-auto rounded-xl border border-charcoal/10 bg-white">
         <table className="w-full min-w-[52rem] text-sm">
-          <thead className="border-b border-charcoal/10 text-left text-charcoal/50">
+          <thead className="border-b border-charcoal/10 text-left text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Phone</th>
@@ -43,23 +43,23 @@ export default async function AdminLeadsPage({ searchParams }: { searchParams: P
           </thead>
           <tbody>
             {leads.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-charcoal/50">No leads.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No leads.</td></tr>
             ) : (
               leads.map((l) => (
                 <tr key={l.id} className="border-b border-charcoal/5 last:border-0">
                   <td className="px-4 py-3">{l.name ?? "—"}</td>
                   <td className="px-4 py-3 font-medium">{l.phone ?? "—"}</td>
-                  <td className="px-4 py-3 text-charcoal/60">{l.source ?? "—"}</td>
+                  <td className="px-4 py-3 text-muted">{l.source ?? "—"}</td>
                   <td className="px-4 py-3"><LeadStageSelect leadId={l.id} stage={l.stage} /></td>
-                  <td className="px-4 py-3 text-xs text-charcoal/40">{[l.utmSource, l.utmMedium, l.utmCampaign].map((x) => x ?? "—").join(" / ")}</td>
-                  <td className="px-4 py-3 text-charcoal/60">{fmtDate(l.createdAt)}</td>
+                  <td className="px-4 py-3 text-xs text-muted">{[l.utmSource, l.utmMedium, l.utmCampaign].map((x) => x ?? "—").join(" / ")}</td>
+                  <td className="px-4 py-3 text-muted">{fmtDate(l.createdAt)}</td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-charcoal/40">Changing a stage writes an audit record. Showing up to 100 most recent leads.</p>
+      <p className="text-xs text-muted">Changing a stage writes an audit record. Showing up to 100 most recent leads.</p>
     </section>
   );
 }

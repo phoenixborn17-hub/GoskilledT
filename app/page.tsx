@@ -88,7 +88,7 @@ export default async function HomePage() {
                     <Icon className="h-5 w-5" />
                   </div>
                   <p className="font-heading text-lg font-bold">{i + 1}. {title}</p>
-                  <p className="mt-1 text-sm text-charcoal/60">{body}</p>
+                  <p className="mt-1 text-sm text-muted">{body}</p>
                 </Card>
               ))}
             </div>
@@ -99,9 +99,9 @@ export default async function HomePage() {
         <section aria-labelledby="packages-teaser" className="reveal mx-auto w-full max-w-5xl px-4 py-16">
           <Card className="flex flex-col items-center gap-4 bg-brand text-center text-brand-fg">
             <h2 id="packages-teaser" className="font-heading text-2xl font-bold">One price. GST included. No hidden charges.</h2>
-            <p className="max-w-md text-brand-fg/90">Pick a single course, or get everything plus future releases with Career Booster.</p>
+            <p className="max-w-md text-brand-fg">Pick a single course, or get everything plus future releases with Career Booster.</p>
             <div className="w-full max-w-xs">
-              <Link href="/packages"><Button variant="outline" className="border-brand-fg/40 bg-white/10 text-brand-fg hover:bg-white/20">See packages</Button></Link>
+              <Link href="/packages"><Button variant="outline" className="border-brand-fg/50 text-brand-fg hover:bg-white/15">See packages</Button></Link>
             </div>
           </Card>
         </section>
@@ -117,7 +117,7 @@ function Trust({ Icon, title, body }: { Icon: typeof ShieldCheck; title: string;
       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand" aria-hidden><Icon className="h-5 w-5" /></div>
       <div>
         <p className="text-sm font-semibold text-charcoal">{title}</p>
-        <p className="text-xs text-charcoal/55">{body}</p>
+        <p className="text-xs text-muted">{body}</p>
       </div>
     </div>
   );

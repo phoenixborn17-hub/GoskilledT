@@ -11,7 +11,7 @@ export const dynamic = "force-dynamic";
 function Stat({ label, value, href }: { label: string; value: string; href?: string }) {
   const body = (
     <Card className="h-full">
-      <p className="text-xs font-medium uppercase tracking-wide text-charcoal/40">{label}</p>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
       <p className="mt-1 font-heading text-2xl font-extrabold text-charcoal">{value}</p>
     </Card>
   );
@@ -37,12 +37,12 @@ export default async function AdminOverviewPage() {
         <Card>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="font-heading text-lg font-bold">Leads by stage</h2>
-            <Link href="/admin/leads" className="text-sm font-semibold text-charcoal/60 hover:text-charcoal">View all →</Link>
+            <Link href="/admin/leads" className="text-sm font-semibold text-muted hover:text-charcoal">View all →</Link>
           </div>
           <ul className="space-y-1.5 text-sm">
             {stages.map((s) => (
               <li key={s} className="flex items-center justify-between border-b border-charcoal/5 pb-1.5 last:border-0">
-                <span className="text-charcoal/60">{s.replace("_", " ")}</span>
+                <span className="text-muted">{s.replace("_", " ")}</span>
                 <span className="font-semibold">{o.leadsByStage[s] ?? 0}</span>
               </li>
             ))}
@@ -53,10 +53,10 @@ export default async function AdminOverviewPage() {
           <h2 className="mb-3 font-heading text-lg font-bold">Affiliate payouts</h2>
           <div className="flex items-center gap-2">
             <Badge variant={o.payoutsEnabled ? "brand" : "muted"}>{o.payoutsEnabled ? "ON" : "OFF"}</Badge>
-            <span className="text-sm text-charcoal/60">D-01 gate</span>
+            <span className="text-sm text-muted">D-01 gate</span>
           </div>
           {/* Read-only: this is an env flag by design (AFFILIATE_PAYOUTS_ENABLED). */}
-          <p className="mt-3 text-xs text-charcoal/50">Read-only — change via the <code>AFFILIATE_PAYOUTS_ENABLED</code> environment variable.</p>
+          <p className="mt-3 text-xs text-muted">Read-only — change via the <code>AFFILIATE_PAYOUTS_ENABLED</code> environment variable.</p>
         </Card>
       </div>
     </section>

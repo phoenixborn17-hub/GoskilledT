@@ -25,6 +25,10 @@
   --gs-n-150: #E2E6E2;
   --gs-n-050: #F4F6F4;
 
+  /* Accessible muted TEXT token — ~6:1 on offwhite (WCAG AA for normal text). Use `text-muted`
+     for body/informational text instead of low-opacity charcoal, which fails contrast. */
+  --gs-muted: #5B635B;
+
   /* Semantic */
   --gs-success: #137E49;
   --gs-warning: #B87A00;   /* accessible amber for text — gold stays decorative */
@@ -63,12 +67,13 @@
 html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 
-/* ── Glass (used intentionally: nav, floating bars — a depth tool, not decor) ── */
+/* ── Glass (used intentionally: nav, floating bars — a depth tool, not decor) ──
+      No border here — the separator is direction-specific, so call sites add an explicit
+      border-t (bottom bars) or border-b (top bars). */
 .glass {
   background: rgb(254 254 254 / 0.72);
   -webkit-backdrop-filter: blur(12px) saturate(1.4);
   backdrop-filter: blur(12px) saturate(1.4);
-  border-bottom: 1px solid rgb(42 48 42 / 0.08);
 }
 @supports not ((backdrop-filter: blur(1px))) {
   .glass { background: rgb(254 254 254 / 0.96); } /* graceful fallback */
@@ -78,7 +83,14 @@ html { scroll-behavior: smooth; }
 @media (prefers-reduced-motion: no-preference) {
   .lift { transition: transform 180ms ease, box-shadow 180ms ease; }
   .lift:hover { transform: translateY(-2px); box-shadow: var(--gs-shadow-lg); }
-  .press { transition: transform 120ms ease; }
+  /* Longhand (not the `transition` shorthand) so it doesn't reset the color/bg/border
+     transition set by Tailwind's `transition-colors`; the property list includes them so
+     hover-color fades AND the press-scale both animate. */
+  .press {
+    transition-property: transform, color, background-color, border-color;
+    transition-duration: 120ms;
+    transition-timing-function: ease;
+  }
   .press:active { transform: scale(0.985); }
 }
 
@@ -135,8 +147,10 @@ html { scroll-behavior: smooth; }
   }
 }
 
-/* ── CSS-only scroll reveal (from T5; unchanged behavior). Degrades safely:
-      no-JS, unsupported browsers, and reduced-motion all see content instantly. ── */
+/* ── CSS-only scroll reveal (from T5). Degrades safely: no-JS, unsupported browsers, and
+      reduced-motion all see content instantly. Slides only — NO opacity fade: a fade leaves
+      below-fold content at opacity 0, which reads as invisible to assistive tech and fails
+      the contrast audit (axe blends the low opacity toward the background). ── */
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
     .reveal {
@@ -145,8 +159,8 @@ html { scroll-behavior: smooth; }
       animation-range: entry 5% cover 20%;
     }
     @keyframes reveal-in {
-      from { opacity: 0; transform: translateY(14px); }
-      to { opacity: 1; transform: none; }
+      from { transform: translateY(14px); }
+      to { transform: none; }
     }
   }
 }

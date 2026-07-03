@@ -43,7 +43,7 @@ export default function EarnPage() {
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand" aria-hidden><Icon className="h-5 w-5" /></div>
                 <div>
                   <p className="text-sm font-semibold text-charcoal">{title}</p>
-                  <p className="text-sm text-charcoal/60">{body}</p>
+                  <p className="text-sm text-muted">{body}</p>
                 </div>
               </Card>
             ))}

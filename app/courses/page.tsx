@@ -38,7 +38,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
         <header className="mb-6">
           <h1 className="font-heading text-3xl font-extrabold">Courses</h1>
           {/* COPY: draft */}
-          <p className="mt-1 text-charcoal/60">Practical skills you can use at work — start with a free preview lesson.</p>
+          <p className="mt-1 text-muted">Practical skills you can use at work — start with a free preview lesson.</p>
         </header>
 
         {categories.length > 0 && (
@@ -54,7 +54,7 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
             heading-order). Visually redundant with the <h1>, so kept sr-only — no visual change. */}
         <h2 className="sr-only">All courses</h2>
         {visible.length === 0 ? (
-          <Card className="text-center text-charcoal/60">No courses in this category yet. <Link href="/courses" className="font-semibold text-brand">See all</Link></Card>
+          <Card className="text-center text-muted">No courses in this category yet. <Link href="/courses" className="font-semibold text-brand">See all</Link></Card>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {visible.map((c) => (
