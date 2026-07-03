@@ -66,10 +66,11 @@ describe("production safety guard", () => {
     expect(() => getPaymentProvider()).toThrow(/development providers enabled in production/);
   });
 
-  it("passes in production with razorpay + live", () => {
+  it("passes in production with all real providers", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("PAYMENT_PROVIDER", "razorpay");
     vi.stubEnv("OTP_PROVIDER", "live");
+    vi.stubEnv("VIDEO_PROVIDER", "stream"); // Ticket 4 added video to the guard
     expect(() => assertProductionProviderSafety()).not.toThrow();
   });
 });
