@@ -22,11 +22,21 @@ export function SiteFooter() {
             </p>
           </div>
 
-          <nav aria-label="Legal" className="grid grid-cols-2 gap-x-8 gap-y-2">
-            {LEGAL.map((l) => (
-              <Link key={l.href} href={l.href} className="text-sm text-charcoal/70 hover:text-brand">{l.label}</Link>
-            ))}
-          </nav>
+          <div className="flex gap-10">
+            <nav aria-label="Explore" className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/40">Explore</p>
+              <Link href="/courses" className="text-sm text-charcoal/70 hover:text-brand">Courses</Link>
+              <Link href="/packages" className="text-sm text-charcoal/70 hover:text-brand">Packages</Link>
+              <Link href="/webinar" className="text-sm text-charcoal/70 hover:text-brand">Free webinar</Link>
+              <Link href="/earn" className="text-sm text-charcoal/70 hover:text-brand">Earn with us</Link>
+            </nav>
+            <nav aria-label="Legal" className="flex flex-col gap-2">
+              <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/40">Legal</p>
+              {LEGAL.map((l) => (
+                <Link key={l.href} href={l.href} className="text-sm text-charcoal/70 hover:text-brand">{l.label}</Link>
+              ))}
+            </nav>
+          </div>
         </div>
 
         <div className="mt-8 flex flex-col gap-2 border-t border-charcoal/5 pt-6 text-xs text-charcoal/50 sm:flex-row sm:items-center sm:justify-between">
