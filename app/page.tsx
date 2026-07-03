@@ -19,7 +19,8 @@ import {
 } from "lucide-react";
 import { listCatalogCourses, listPackages } from "../lib/catalog/queries";
 import { courseStats, packagesIncludingCourse } from "../lib/catalog/shape";
-import { pageMetadata } from "../lib/seo";
+import { pageMetadata, organizationJsonLd } from "../lib/seo";
+import { JsonLd } from "../components/marketing/json-ld";
 import { SiteHeader } from "../components/marketing/site-header";
 import { SiteFooter } from "../components/marketing/site-footer";
 import {
@@ -98,6 +99,7 @@ export default async function HomePage() {
   return (
     <>
       <SiteHeader />
+      <JsonLd data={organizationJsonLd()} />
       <main>
         {/* 1. Hero — the one signature moment (CSS aurora + staged entrance; reduced-motion safe) */}
         <section className="hero-aurora">

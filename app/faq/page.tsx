@@ -1,12 +1,15 @@
 // /faq — standalone, categorized FAQ (server component, no JS). Real answers only; the three
 // founder-pending questions are documented in lib/marketing/faq.ts and intentionally NOT rendered.
 import Link from "next/link";
-import { pageMetadata } from "../../lib/seo";
+import { pageMetadata, faqPageJsonLd } from "../../lib/seo";
 import { SiteHeader } from "../../components/marketing/site-header";
 import { SiteFooter } from "../../components/marketing/site-footer";
 import { FaqAccordion } from "../../components/marketing/faq-accordion";
+import { JsonLd } from "../../components/marketing/json-ld";
 import { Button } from "../../components/ui/button";
 import { FAQ_CATEGORIES } from "../../lib/marketing/faq";
+
+const ALL_FAQS = FAQ_CATEGORIES.flatMap((c) => c.items);
 
 export const metadata = pageMetadata({
   title: "Frequently asked questions",
@@ -19,6 +22,7 @@ export default function FaqPage() {
   return (
     <>
       <SiteHeader />
+      <JsonLd data={faqPageJsonLd(ALL_FAQS)} />
       <main className="mx-auto w-full max-w-3xl px-4 py-12">
         <header className="mb-8">
           <h1 className="font-heading text-3xl font-extrabold">
