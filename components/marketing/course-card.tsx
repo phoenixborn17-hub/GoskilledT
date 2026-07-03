@@ -19,7 +19,7 @@ export function CourseCard({ course }: { course: CourseCardData }) {
   const comingSoon = course.status === "COMING_SOON";
   return (
     <Link href={`/courses/${course.slug}`} className="block h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 rounded-2xl">
-      <Card className="flex h-full flex-col gap-3 transition-colors hover:border-brand/30">
+      <Card className="lift flex h-full flex-col gap-3 transition-colors hover:border-brand/30">
         <div className="flex items-center justify-between gap-2">
           {course.category && <Badge variant="brand">{course.category}</Badge>}
           {comingSoon && <Badge variant="gold">Coming soon</Badge>}

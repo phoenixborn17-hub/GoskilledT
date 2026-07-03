@@ -2,24 +2,141 @@
 @tailwind components;
 @tailwind utilities;
 
-/* GoSkilled brand tokens (DR-012). LMS = green-forward, Affiliate = gold-forward. */
+/* ─────────────────────────────────────────────────────────────────────────────
+   GoSkilled design tokens (DR-012 + T9 premium pass).
+   Marketing + LMS = green-forward · Affiliate = gold-forward · Admin = charcoal.
+   Rules: gold is NEVER text on light backgrounds (rule 14). Every effect has a
+   purpose; all motion is CSS-only and gated on prefers-reduced-motion.
+   ───────────────────────────────────────────────────────────────────────────── */
 :root {
+  /* Brand */
   --gs-green: #137E49;
+  --gs-green-deep: #0C5A34;
+  --gs-green-bright: #1AA05E;
   --gs-gold: #EDC825;
   --gs-charcoal: #2A302A;
   --gs-offwhite: #FEFEFE;
-  --font-heading: "Sora", system-ui, sans-serif;
-  --font-body: "Inter", system-ui, sans-serif;
-  --font-hindi: "Noto Sans Devanagari", sans-serif;
+
+  /* Neutrals ramp (off charcoal — use instead of ad-hoc opacities where possible) */
+  --gs-n-900: #2A302A;
+  --gs-n-700: #4A524A;
+  --gs-n-500: #6E766E;
+  --gs-n-300: #B7BDB7;
+  --gs-n-150: #E2E6E2;
+  --gs-n-050: #F4F6F4;
+
+  /* Semantic */
+  --gs-success: #137E49;
+  --gs-warning: #B87A00;   /* accessible amber for text — gold stays decorative */
+  --gs-danger:  #C0392B;
+  --gs-info:    #1D6FA5;
+
+  /* Elevation & shape */
+  --gs-radius-sm: 0.5rem;
+  --gs-radius: 0.75rem;
+  --gs-radius-lg: 1rem;
+  --gs-shadow-sm: 0 1px 2px rgb(42 48 42 / 0.06);
+  --gs-shadow:    0 2px 8px rgb(42 48 42 / 0.08);
+  --gs-shadow-lg: 0 8px 28px rgb(42 48 42 / 0.12);
+
+  /* Fonts (populated by next/font variables in app/layout.tsx) */
+  --font-heading: var(--font-sora, "Sora"), system-ui, sans-serif;
+  --font-body: var(--font-inter, "Inter"), system-ui, sans-serif;
+  --font-hindi: var(--font-devanagari, "Noto Sans Devanagari"), sans-serif;
+
   /* default theme = green (marketing + LMS) */
   --brand: var(--gs-green);
 }
 [data-theme="affiliate"] { --brand: var(--gs-gold); }   /* gold-forward affiliate surface */
 
-/* CSS-only scroll reveal (no JS, no Framer). Degrades safely: content is fully visible unless
-   the browser supports scroll-driven animations AND the user allows motion — so no-JS,
-   unsupported browsers, and prefers-reduced-motion all see content immediately (no blank state,
-   no layout shift — only opacity + transform animate). */
+/* ── Base polish ─────────────────────────────────────────────────────────── */
+::selection { background: rgb(19 126 73 / 0.18); }
+
+/* Visible, on-brand focus everywhere (a11y) — never removed, only styled. */
+:focus-visible {
+  outline: 2px solid var(--gs-green);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+[data-theme="affiliate"] :focus-visible { outline-color: var(--gs-charcoal); }
+
+html { scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* ── Glass (used intentionally: nav, floating bars — a depth tool, not decor) ── */
+.glass {
+  background: rgb(254 254 254 / 0.72);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  backdrop-filter: blur(12px) saturate(1.4);
+  border-bottom: 1px solid rgb(42 48 42 / 0.08);
+}
+@supports not ((backdrop-filter: blur(1px))) {
+  .glass { background: rgb(254 254 254 / 0.96); } /* graceful fallback */
+}
+
+/* ── Micro-interactions (CSS-only) ───────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .lift { transition: transform 180ms ease, box-shadow 180ms ease; }
+  .lift:hover { transform: translateY(-2px); box-shadow: var(--gs-shadow-lg); }
+  .press { transition: transform 120ms ease; }
+  .press:active { transform: scale(0.985); }
+}
+
+/* ── Hero signature moment: soft green aurora (pure CSS, zero JS, zero risk).
+      Content never depends on it; reduced-motion sees a static gradient. ───── */
+.hero-aurora {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.hero-aurora::before,
+.hero-aurora::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  border-radius: 9999px;
+  filter: blur(70px);
+  opacity: 0.5;
+  pointer-events: none;
+}
+.hero-aurora::before {
+  width: 34rem; height: 34rem;
+  right: -12rem; top: -14rem;
+  background: radial-gradient(closest-side, rgb(26 160 94 / 0.35), transparent 70%);
+}
+.hero-aurora::after {
+  width: 26rem; height: 26rem;
+  left: -10rem; bottom: -12rem;
+  background: radial-gradient(closest-side, rgb(237 200 37 / 0.22), transparent 70%);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-aurora::before { animation: aurora-a 16s ease-in-out infinite alternate; }
+  .hero-aurora::after  { animation: aurora-b 20s ease-in-out infinite alternate; }
+  @keyframes aurora-a { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(-3rem,2rem,0) scale(1.08); } }
+  @keyframes aurora-b { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(2.5rem,-1.5rem,0) scale(1.06); } }
+}
+
+/* Brand gradient text for ONE hero accent word (green — never gold on light). */
+.text-brand-gradient {
+  background: linear-gradient(100deg, var(--gs-green-deep), var(--gs-green-bright));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Staged hero entrance — content fully visible when motion is reduced/unsupported. */
+@media (prefers-reduced-motion: no-preference) {
+  .enter { animation: enter-up 640ms cubic-bezier(0.16, 1, 0.3, 1) both; }
+  .enter-2 { animation-delay: 120ms; }
+  .enter-3 { animation-delay: 240ms; }
+  @keyframes enter-up {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: none; }
+  }
+}
+
+/* ── CSS-only scroll reveal (from T5; unchanged behavior). Degrades safely:
+      no-JS, unsupported browsers, and reduced-motion all see content instantly. ── */
 @media (prefers-reduced-motion: no-preference) {
   @supports (animation-timeline: view()) {
     .reveal {

@@ -38,18 +38,20 @@ export default async function HomePage() {
     <>
       <SiteHeader />
       <main>
-        {/* 1. Hero */}
-        <section className="mx-auto w-full max-w-5xl px-4 py-16 sm:py-24">
-          {/* COPY: draft — brand tagline (approved) + safe subline (no income claim, D-29) */}
-          <h1 className="font-heading text-5xl font-extrabold leading-[1.05] text-charcoal sm:text-6xl">
-            Seekho.<br />Badho.<br />Kamao.
-          </h1>
-          <p className="mt-5 max-w-lg text-lg text-charcoal/70">
-            Practical, job-ready skills in simple Hinglish — learn at your own pace, right from your phone.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <div className="sm:w-56"><Link href="/packages"><Button>Explore packages</Button></Link></div>
-            <div className="sm:w-40"><Link href="/login"><Button variant="ghost">Log in</Button></Link></div>
+        {/* 1. Hero — the one signature moment (CSS aurora + staged entrance; reduced-motion safe) */}
+        <section className="hero-aurora">
+          <div className="mx-auto w-full max-w-5xl px-4 py-16 sm:py-24">
+            {/* COPY: draft — brand tagline (approved) + safe subline (no income claim, D-29) */}
+            <h1 className="enter font-heading text-5xl font-extrabold leading-[1.05] text-charcoal sm:text-6xl">
+              Seekho.<br />Badho.<br /><span className="text-brand-gradient">Kamao.</span>
+            </h1>
+            <p className="enter enter-2 mt-5 max-w-lg text-lg text-charcoal/70">
+              Practical, job-ready skills in simple Hinglish — learn at your own pace, right from your phone.
+            </p>
+            <div className="enter enter-3 mt-8 flex flex-col gap-3 sm:flex-row">
+              <div className="sm:w-56"><Link href="/packages"><Button className="press">Explore packages</Button></Link></div>
+              <div className="sm:w-40"><Link href="/login"><Button variant="ghost">Log in</Button></Link></div>
+            </div>
           </div>
         </section>
 
