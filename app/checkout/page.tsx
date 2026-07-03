@@ -1,8 +1,15 @@
 // Checkout screen (Ticket 3, Task 3 · DR-023). Server component: resolves the package from
 // ?package= and (for Skill Builder) its selectable courses, then renders the OTP-inside form.
+import type { Metadata } from "next";
 import { prisma } from "../../lib/prisma";
 import { formatINR } from "../../lib/money";
 import { CheckoutForm } from "./checkout-form";
+
+// Transactional page — keep out of search indexes (defence-in-depth beyond robots.txt).
+export const metadata: Metadata = {
+  title: "Checkout",
+  robots: { index: false, follow: false },
+};
 
 export const dynamic = "force-dynamic";
 
