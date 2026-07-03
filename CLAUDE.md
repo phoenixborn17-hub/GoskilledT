@@ -44,7 +44,7 @@ Each module owns its domain logic, Zod schemas, server actions, and components.
 
 ## Execution strategy (DR-026 — supersedes MVP-first sequencing)
 
-**Optimize for PRODUCT COMPLETION, module-by-module to 100%** — Phase 1 Public Website → 2 LMS → 3 Affiliate (earnings OFF until D-01) → 4 Admin → 5 Premium Experience. Scope = Blueprint + DESIGN_DIRECTION + frozen decisions only. **Never use dummy/lorem content where real founder content is expected — STOP and ask.** No fake testimonials ever (D-29): "Founding Batch" framing until real users.
+**Optimize for PRODUCT COMPLETION, module-by-module to 100%** — Phase 1 Public Website → 2 LMS → 3 Affiliate (earnings OFF until D-01) → 4 Admin → 5 Premium Experience. Scope = Blueprint + DESIGN_DIRECTION + frozen decisions only. **Never fabricate data or lorem content** (see Two-Layer Rule DR-029 below for how to keep building through pending decisions with configurable slots instead of stopping). No fake testimonials ever (D-29): "Founding Batch" framing until real users.
 
 ### Module execution rules (permanent)
 
@@ -56,6 +56,23 @@ Each module owns its domain logic, Zod schemas, server actions, and components.
    MODULE STATUS — Completed / Partially Complete (only if blocked items exist) / Blocked (item + exact reason + category) / Future Phase / Technical Debt
    NEXT MODULE — Recommended · Why · Dependencies · Estimated work
 5. Tier review protocol + merge checklists still apply per ticket within a module.
+
+## Two-Layer Development Rule (DR-029 — permanent engineering principle)
+
+**Layer 1 = Product Platform (build now):** website, UX, dashboards, navigation, components, flows, APIs, backend, admin, affiliate system, LMS, wallet, AI infrastructure. **Layer 2 = Launch Configuration (finalize before go-live):** legal policies, referral programme rules, commission percentages, pricing, campaigns, copywriting, contact info, founder content, certificates, business messaging.
+
+**A pending founder/legal/business decision is NOT a development blocker.** When you hit one:
+
+1. Continue with the best architecturally sound implementation.
+2. Make the uncertain value **configurable** (feature flag, config value, DB-driven value, copy slot, neutral UI state, empty component wired for real data).
+3. Record it in **`docs/LAUNCH_CONFIG.md`** (the canonical launch-dependency registry) with status PENDING.
+4. Keep building. **STOP and ask ONLY if the pending decision would change: system architecture · database design · API contracts · security model · user permissions · core product workflows.**
+
+**Configurable ≠ fake — this line is absolute.** Placeholder copy clearly marked for pre-launch finalization: allowed. Feature flags, config-driven values, neutral/empty states designed for real data: allowed. **Fabricated statistics, testimonials, earnings, reviews, certificates, analytics, user counts, wallet balances, or any business data invented to make a page look complete: NEVER.** The product stays truthful at every commit. D-29 is a floor, not a config: even placeholder copy never promises income.
+
+**Launch gate:** No Architecture blockers before development · **No PENDING rows in `docs/LAUNCH_CONFIG.md` before go-live.**
+
+*Interaction with Module execution rules above:* items previously classified FOUNDER CONTENT REQUIRED / EXTERNAL DEPENDENCY are still tracked as BLOCKED in close-out reports, but the engineering around them completes to 100% with config slots, and every such item MUST have a `LAUNCH_CONFIG.md` row. Exception that stays truly blocked: work whose substance IS the missing asset (e.g., real course video) — build the full slot/player/states, register the item, move on.
 
 ## Build order (dependency-first)
 
