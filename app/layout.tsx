@@ -1,9 +1,14 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { siteUrl, SITE_NAME } from "../lib/seo";
 
 export const metadata: Metadata = {
-  title: "GoSkilled",
-  description: "Learn in-demand skills.", // D-29: no income claims/guarantees in copy
+  metadataBase: new URL(siteUrl()),
+  title: {
+    default: `${SITE_NAME} — Learn in-demand skills`,
+    template: `%s · ${SITE_NAME}`,
+  },
+  description: "Practical, job-ready skills in Hinglish — learn at your own pace.", // D-29: no income claims/guarantees
 };
 
 // Mobile-first: design from 320px up (DESIGN_DIRECTION.md).
