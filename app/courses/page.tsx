@@ -50,6 +50,9 @@ export default async function CoursesPage({ searchParams }: { searchParams: Prom
           </div>
         )}
 
+        {/* Screen-reader heading so the card <h3>s don't skip a level after the page <h1> (a11y:
+            heading-order). Visually redundant with the <h1>, so kept sr-only — no visual change. */}
+        <h2 className="sr-only">All courses</h2>
         {visible.length === 0 ? (
           <Card className="text-center text-charcoal/60">No courses in this category yet. <Link href="/courses" className="font-semibold text-brand">See all</Link></Card>
         ) : (

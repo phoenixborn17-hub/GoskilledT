@@ -49,7 +49,7 @@ export default async function HomePage() {
               Practical, job-ready skills in simple Hinglish — learn at your own pace, right from your phone.
             </p>
             <div className="enter enter-3 mt-8 flex flex-col gap-3 sm:flex-row">
-              <div className="sm:w-56"><Link href="/packages"><Button className="press">Explore packages</Button></Link></div>
+              <div className="sm:w-56"><Link href="/packages"><Button>Explore packages</Button></Link></div>
               <div className="sm:w-40"><Link href="/login"><Button variant="ghost">Log in</Button></Link></div>
             </div>
           </div>
