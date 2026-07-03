@@ -1,0 +1,74 @@
+// OTP-inside-checkout server actions (Ticket 3, Task 3 · DR-023).
+//   startCheckout(phone, package[, course][, ref])  → Supabase OTP sent
+//   verifyCheckoutOtp(...)                           → session + User upsert + Order + payment order
+// Reuses the Ticket 2 order-placement flow unchanged: after syncUser the buyer already exists
+// by phone, so lib/payments/checkout.startCheckout's resolveBuyer finds them.
+"use server";
+import { z } from "zod";
+import { phoneSchema } from "../../modules/payments/schemas";
+import { getOtpProvider } from "../../lib/auth/otp";
+import { syncUser } from "../../lib/auth/user-sync";
+import { startCheckout as placeOrder } from "../../lib/payments/checkout";
+import { getPaymentProvider } from "../../lib/payments/provider";
+
+// ≤3 inputs before pay: phone, package, optional course. No name/email here (DR-023).
+const startSchema = z
+  .object({
+    phone: phoneSchema,
+    packageSlug: z.enum(["skill-builder", "career-booster"]),
+    chosenCourseId: z.string().min(1).optional(),
+    referralCode: z.string().trim().toUpperCase().optional(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.packageSlug === "skill-builder" && !v.chosenCourseId)
+      ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["chosenCourseId"], message: "Choose your course (Skill Builder includes 1 course)" });
+  });
+
+const verifySchema = z.object({
+  phone: phoneSchema,
+  token: z.string().trim().regex(/^\d{4,8}$/, "Enter the OTP"),
+  packageSlug: z.enum(["skill-builder", "career-booster"]),
+  chosenCourseId: z.string().min(1).optional(),
+  referralCode: z.string().trim().toUpperCase().optional(),
+});
+
+export type CheckoutActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export type VerifyCheckoutResult =
+  | { ok: true; orderId: string; paymentOrderId: string; amountInPaise: number; provider: string }
+  | { ok: false; error: string };
+
+export async function startCheckout(input: z.input<typeof startSchema>): Promise<CheckoutActionResult> {
+  const parsed = startSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid details" };
+  try {
+    await getOtpProvider().sendOtp(parsed.data.phone);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Could not send OTP" };
+  }
+}
+
+export async function verifyCheckoutOtp(input: z.input<typeof verifySchema>): Promise<VerifyCheckoutResult> {
+  const parsed = verifySchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid details" };
+  const data = parsed.data;
+
+  try {
+    // 1) Verify OTP → authenticated Supabase session (cookies set by the server client).
+    const { user } = await getOtpProvider().verifyOtp(data.phone, data.token);
+    // 2) Sync our internal User (attribution from ?ref=).
+    await syncUser(user, data.referralCode);
+    // 3) Create Order + payment-provider order (mock or razorpay) via the Ticket 2 flow.
+    const provider = getPaymentProvider();
+    const order = await placeOrder(
+      { packageSlug: data.packageSlug, chosenCourseId: data.chosenCourseId, phone: data.phone, referralCode: data.referralCode },
+      (i) => provider.createOrder(i),
+    );
+    return { ok: true, orderId: order.orderId, paymentOrderId: order.razorpayOrderId, amountInPaise: order.amountInPaise, provider: provider.name };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Checkout failed" };
+  }
+}
