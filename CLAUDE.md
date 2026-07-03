@@ -19,6 +19,7 @@ Authority: Genesis **Constitution** (principles) → **Decision Register** (deci
 12. **Checkout (DR-023).** OTP-inside-checkout: phone → OTP → Razorpay on one screen; ≤3 inputs before pay; account is a by-product; name/email/goal collected post-purchase in `/onboarding`. **GST-inclusive single price everywhere.**
 13. **Packages (DR-021).** Skill Builder = 1 launch course (buyer's choice). Career Booster = both launch courses + future courses as released (honestly labeled).
 14. **Gold is never text on light backgrounds** (fails contrast). Gold = fills/accents with charcoal text, or text on charcoal only.
+15. **Every new table ships with RLS ENABLED (deny-all, no policies).** Supabase PostgREST exposes public-schema tables to the anon key; RLS-off = public data leak (incident 2026-07-03, fixed in migration 20260703015712). The app connects as table owner and bypasses non-forced RLS. Any migration creating a table MUST include `ALTER TABLE "X" ENABLE ROW LEVEL SECURITY;`.
 
 **Build from `docs/WEBSITE_BLUEPRINT_v1.1.md` (FROZEN; canonical copy in Genesis KB-08). Do not redesign; do not build from the superseded Phase-A v0.1.**
 
