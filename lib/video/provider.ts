@@ -1,7 +1,11 @@
 // Video provider adapter (Ticket 4). Mock and Cloudflare Stream expose the SAME interface,
 // so switching = flip VIDEO_PROVIDER + add credentials. No business logic changes. Mock is
 // prod-forbidden via the shared production guard.
-import { assertProductionProviderSafety, videoProviderName, type VideoProviderName } from "../config/providers";
+import {
+  assertProductionProviderSafety,
+  videoProviderName,
+  type VideoProviderName,
+} from "../config/providers";
 import { requireEnv } from "../env";
 
 export interface PlaybackSource {
@@ -19,14 +23,24 @@ export interface VideoProvider {
 // A couple of stable, publicly-playable MP4 samples so the whole LMS flow is testable in mock
 // mode. Chosen deterministically by asset id so different lessons show different clips.
 const MOCK_SAMPLES: PlaybackSource[] = [
-  { url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4", type: "mp4" },
-  { url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4", type: "mp4" },
-  { url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4", type: "mp4" },
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+    type: "mp4",
+  },
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4",
+    type: "mp4",
+  },
+  {
+    url: "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
+    type: "mp4",
+  },
 ];
 
 function hashIndex(assetId: string, mod: number): number {
   let h = 0;
-  for (let i = 0; i < assetId.length; i++) h = (h * 31 + assetId.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < assetId.length; i++)
+    h = (h * 31 + assetId.charCodeAt(i)) >>> 0;
   return h % mod;
 }
 
@@ -44,11 +58,16 @@ export const streamVideoProvider: VideoProvider = {
   name: "stream",
   getPlayback(videoAssetId: string): PlaybackSource {
     const customerCode = requireEnv("CLOUDFLARE_STREAM_CUSTOMER_CODE");
-    return { url: `https://customer-${customerCode}.cloudflarestream.com/${videoAssetId}/manifest/video.m3u8`, type: "hls" };
+    return {
+      url: `https://customer-${customerCode}.cloudflarestream.com/${videoAssetId}/manifest/video.m3u8`,
+      type: "hls",
+    };
   },
 };
 
 export function getVideoProvider(): VideoProvider {
   assertProductionProviderSafety();
-  return videoProviderName() === "stream" ? streamVideoProvider : mockVideoProvider;
+  return videoProviderName() === "stream"
+    ? streamVideoProvider
+    : mockVideoProvider;
 }

@@ -25,7 +25,11 @@ describe("buildLeadData", () => {
   });
 
   it("empty/missing optionals become null", () => {
-    const d = buildLeadData({ phone: "9000000001", source: "earn-waitlist", stage: "NEW" });
+    const d = buildLeadData({
+      phone: "9000000001",
+      source: "earn-waitlist",
+      stage: "NEW",
+    });
     expect(d.name).toBeNull();
     expect(d.utmSource).toBeNull();
     expect(d.utmMedium).toBeNull();
@@ -38,7 +42,9 @@ describe("buildLeadData", () => {
 describe("mergeStage (never downgrades; CONVERTED is sticky)", () => {
   it("advances forward through the funnel", () => {
     expect(mergeStage("NEW", "WEBINAR_REGISTERED")).toBe("WEBINAR_REGISTERED");
-    expect(mergeStage("CONTACTED", "WEBINAR_REGISTERED")).toBe("WEBINAR_REGISTERED");
+    expect(mergeStage("CONTACTED", "WEBINAR_REGISTERED")).toBe(
+      "WEBINAR_REGISTERED",
+    );
   });
   it("never moves backward", () => {
     expect(mergeStage("WEBINAR_REGISTERED", "NEW")).toBe("WEBINAR_REGISTERED");
@@ -57,13 +63,31 @@ describe("mergeStage (never downgrades; CONVERTED is sticky)", () => {
 
 describe("extractUtm", () => {
   it("extracts the three UTM params", () => {
-    expect(extractUtm({ utm_source: "google", utm_medium: "cpc", utm_campaign: "diwali" })).toEqual({ source: "google", medium: "cpc", campaign: "diwali" });
+    expect(
+      extractUtm({
+        utm_source: "google",
+        utm_medium: "cpc",
+        utm_campaign: "diwali",
+      }),
+    ).toEqual({ source: "google", medium: "cpc", campaign: "diwali" });
   });
   it("takes first value from arrays and trims", () => {
-    expect(extractUtm({ utm_source: ["  fb  ", "x"] })).toEqual({ source: "fb", medium: null, campaign: null });
+    expect(extractUtm({ utm_source: ["  fb  ", "x"] })).toEqual({
+      source: "fb",
+      medium: null,
+      campaign: null,
+    });
   });
   it("missing/empty → null", () => {
-    expect(extractUtm({ utm_source: "" })).toEqual({ source: null, medium: null, campaign: null });
-    expect(extractUtm({})).toEqual({ source: null, medium: null, campaign: null });
+    expect(extractUtm({ utm_source: "" })).toEqual({
+      source: null,
+      medium: null,
+      campaign: null,
+    });
+    expect(extractUtm({})).toEqual({
+      source: null,
+      medium: null,
+      campaign: null,
+    });
   });
 });

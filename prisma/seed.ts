@@ -8,15 +8,39 @@ async function main() {
   // ── Courses (2 launch courses) ─────────────────────────────────────────────
   const aiPrompt = await prisma.course.upsert({
     where: { slug: "ai-prompt-mastery" },
-    update: { title: "AI Prompt Mastery", status: "PUBLISHED", category: "AI", order: 1 },
-    create: { slug: "ai-prompt-mastery", title: "AI Prompt Mastery", summary: "Master practical AI prompting for real work.", category: "AI", status: "PUBLISHED", order: 1 },
+    update: {
+      title: "AI Prompt Mastery",
+      status: "PUBLISHED",
+      category: "AI",
+      order: 1,
+    },
+    create: {
+      slug: "ai-prompt-mastery",
+      title: "AI Prompt Mastery",
+      summary: "Master practical AI prompting for real work.",
+      category: "AI",
+      status: "PUBLISHED",
+      order: 1,
+    },
     select: { id: true },
   });
 
   const digitalMarketing = await prisma.course.upsert({
     where: { slug: "digital-marketing" },
-    update: { title: "Digital Marketing", status: "COMING_SOON", category: "Marketing", order: 2 },
-    create: { slug: "digital-marketing", title: "Digital Marketing", summary: "Grow brands with modern digital marketing.", category: "Marketing", status: "COMING_SOON", order: 2 },
+    update: {
+      title: "Digital Marketing",
+      status: "COMING_SOON",
+      category: "Marketing",
+      order: 2,
+    },
+    create: {
+      slug: "digital-marketing",
+      title: "Digital Marketing",
+      summary: "Grow brands with modern digital marketing.",
+      category: "Marketing",
+      status: "COMING_SOON",
+      order: 2,
+    },
     select: { id: true },
   });
 
@@ -24,16 +48,38 @@ async function main() {
   // Skill Builder ₹1,499 = 149900 paise — buyer's choice of ONE launch course (no future courses).
   const skillBuilder = await prisma.package.upsert({
     where: { slug: "skill-builder" },
-    update: { name: "Skill Builder", priceInPaise: 149900, includesFutureCourses: false, isActive: true },
-    create: { slug: "skill-builder", name: "Skill Builder", priceInPaise: 149900, includesFutureCourses: false, isActive: true },
+    update: {
+      name: "Skill Builder",
+      priceInPaise: 149900,
+      includesFutureCourses: false,
+      isActive: true,
+    },
+    create: {
+      slug: "skill-builder",
+      name: "Skill Builder",
+      priceInPaise: 149900,
+      includesFutureCourses: false,
+      isActive: true,
+    },
     select: { id: true },
   });
 
   // Career Booster ₹2,199 = 219900 paise — BOTH launch courses + future courses as released.
   const careerBooster = await prisma.package.upsert({
     where: { slug: "career-booster" },
-    update: { name: "Career Booster", priceInPaise: 219900, includesFutureCourses: true, isActive: true },
-    create: { slug: "career-booster", name: "Career Booster", priceInPaise: 219900, includesFutureCourses: true, isActive: true },
+    update: {
+      name: "Career Booster",
+      priceInPaise: 219900,
+      includesFutureCourses: true,
+      isActive: true,
+    },
+    create: {
+      slug: "career-booster",
+      name: "Career Booster",
+      priceInPaise: 219900,
+      includesFutureCourses: true,
+      isActive: true,
+    },
     select: { id: true },
   });
 
@@ -58,19 +104,65 @@ async function main() {
   // First lesson is a free preview; every lesson carries a mock videoAssetId.
   const curriculum = [
     {
-      id: "aipm-m1", title: "Foundations of Prompting", order: 1,
+      id: "aipm-m1",
+      title: "Foundations of Prompting",
+      order: 1,
       lessons: [
-        { id: "aipm-m1-l1", title: "What is a Prompt?", durationSec: 300, videoAssetId: "mock-aipm-101", order: 1, isFreePreview: true },
-        { id: "aipm-m1-l2", title: "Anatomy of a Great Prompt", durationSec: 420, videoAssetId: "mock-aipm-102", order: 2, isFreePreview: false },
-        { id: "aipm-m1-l3", title: "Common Prompting Mistakes", durationSec: 360, videoAssetId: "mock-aipm-103", order: 3, isFreePreview: false },
+        {
+          id: "aipm-m1-l1",
+          title: "What is a Prompt?",
+          durationSec: 300,
+          videoAssetId: "mock-aipm-101",
+          order: 1,
+          isFreePreview: true,
+        },
+        {
+          id: "aipm-m1-l2",
+          title: "Anatomy of a Great Prompt",
+          durationSec: 420,
+          videoAssetId: "mock-aipm-102",
+          order: 2,
+          isFreePreview: false,
+        },
+        {
+          id: "aipm-m1-l3",
+          title: "Common Prompting Mistakes",
+          durationSec: 360,
+          videoAssetId: "mock-aipm-103",
+          order: 3,
+          isFreePreview: false,
+        },
       ],
     },
     {
-      id: "aipm-m2", title: "Prompting for Real Work", order: 2,
+      id: "aipm-m2",
+      title: "Prompting for Real Work",
+      order: 2,
       lessons: [
-        { id: "aipm-m2-l1", title: "Prompts for Writing", durationSec: 480, videoAssetId: "mock-aipm-201", order: 1, isFreePreview: false },
-        { id: "aipm-m2-l2", title: "Prompts for Analysis", durationSec: 500, videoAssetId: "mock-aipm-202", order: 2, isFreePreview: false },
-        { id: "aipm-m2-l3", title: "Building Prompt Workflows", durationSec: 540, videoAssetId: "mock-aipm-203", order: 3, isFreePreview: false },
+        {
+          id: "aipm-m2-l1",
+          title: "Prompts for Writing",
+          durationSec: 480,
+          videoAssetId: "mock-aipm-201",
+          order: 1,
+          isFreePreview: false,
+        },
+        {
+          id: "aipm-m2-l2",
+          title: "Prompts for Analysis",
+          durationSec: 500,
+          videoAssetId: "mock-aipm-202",
+          order: 2,
+          isFreePreview: false,
+        },
+        {
+          id: "aipm-m2-l3",
+          title: "Building Prompt Workflows",
+          durationSec: 540,
+          videoAssetId: "mock-aipm-203",
+          order: 3,
+          isFreePreview: false,
+        },
       ],
     },
   ];
@@ -78,25 +170,55 @@ async function main() {
     await prisma.module.upsert({
       where: { id: m.id },
       update: { title: m.title, order: m.order, courseId: aiPrompt.id },
-      create: { id: m.id, title: m.title, order: m.order, courseId: aiPrompt.id },
+      create: {
+        id: m.id,
+        title: m.title,
+        order: m.order,
+        courseId: aiPrompt.id,
+      },
     });
     for (const l of m.lessons) {
       await prisma.lesson.upsert({
         where: { id: l.id },
-        update: { title: l.title, durationSec: l.durationSec, videoAssetId: l.videoAssetId, order: l.order, isFreePreview: l.isFreePreview, moduleId: m.id },
-        create: { id: l.id, title: l.title, durationSec: l.durationSec, videoAssetId: l.videoAssetId, order: l.order, isFreePreview: l.isFreePreview, moduleId: m.id },
+        update: {
+          title: l.title,
+          durationSec: l.durationSec,
+          videoAssetId: l.videoAssetId,
+          order: l.order,
+          isFreePreview: l.isFreePreview,
+          moduleId: m.id,
+        },
+        create: {
+          id: l.id,
+          title: l.title,
+          durationSec: l.durationSec,
+          videoAssetId: l.videoAssetId,
+          order: l.order,
+          isFreePreview: l.isFreePreview,
+          moduleId: m.id,
+        },
       });
     }
   }
 
   // ── System ledger accounts (userId = null; USER_WALLET created on demand) ────
-  const systemAccounts: AccountType[] = ["REVENUE", "COMMISSION_PAYABLE", "PAYOUT_CLEARING", "GST_PAYABLE"];
+  const systemAccounts: AccountType[] = [
+    "REVENUE",
+    "COMMISSION_PAYABLE",
+    "PAYOUT_CLEARING",
+    "GST_PAYABLE",
+  ];
   for (const type of systemAccounts) {
-    const exists = await prisma.ledgerAccount.findFirst({ where: { type, userId: null }, select: { id: true } });
+    const exists = await prisma.ledgerAccount.findFirst({
+      where: { type, userId: null },
+      select: { id: true },
+    });
     if (!exists) await prisma.ledgerAccount.create({ data: { type } });
   }
 
-  console.log("Seed complete: 2 packages, 2 courses (AI & Prompt Mastery: 2 modules × 3 lessons, published), 4 package-course links, 4 system ledger accounts.");
+  console.log(
+    "Seed complete: 2 packages, 2 courses (AI & Prompt Mastery: 2 modules × 3 lessons, published), 4 package-course links, 4 system ledger accounts.",
+  );
 }
 
 main()

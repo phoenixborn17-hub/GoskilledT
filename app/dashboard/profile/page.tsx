@@ -7,7 +7,11 @@ import { Button } from "../../../components/ui/button";
 
 export const dynamic = "force-dynamic";
 
-const GOAL_LABEL: Record<string, string> = { SKILL: "Learn a skill", INCOME: "Earn income", BOTH: "Both" };
+const GOAL_LABEL: Record<string, string> = {
+  SKILL: "Learn a skill",
+  INCOME: "Earn income",
+  BOTH: "Both",
+};
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -23,23 +27,32 @@ export default async function ProfilePage() {
 
   return (
     <section aria-labelledby="profile-heading" className="space-y-6">
-      <h1 id="profile-heading" className="font-heading text-2xl font-bold">Profile</h1>
+      <h1 id="profile-heading" className="font-heading text-2xl font-bold">
+        Profile
+      </h1>
 
       <Card>
         <CardTitle className="mb-2 text-lg">Your details</CardTitle>
         <Row label="Name" value={user?.name || "Not set"} />
         <Row label="Email" value={user?.email || "Not set"} />
         <Row label="Phone" value={user?.phone || "—"} />
-        <Row label="Goal" value={user?.goal ? GOAL_LABEL[user.goal] : "Not set"} />
+        <Row
+          label="Goal"
+          value={user?.goal ? GOAL_LABEL[user.goal] : "Not set"}
+        />
         {!user?.onboardedAt && (
           <div className="mt-4">
-            <Link href="/onboarding"><Button variant="outline">Complete your profile</Button></Link>
+            <Link href="/onboarding">
+              <Button variant="outline">Complete your profile</Button>
+            </Link>
           </div>
         )}
       </Card>
 
       <form action={signOutAction}>
-        <Button type="submit" variant="outline">Log out</Button>
+        <Button type="submit" variant="outline">
+          Log out
+        </Button>
       </form>
     </section>
   );

@@ -11,6 +11,7 @@ Optimise for: safety (money), simplicity, AI-legibility, managed/zero-ops, low c
 Authority: Genesis **Constitution** (principles) → **Decision Register** (decisions) → **Canonical KB** (facts). Architecture rationale: KB-14 vNext ADR.
 
 ## Golden rules (non-negotiable)
+
 1. **Money in PAISE** (integer) everywhere. Never floats. Use `lib/money.ts`.
 2. **Commissions credit ONLY from a Razorpay-verified webhook** (signature-checked + idempotent via `WebhookEvent`). There is NO self-serve purchase path.
 3. **Double-entry ledger.** Every money move = ≥2 signed legs summing to zero (`modules/ledger`). Wallet balance is DERIVED from `LedgerEntry`, never a mutable column.
@@ -30,16 +31,20 @@ Authority: Genesis **Constitution** (principles) → **Decision Register** (deci
 **Build from `docs/WEBSITE_BLUEPRINT_v1.1.md` (FROZEN; canonical copy in Genesis KB-08). Do not redesign; do not build from the superseded Phase-A v0.1.**
 
 ## Design (see `docs/DESIGN_DIRECTION.md` — the north-star)
+
 Premium **but fast + mobile-first** for Tier-2/3 India (LCP < 2.5s, design at 320px up). Motion via CSS + Intersection Observer + View Transitions; **every effect must have a purpose**; respect `prefers-reduced-motion`; WCAG AA (shadcn/Radix). Immersive 3D only for ≤1 lazy hero with a static/Lottie fallback — never load-bearing. AI-first: the Hinglish **Tutor** is the flagship experience. Trust-design (radical transparency, no dark patterns, no income guarantees — D-29).
 
 ## Module map (bounded contexts) — edit one without breaking others
+
 `marketing · auth · catalog · lms · payments · affiliate · ledger · kyc · crm · admin · analytics`
 Each module owns its domain logic, Zod schemas, server actions, and components.
 
 ## Execution strategy (DR-026 — supersedes MVP-first sequencing)
+
 **Optimize for PRODUCT COMPLETION, module-by-module to 100%** — Phase 1 Public Website → 2 LMS → 3 Affiliate (earnings OFF until D-01) → 4 Admin → 5 Premium Experience. Scope = Blueprint + DESIGN_DIRECTION + frozen decisions only. **Never use dummy/lorem content where real founder content is expected — STOP and ask.** No fake testimonials ever (D-29): "Founding Batch" framing until real users.
 
 ### Module execution rules (permanent)
+
 1. **Audit first.** Before building, list EVERY planned item of the module and classify each:
    **READY TO BUILD** · **FOUNDER CONTENT REQUIRED** · **EXTERNAL DEPENDENCY** (accounts/legal/users).
 2. **Only two end-states.** Every item ends COMPLETE or BLOCKED (with the exact blocker documented). "70% done" is forbidden — never leave partially implemented engineering work.
@@ -50,6 +55,7 @@ Each module owns its domain logic, Zod schemas, server actions, and components.
 5. Tier review protocol + merge checklists still apply per ticket within a module.
 
 ## Build order (dependency-first)
+
 1. Foundation: schema, tokens, money-core (done).
    **M1 Money Spine DONE (2026-07-03, Fable-built + verified 38/38):** all rupee paths exist as pure
    domain functions — `payments/{gst,razorpay,webhook-flow,schemas}`, `affiliate/{upline,credit,clawback}`,
@@ -57,18 +63,21 @@ Each module owns its domain logic, Zod schemas, server actions, and components.
    **Adapters must NOT re-implement rules** — routes/server actions only: verify → load state →
    `decideWebhookActions()` → execute returned actions in ONE Prisma tx → record WebhookEvent.
 2. Auth (Supabase OTP) → 3. Catalog+LMS (course player, enrollment, progress) →
-4. Payments (Razorpay order+webhook) → 5. Ledger + payment-gated commission →
-6. Affiliate dashboard (gated by D-01) → 7. KYC + Withdraw → 8. Admin (RBAC) → 9. Analytics.
+3. Payments (Razorpay order+webhook) → 5. Ledger + payment-gated commission →
+4. Affiliate dashboard (gated by D-01) → 7. KYC + Withdraw → 8. Admin (RBAC) → 9. Analytics.
 
 ## Definition of done (per feature)
+
 Types clean (`npm run typecheck`) · Zod at boundaries · tests for money/critical logic · a11y (shadcn/Radix) · no secrets in code · audit row for money/admin mutations.
 
 ## Fable review protocol (post-ticket quality gate)
+
 - **Tier A — money, auth, schema, webhooks, legal-gated code:** MANDATORY Fable 5-lens review before merge (architecture-conformance · code · security · performance · simplification, one pass). Claude Code must end Tier-A tickets with: "Tier A — needs Fable review" + file list + test output.
 - **Tier B — UI, marketing, content:** Blueprint-conformance + code skim; escalate to Tier A if the change touches routes/data/money.
 - **Refactoring review:** every ~4 tickets or when a module causes repeated friction — never mid-ticket.
 
 ### Tier A merge checklist (ALL boxes required — objective, not subjective)
+
 - [ ] `npm run typecheck` clean
 - [ ] ALL tests green — unit + live integration (money paths never skipped)
 - [ ] Architecture review passed (adapters thin, no rule re-implemented in routes/adapters)
@@ -79,6 +88,7 @@ Types clean (`npm run typecheck`) · Zod at boundaries · tests for money/critic
 - [ ] Git commit created — message: `ticket-N: <what> (Tier A, Fable-reviewed)`
 
 ### Tier B merge checklist
+
 - [ ] `npm run typecheck` clean
 - [ ] Relevant tests green
 - [ ] Blueprint conformance checked (routes, tokens, gold-contrast rule, mobile-first 320px)
@@ -87,4 +97,5 @@ Types clean (`npm run typecheck`) · Zod at boundaries · tests for money/critic
 - [ ] Git commit created — message: `ticket-N: <what> (Tier B)`
 
 ## Open legal gates (do not violate)
+
 Affiliate payouts OFF until **D-01** (legal). GST only if **D-03** registered. No income guarantees (**D-29**).

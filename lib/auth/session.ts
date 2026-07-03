@@ -35,11 +35,21 @@ export interface CurrentUserRecord {
 }
 
 /** Full profile fields for the current user (Profile tab). */
-export const getCurrentUserRecord = cache(async (): Promise<CurrentUserRecord | null> => {
-  const synced = await getCurrentUser();
-  if (!synced) return null;
-  return prisma.user.findUnique({
-    where: { id: synced.id },
-    select: { id: true, name: true, email: true, phone: true, goal: true, referralCode: true, onboardedAt: true },
-  });
-});
+export const getCurrentUserRecord = cache(
+  async (): Promise<CurrentUserRecord | null> => {
+    const synced = await getCurrentUser();
+    if (!synced) return null;
+    return prisma.user.findUnique({
+      where: { id: synced.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        goal: true,
+        referralCode: true,
+        onboardedAt: true,
+      },
+    });
+  },
+);

@@ -4,7 +4,11 @@
 // so switching = flip OTP_PROVIDER + configure SMS in Supabase. `test` is prod-forbidden.
 import type { User } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "../supabase/server";
-import { assertProductionProviderSafety, otpProviderName, type OtpProviderName } from "../config/providers";
+import {
+  assertProductionProviderSafety,
+  otpProviderName,
+  type OtpProviderName,
+} from "../config/providers";
 
 export interface OtpProvider {
   readonly name: OtpProviderName;
@@ -20,10 +24,20 @@ async function supabaseSend(phone: string): Promise<void> {
   if (error) throw new Error(`Could not send OTP: ${error.message}`);
 }
 
-async function supabaseVerify(phone: string, token: string): Promise<{ user: User }> {
+async function supabaseVerify(
+  phone: string,
+  token: string,
+): Promise<{ user: User }> {
   const supabase = await createSupabaseServerClient();
-  const { data, error } = await supabase.auth.verifyOtp({ phone: e164(phone), token, type: "sms" });
-  if (error || !data.user) throw new Error(`Invalid or expired OTP${error ? `: ${error.message}` : ""}`);
+  const { data, error } = await supabase.auth.verifyOtp({
+    phone: e164(phone),
+    token,
+    type: "sms",
+  });
+  if (error || !data.user)
+    throw new Error(
+      `Invalid or expired OTP${error ? `: ${error.message}` : ""}`,
+    );
   return { user: data.user };
 }
 
@@ -31,9 +45,14 @@ async function supabaseVerify(phone: string, token: string): Promise<{ user: Use
 function assertDevPhoneAllowed(phone: string): void {
   const raw = process.env.DEV_TEST_PHONES;
   if (!raw) return; // unset → allow any (dev convenience)
-  const allowed = raw.split(",").map((p) => p.replace(/\D/g, "").slice(-10)).filter(Boolean);
+  const allowed = raw
+    .split(",")
+    .map((p) => p.replace(/\D/g, "").slice(-10))
+    .filter(Boolean);
   if (!allowed.includes(phone)) {
-    throw new Error(`OTP_PROVIDER=test only allows configured Supabase test numbers (DEV_TEST_PHONES). Got ${phone}.`);
+    throw new Error(
+      `OTP_PROVIDER=test only allows configured Supabase test numbers (DEV_TEST_PHONES). Got ${phone}.`,
+    );
   }
 }
 

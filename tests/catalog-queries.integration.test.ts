@@ -1,7 +1,12 @@
 // Ticket 5, Task 6 — catalog queries against seeded data (skips without DATABASE_URL).
 // Backs the marketing pages: the data they render is present and correctly shaped.
 import { describe, it, expect } from "vitest";
-import { listCatalogCourses, getCourseDetail, listPackages, publishedCourseSlugs } from "@/lib/catalog/queries";
+import {
+  listCatalogCourses,
+  getCourseDetail,
+  listPackages,
+  publishedCourseSlugs,
+} from "@/lib/catalog/queries";
 import { courseStats } from "@/lib/catalog/shape";
 
 const HAS_DB = !!process.env.DATABASE_URL;
@@ -16,7 +21,9 @@ describe.skipIf(!HAS_DB)("catalog queries (integration, seeded)", () => {
 
   it("keeps Digital Marketing honestly COMING_SOON", async () => {
     const courses = await listCatalogCourses();
-    expect(courses.find((c) => c.slug === "digital-marketing")?.status).toBe("COMING_SOON");
+    expect(courses.find((c) => c.slug === "digital-marketing")?.status).toBe(
+      "COMING_SOON",
+    );
   });
 
   it("course detail has ordered modules, lessons, and a free preview", async () => {

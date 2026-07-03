@@ -38,21 +38,33 @@ export function LessonPlayer({
   }
 
   function goNext() {
-    if (nextLessonId) router.push(`/dashboard/learn/${courseSlug}?lesson=${nextLessonId}`);
+    if (nextLessonId)
+      router.push(`/dashboard/learn/${courseSlug}?lesson=${nextLessonId}`);
   }
 
   return (
     <div className="space-y-4">
       <div className="overflow-hidden rounded-2xl bg-charcoal">
         {/* Native <video> plays the mock MP4. HLS (Cloudflare Stream) is wired for a later ticket. */}
-        <video key={src} controls playsInline poster={poster} className="aspect-video w-full" preload="metadata">
+        <video
+          key={src}
+          controls
+          playsInline
+          poster={poster}
+          className="aspect-video w-full"
+          preload="metadata"
+        >
           <source src={src} />
           Your browser does not support video playback.
         </video>
       </div>
 
       <h2 className="font-heading text-xl font-bold">{title}</h2>
-      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm text-red-600">
+          {error}
+        </p>
+      )}
 
       <div className="flex flex-wrap gap-3">
         {completed ? (
@@ -61,12 +73,16 @@ export function LessonPlayer({
           </span>
         ) : (
           <div className="w-full max-w-[14rem]">
-            <Button onClick={markComplete} disabled={busy}>{busy ? "Saving…" : "Mark as complete"}</Button>
+            <Button onClick={markComplete} disabled={busy}>
+              {busy ? "Saving…" : "Mark as complete"}
+            </Button>
           </div>
         )}
         {nextLessonId && (
           <div className="w-full max-w-[12rem]">
-            <Button variant="outline" onClick={goNext}>Next lesson →</Button>
+            <Button variant="outline" onClick={goNext}>
+              Next lesson →
+            </Button>
           </div>
         )}
       </div>

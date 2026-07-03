@@ -16,10 +16,12 @@ export async function signOutAction(): Promise<void> {
 }
 
 export type CompleteLessonResult =
-  | { ok: true; progress: ProgressSummary }
-  | { ok: false; error: string };
+  { ok: true; progress: ProgressSummary } | { ok: false; error: string };
 
-export async function completeLessonAction(input: { courseSlug: string; lessonId: string }): Promise<CompleteLessonResult> {
+export async function completeLessonAction(input: {
+  courseSlug: string;
+  lessonId: string;
+}): Promise<CompleteLessonResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please sign in." };
   try {
@@ -34,6 +36,9 @@ export async function completeLessonAction(input: { courseSlug: string; lessonId
     revalidatePath("/dashboard");
     return { ok: true, progress };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not update progress" };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Could not update progress",
+    };
   }
 }

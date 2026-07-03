@@ -12,7 +12,9 @@ export default function CourseDetailLoading() {
         <Skeleton className="mb-6 h-4 w-full max-w-lg" />
         <div className="grid gap-6 md:grid-cols-3">
           <div className="space-y-4 md:col-span-2">
-            {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16 w-full rounded-xl" />)}
+            {Array.from({ length: 4 }).map((_, i) => (
+              <Skeleton key={i} className="h-16 w-full rounded-xl" />
+            ))}
           </div>
           <Skeleton className="h-56 w-full rounded-2xl" />
         </div>

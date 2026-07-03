@@ -1,7 +1,11 @@
 // Payment provider adapter (Ticket 3). Mock and Razorpay implement the SAME interface,
 // so switching = flipping PAYMENT_PROVIDER + adding credentials. No business logic changes.
 import { randomBytes } from "node:crypto";
-import { assertProductionProviderSafety, paymentProviderName, type PaymentProviderName } from "../config/providers";
+import {
+  assertProductionProviderSafety,
+  paymentProviderName,
+  type PaymentProviderName,
+} from "../config/providers";
 import { createRazorpayOrder } from "../razorpay";
 
 export interface CreateOrderInput {
@@ -32,5 +36,7 @@ export const razorpayPaymentProvider: PaymentProvider = {
 
 export function getPaymentProvider(): PaymentProvider {
   assertProductionProviderSafety();
-  return paymentProviderName() === "razorpay" ? razorpayPaymentProvider : mockPaymentProvider;
+  return paymentProviderName() === "razorpay"
+    ? razorpayPaymentProvider
+    : mockPaymentProvider;
 }

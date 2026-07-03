@@ -17,22 +17,45 @@ const statusStyle: Record<OrderStatus, string> = {
 };
 
 function fmtDate(d: Date | null) {
-  return d ? new Intl.DateTimeFormat("en-IN", { dateStyle: "medium", timeStyle: "short" }).format(d) : "—";
+  return d
+    ? new Intl.DateTimeFormat("en-IN", {
+        dateStyle: "medium",
+        timeStyle: "short",
+      }).format(d)
+    : "—";
 }
 
-export default async function AdminPaymentsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
+export default async function AdminPaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ status?: string }>;
+}) {
   const { status: statusParam } = await searchParams;
-  const status = STATUSES.includes(statusParam as OrderStatus) ? (statusParam as OrderStatus) : undefined;
+  const status = STATUSES.includes(statusParam as OrderStatus)
+    ? (statusParam as OrderStatus)
+    : undefined;
   const orders = await listPayments({ status });
 
   return (
     <section className="space-y-4">
       <h1 className="font-heading text-2xl font-bold">Payments</h1>
 
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
-        <FilterChip href="/admin/payments" active={!status}>All</FilterChip>
+      <div
+        className="flex flex-wrap gap-2"
+        role="group"
+        aria-label="Filter by status"
+      >
+        <FilterChip href="/admin/payments" active={!status}>
+          All
+        </FilterChip>
         {STATUSES.map((s) => (
-          <FilterChip key={s} href={`/admin/payments?status=${s}`} active={status === s}>{s}</FilterChip>
+          <FilterChip
+            key={s}
+            href={`/admin/payments?status=${s}`}
+            active={status === s}
+          >
+            {s}
+          </FilterChip>
         ))}
       </div>
 
@@ -50,32 +73,71 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
           </thead>
           <tbody>
             {orders.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-8 text-center text-muted">No orders.</td></tr>
+              <tr>
+                <td colSpan={6} className="px-4 py-8 text-center text-muted">
+                  No orders.
+                </td>
+              </tr>
             ) : (
               orders.map((o) => (
-                <tr key={o.id} className="border-b border-charcoal/5 last:border-0">
-                  <td className="px-4 py-3 font-medium">{o.user.phone ?? "—"}</td>
+                <tr
+                  key={o.id}
+                  className="border-b border-charcoal/5 last:border-0"
+                >
+                  <td className="px-4 py-3 font-medium">
+                    {o.user.phone ?? "—"}
+                  </td>
                   <td className="px-4 py-3">{o.package.name}</td>
-                  <td className="px-4 py-3 font-medium">{formatINR(o.amountInPaise)}</td>
-                  <td className="px-4 py-3"><span className={cn("rounded-full px-2 py-0.5 text-xs font-semibold", statusStyle[o.status])}>{o.status}</span></td>
+                  <td className="px-4 py-3 font-medium">
+                    {formatINR(o.amountInPaise)}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={cn(
+                        "rounded-full px-2 py-0.5 text-xs font-semibold",
+                        statusStyle[o.status],
+                      )}
+                    >
+                      {o.status}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-muted">{fmtDate(o.paidAt)}</td>
-                  <td className="px-4 py-3 text-xs text-muted">{o.razorpayPaymentId ?? o.razorpayOrderId ?? "—"}</td>
+                  <td className="px-4 py-3 text-xs text-muted">
+                    {o.razorpayPaymentId ?? o.razorpayOrderId ?? "—"}
+                  </td>
                 </tr>
               ))
             )}
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted">Showing up to 100 most recent orders.</p>
+      <p className="text-xs text-muted">
+        Showing up to 100 most recent orders.
+      </p>
     </section>
   );
 }
 
-function FilterChip({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+function FilterChip({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <Link href={href} aria-current={active ? "true" : undefined}
-      className={cn("rounded-full border px-3 py-1.5 text-sm font-medium",
-        active ? "border-charcoal bg-charcoal text-white" : "border-charcoal/15 text-charcoal/70 hover:bg-charcoal/5")}>
+    <Link
+      href={href}
+      aria-current={active ? "true" : undefined}
+      className={cn(
+        "rounded-full border px-3 py-1.5 text-sm font-medium",
+        active
+          ? "border-charcoal bg-charcoal text-white"
+          : "border-charcoal/15 text-charcoal/70 hover:bg-charcoal/5",
+      )}
+    >
       {children}
     </Link>
   );

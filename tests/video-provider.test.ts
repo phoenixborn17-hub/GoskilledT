@@ -1,6 +1,9 @@
 // Ticket 4, Task 5 — video provider selection + production startup guard. Pure, no DB.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { videoProviderName, assertProductionProviderSafety } from "@/lib/config/providers";
+import {
+  videoProviderName,
+  assertProductionProviderSafety,
+} from "@/lib/config/providers";
 import { getVideoProvider } from "@/lib/video/provider";
 
 afterEach(() => vi.unstubAllEnvs());
@@ -36,8 +39,12 @@ describe("production startup guard (video)", () => {
     vi.stubEnv("PAYMENT_PROVIDER", "razorpay");
     vi.stubEnv("OTP_PROVIDER", "live");
     vi.stubEnv("VIDEO_PROVIDER", "mock");
-    expect(() => assertProductionProviderSafety()).toThrow(/VIDEO_PROVIDER=mock/);
-    expect(() => getVideoProvider()).toThrow(/development providers enabled in production/);
+    expect(() => assertProductionProviderSafety()).toThrow(
+      /VIDEO_PROVIDER=mock/,
+    );
+    expect(() => getVideoProvider()).toThrow(
+      /development providers enabled in production/,
+    );
   });
   it("passes in production with all real providers", () => {
     vi.stubEnv("NODE_ENV", "production");

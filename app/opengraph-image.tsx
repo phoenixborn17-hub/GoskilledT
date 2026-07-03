@@ -27,44 +27,85 @@ async function loadSora(weight: number): Promise<ArrayBuffer | null> {
 export default async function OpengraphImage() {
   const [bold, extra] = await Promise.all([loadSora(700), loadSora(800)]);
   const fonts = [
-    bold && { name: "Sora", data: bold, weight: 700 as const, style: "normal" as const },
-    extra && { name: "Sora", data: extra, weight: 800 as const, style: "normal" as const },
-  ].filter(Boolean) as { name: string; data: ArrayBuffer; weight: 700 | 800; style: "normal" }[];
+    bold && {
+      name: "Sora",
+      data: bold,
+      weight: 700 as const,
+      style: "normal" as const,
+    },
+    extra && {
+      name: "Sora",
+      data: extra,
+      weight: 800 as const,
+      style: "normal" as const,
+    },
+  ].filter(Boolean) as {
+    name: string;
+    data: ArrayBuffer;
+    weight: 700 | 800;
+    style: "normal";
+  }[];
 
   return new ImageResponse(
-    (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
-          padding: "72px",
-          background: "linear-gradient(135deg, #0C5A34 0%, #137E49 55%, #1AA05E 100%)",
-          color: "#FEFEFE",
-          fontFamily: fonts.length ? "Sora" : "sans-serif",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <div style={{ width: "40px", height: "8px", borderRadius: "9999px", background: "#EDC825" }} />
-          <span style={{ fontSize: "34px", fontWeight: 700 }}>{SITE_NAME}</span>
-        </div>
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        padding: "72px",
+        background:
+          "linear-gradient(135deg, #0C5A34 0%, #137E49 55%, #1AA05E 100%)",
+        color: "#FEFEFE",
+        fontFamily: fonts.length ? "Sora" : "sans-serif",
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        <div
+          style={{
+            width: "40px",
+            height: "8px",
+            borderRadius: "9999px",
+            background: "#EDC825",
+          }}
+        />
+        <span style={{ fontSize: "34px", fontWeight: 700 }}>{SITE_NAME}</span>
+      </div>
 
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <span style={{ fontSize: "108px", fontWeight: 800, lineHeight: 1.02, letterSpacing: "-2px" }}>
-            Seekho. Badho. Kamao.
-          </span>
-          <span style={{ marginTop: "28px", fontSize: "36px", fontWeight: 700, color: "rgba(254,254,254,0.85)" }}>
-            Practical, job-ready skills in simple Hinglish.
-          </span>
-        </div>
-
-        <span style={{ fontSize: "26px", fontWeight: 700, color: "rgba(254,254,254,0.8)" }}>
-          GST-inclusive pricing · 48-hour refund · We sell skills, not dreams
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <span
+          style={{
+            fontSize: "108px",
+            fontWeight: 800,
+            lineHeight: 1.02,
+            letterSpacing: "-2px",
+          }}
+        >
+          Seekho. Badho. Kamao.
+        </span>
+        <span
+          style={{
+            marginTop: "28px",
+            fontSize: "36px",
+            fontWeight: 700,
+            color: "rgba(254,254,254,0.85)",
+          }}
+        >
+          Practical, job-ready skills in simple Hinglish.
         </span>
       </div>
-    ),
+
+      <span
+        style={{
+          fontSize: "26px",
+          fontWeight: 700,
+          color: "rgba(254,254,254,0.8)",
+        }}
+      >
+        GST-inclusive pricing · 48-hour refund · We sell skills, not dreams
+      </span>
+    </div>,
     { ...size, fonts },
   );
 }

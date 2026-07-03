@@ -2,7 +2,11 @@
 // or money path (Golden Rule 2/3): every failure is swallowed and logged, so a PostHog outage
 // can't fail a checkout or a webhook. Callers on hot paths fire-and-forget (do not await).
 import { getAnalyticsProvider } from "./provider";
-import { buildAnalyticsEvent, type AnalyticsEventName, type AnalyticsProperties } from "../../modules/analytics/events";
+import {
+  buildAnalyticsEvent,
+  type AnalyticsEventName,
+  type AnalyticsProperties,
+} from "../../modules/analytics/events";
 import { createHash } from "node:crypto";
 
 /**
@@ -20,10 +24,18 @@ export async function track(
   properties: AnalyticsProperties = {},
 ): Promise<void> {
   try {
-    const event = buildAnalyticsEvent({ name, distinctId, properties, now: new Date() });
+    const event = buildAnalyticsEvent({
+      name,
+      distinctId,
+      properties,
+      now: new Date(),
+    });
     await getAnalyticsProvider().capture(event);
   } catch (e) {
     // Degrade silently for the product; surface to ops via the log.
-    console.warn(`[analytics] capture failed for "${name}":`, e instanceof Error ? e.message : e);
+    console.warn(
+      `[analytics] capture failed for "${name}":`,
+      e instanceof Error ? e.message : e,
+    );
   }
 }

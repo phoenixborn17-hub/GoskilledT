@@ -1,11 +1,19 @@
 // DR-025 — refund window, commission hold, clawback. Money in PAISE.
 import { describe, it, expect } from "vitest";
 import {
-  REFUND_WINDOW_HOURS, commissionHoldUntil, isWithinRefundWindow,
-  clawbackIdempotencyKey, commissionIdempotencyKey,
+  REFUND_WINDOW_HOURS,
+  commissionHoldUntil,
+  isWithinRefundWindow,
+  clawbackIdempotencyKey,
+  commissionIdempotencyKey,
 } from "../modules/affiliate/commission";
 import {
-  assertBalanced, availableBalanceOf, heldBalanceOf, balanceOf, reversalLegs, type LedgerLeg,
+  assertBalanced,
+  availableBalanceOf,
+  heldBalanceOf,
+  balanceOf,
+  reversalLegs,
+  type LedgerLeg,
 } from "../modules/ledger/ledger";
 
 const paidAt = new Date("2026-07-03T10:00:00Z");
@@ -15,7 +23,9 @@ const afterWindow = new Date("2026-07-05T10:00:01Z");
 describe("DR-025 refund window", () => {
   it("window is 48 hours", () => {
     expect(REFUND_WINDOW_HOURS).toBe(48);
-    expect(commissionHoldUntil(paidAt).toISOString()).toBe("2026-07-05T10:00:00.000Z");
+    expect(commissionHoldUntil(paidAt).toISOString()).toBe(
+      "2026-07-05T10:00:00.000Z",
+    );
   });
   it("inside window ⇒ refundable; after ⇒ manual-only", () => {
     expect(isWithinRefundWindow(paidAt, inWindow)).toBe(true);
@@ -44,7 +54,11 @@ describe("DR-025 held vs available", () => {
 describe("DR-025 clawback", () => {
   const credit: LedgerLeg[] = [
     { account: { kind: "COMMISSION_PAYABLE" }, amountInPaise: -90000 },
-    { account: { kind: "USER_WALLET", userId: "u9" }, amountInPaise: 90000, holdUntil: commissionHoldUntil(paidAt) },
+    {
+      account: { kind: "USER_WALLET", userId: "u9" },
+      amountInPaise: 90000,
+      holdUntil: commissionHoldUntil(paidAt),
+    },
   ];
   it("reversal negates and stays balanced", () => {
     const reversal = reversalLegs(credit);

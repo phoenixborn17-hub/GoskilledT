@@ -21,14 +21,42 @@ export function ProgressRing({
 
   return (
     <div className={cn("inline-flex flex-col items-center", className)}>
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} role="img"
-        aria-label={label ?? `${clamped}% complete`}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#137E4922" strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#137E49" strokeWidth={stroke}
-          strokeLinecap="round" strokeDasharray={c} strokeDashoffset={offset}
-          transform={`rotate(-90 ${size / 2} ${size / 2})`} />
-        <text x="50%" y="50%" dominantBaseline="central" textAnchor="middle"
-          className="fill-charcoal font-heading text-lg font-bold">{clamped}%</text>
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        role="img"
+        aria-label={label ?? `${clamped}% complete`}
+      >
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="#137E4922"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="#137E49"
+          strokeWidth={stroke}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+        <text
+          x="50%"
+          y="50%"
+          dominantBaseline="central"
+          textAnchor="middle"
+          className="fill-charcoal font-heading text-lg font-bold"
+        >
+          {clamped}%
+        </text>
       </svg>
     </div>
   );

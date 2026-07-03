@@ -4,7 +4,8 @@ import { pageMetadata } from "../../lib/seo";
 
 export const metadata = pageMetadata({
   title: "Log in",
-  description: "Log in to GoSkilled with your mobile number and a one-time password (OTP).",
+  description:
+    "Log in to GoSkilled with your mobile number and a one-time password (OTP).",
   path: "/login",
 });
 

@@ -56,14 +56,42 @@ export interface ComparisonRow {
 }
 
 /** Skill Builder vs Career Booster comparison (DR-021 composition, DR-023/025 facts). */
-export function packageComparison(sb: PackageLite, cb: PackageLite): ComparisonRow[] {
+export function packageComparison(
+  sb: PackageLite,
+  cb: PackageLite,
+): ComparisonRow[] {
   return [
-    { feature: "Launch courses", skillBuilder: "1 course of your choice", careerBooster: "Both launch courses" },
-    { feature: "Future courses", skillBuilder: "Not included", careerBooster: "Included as released", highlight: true },
-    { feature: "Price (GST-inclusive)", skillBuilder: priceLabel(sb.priceInPaise), careerBooster: priceLabel(cb.priceInPaise) },
-    { feature: "Refund window", skillBuilder: "48 hours", careerBooster: "48 hours" },
-    { feature: "GST", skillBuilder: "Included — no hidden charges", careerBooster: "Included — no hidden charges" },
-    { feature: "Access after payment", skillBuilder: "Instant (under 60s)", careerBooster: "Instant (under 60s)" },
+    {
+      feature: "Launch courses",
+      skillBuilder: "1 course of your choice",
+      careerBooster: "Both launch courses",
+    },
+    {
+      feature: "Future courses",
+      skillBuilder: "Not included",
+      careerBooster: "Included as released",
+      highlight: true,
+    },
+    {
+      feature: "Price (GST-inclusive)",
+      skillBuilder: priceLabel(sb.priceInPaise),
+      careerBooster: priceLabel(cb.priceInPaise),
+    },
+    {
+      feature: "Refund window",
+      skillBuilder: "48 hours",
+      careerBooster: "48 hours",
+    },
+    {
+      feature: "GST",
+      skillBuilder: "Included — no hidden charges",
+      careerBooster: "Included — no hidden charges",
+    },
+    {
+      feature: "Access after payment",
+      skillBuilder: "Instant (under 60s)",
+      careerBooster: "Instant (under 60s)",
+    },
   ];
 }
 
@@ -72,10 +100,16 @@ export function packagesIncludingCourse(
   courseSlug: string,
   packages: { name: string; courseSlugs: string[] }[],
 ): string[] {
-  return packages.filter((p) => p.courseSlugs.includes(courseSlug)).map((p) => p.name);
+  return packages
+    .filter((p) => p.courseSlugs.includes(courseSlug))
+    .map((p) => p.name);
 }
 
 /** Distinct, sorted categories from a course list (for the /courses filter). */
-export function courseCategories(courses: { category: string | null }[]): string[] {
-  return [...new Set(courses.map((c) => c.category).filter((c): c is string => !!c))].sort();
+export function courseCategories(
+  courses: { category: string | null }[],
+): string[] {
+  return [
+    ...new Set(courses.map((c) => c.category).filter((c): c is string => !!c)),
+  ].sort();
 }

@@ -11,7 +11,10 @@ const actor = { supabaseId: `admin_${runId}`, email: "admin@example.com" };
 
 describe.skipIf(!HAS_DB)("admin audit (integration)", () => {
   it("updateLeadStage changes stage AND writes an audited AdminAction", async () => {
-    const lead = await prisma.lead.create({ data: { phone: `+918${runId}`, source: `t6-${runId}`, stage: "NEW" }, select: { id: true } });
+    const lead = await prisma.lead.create({
+      data: { phone: `+918${runId}`, source: `t6-${runId}`, stage: "NEW" },
+      select: { id: true },
+    });
 
     const updated = await updateLeadStage(actor, lead.id, "CONTACTED");
     expect(updated.stage).toBe("CONTACTED");
@@ -29,7 +32,9 @@ describe.skipIf(!HAS_DB)("admin audit (integration)", () => {
   it("resolveReview writes a REVIEW_RESOLVED audit row", async () => {
     const orderId = `order_${runId}`;
     await resolveReview(actor, orderId);
-    const audit = await prisma.adminAction.findFirst({ where: { action: "REVIEW_RESOLVED", entityId: orderId } });
+    const audit = await prisma.adminAction.findFirst({
+      where: { action: "REVIEW_RESOLVED", entityId: orderId },
+    });
     expect(audit).not.toBeNull();
     expect(audit!.actorSupabaseId).toBe(actor.supabaseId);
   });

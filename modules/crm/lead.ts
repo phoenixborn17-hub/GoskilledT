@@ -2,7 +2,8 @@
 // public form + URL params become a Lead row (KB-10 handoff contract). Adapters persist it.
 // (New module; existing rule modules untouched.)
 
-export type LeadStage = "NEW" | "CONTACTED" | "WEBINAR_REGISTERED" | "CONVERTED" | "LOST";
+export type LeadStage =
+  "NEW" | "CONTACTED" | "WEBINAR_REGISTERED" | "CONVERTED" | "LOST";
 
 // Stage ordering for the AUTOMATED public-upsert path (Ticket 8, Task 0). A lead must never
 // move BACKWARD on its own: a buyer who already CONVERTED (bought) can re-submit the webinar
@@ -30,13 +31,19 @@ export interface UtmParams {
 }
 
 /** Pull utm_source/medium/campaign from URL search params (first value, trimmed, or null). */
-export function extractUtm(params: Record<string, string | string[] | undefined>): UtmParams {
+export function extractUtm(
+  params: Record<string, string | string[] | undefined>,
+): UtmParams {
   const get = (k: string): string | null => {
     const v = params[k];
     const s = (Array.isArray(v) ? v[0] : v)?.trim();
     return s ? s : null;
   };
-  return { source: get("utm_source"), medium: get("utm_medium"), campaign: get("utm_campaign") };
+  return {
+    source: get("utm_source"),
+    medium: get("utm_medium"),
+    campaign: get("utm_campaign"),
+  };
 }
 
 export interface BuildLeadInput {

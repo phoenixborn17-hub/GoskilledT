@@ -9,10 +9,16 @@ export interface ProgressSummary {
 }
 
 /** completed / total across a course's lessons. */
-export function courseProgress(allLessonIds: string[], completedLessonIds: Iterable<string>): ProgressSummary {
+export function courseProgress(
+  allLessonIds: string[],
+  completedLessonIds: Iterable<string>,
+): ProgressSummary {
   const done = new Set(completedLessonIds);
   const total = allLessonIds.length;
-  const completed = allLessonIds.reduce((n, id) => (done.has(id) ? n + 1 : n), 0);
+  const completed = allLessonIds.reduce(
+    (n, id) => (done.has(id) ? n + 1 : n),
+    0,
+  );
   const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
   return { completed, total, percent };
 }
@@ -23,13 +29,19 @@ export function courseProgress(allLessonIds: string[], completedLessonIds: Itera
  * - some progress → first incomplete ("Resume")
  * - all done → null (course complete)
  */
-export function resumeLessonId(orderedLessonIds: string[], completedLessonIds: Iterable<string>): string | null {
+export function resumeLessonId(
+  orderedLessonIds: string[],
+  completedLessonIds: Iterable<string>,
+): string | null {
   const done = new Set(completedLessonIds);
   return orderedLessonIds.find((id) => !done.has(id)) ?? null;
 }
 
 /** The lesson after `currentId` in course order, or null if it is the last (or unknown). */
-export function nextLessonId(orderedLessonIds: string[], currentId: string): string | null {
+export function nextLessonId(
+  orderedLessonIds: string[],
+  currentId: string,
+): string | null {
   const i = orderedLessonIds.indexOf(currentId);
   if (i === -1 || i === orderedLessonIds.length - 1) return null;
   return orderedLessonIds[i + 1];
@@ -39,6 +51,9 @@ export function nextLessonId(orderedLessonIds: string[], currentId: string): str
  * Server-side access rule (never trust the client): an authenticated user may watch a lesson
  * iff they are enrolled OR the lesson is a free preview. Authentication is enforced upstream.
  */
-export function canAccessLesson(lesson: { isFreePreview: boolean }, ctx: { isEnrolled: boolean }): boolean {
+export function canAccessLesson(
+  lesson: { isFreePreview: boolean },
+  ctx: { isEnrolled: boolean },
+): boolean {
   return ctx.isEnrolled || lesson.isFreePreview;
 }

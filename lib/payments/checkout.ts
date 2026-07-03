@@ -24,20 +24,33 @@ function generateReferralCode(): string {
 }
 
 /** Find-or-create the buyer by phone. Existing buyers keep their referral chain untouched. */
-async function resolveBuyer(phone: string, referralCode?: string): Promise<{ id: string }> {
+async function resolveBuyer(
+  phone: string,
+  referralCode?: string,
+): Promise<{ id: string }> {
   const e164 = `+91${phone}`;
-  const existing = await prisma.user.findUnique({ where: { phone: e164 }, select: { id: true } });
+  const existing = await prisma.user.findUnique({
+    where: { phone: e164 },
+    select: { id: true },
+  });
   if (existing) return existing;
 
   const referrer = referralCode
-    ? await prisma.user.findUnique({ where: { referralCode }, select: { id: true } })
+    ? await prisma.user.findUnique({
+        where: { referralCode },
+        select: { id: true },
+      })
     : null;
 
   // Retry on the (astronomically unlikely) referralCode collision.
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
       return await prisma.user.create({
-        data: { phone: e164, referralCode: generateReferralCode(), referredById: referrer?.id ?? null },
+        data: {
+          phone: e164,
+          referralCode: generateReferralCode(),
+          referredById: referrer?.id ?? null,
+        },
         select: { id: true },
       });
     } catch (err) {
@@ -55,12 +68,17 @@ export async function startCheckout(
     where: { slug: input.packageSlug },
     include: { courses: { select: { courseId: true } } },
   });
-  if (!pkg || !pkg.isActive) throw new Error(`Package not available: ${input.packageSlug}`);
+  if (!pkg || !pkg.isActive)
+    throw new Error(`Package not available: ${input.packageSlug}`);
 
   // Validate the buyer's course choice up-front for Skill Builder (DR-021) — same rule the
   // webhook enrollment uses, so a bad choice can never reach a paid order.
   const entitlement = coursesToEnroll(
-    { slug: pkg.slug as CheckoutInput["packageSlug"], includesFutureCourses: pkg.includesFutureCourses, courseIds: pkg.courses.map((c) => c.courseId) },
+    {
+      slug: pkg.slug as CheckoutInput["packageSlug"],
+      includesFutureCourses: pkg.includesFutureCourses,
+      courseIds: pkg.courses.map((c) => c.courseId),
+    },
     input.chosenCourseId,
   );
   if (!entitlement.ok) throw new Error(entitlement.reason);
@@ -74,18 +92,29 @@ export async function startCheckout(
       packageId: pkg.id,
       amountInPaise: pkg.priceInPaise, // GST-inclusive display price
       gstInPaise: gst.gstInPaise,
-      chosenCourseId: input.packageSlug === "skill-builder" ? input.chosenCourseId ?? null : null,
+      chosenCourseId:
+        input.packageSlug === "skill-builder"
+          ? (input.chosenCourseId ?? null)
+          : null,
       status: "CREATED",
     },
     select: { id: true },
   });
 
-  const rzpOrder = await createRzpOrder({ amountInPaise: pkg.priceInPaise, receipt: order.id });
+  const rzpOrder = await createRzpOrder({
+    amountInPaise: pkg.priceInPaise,
+    receipt: order.id,
+  });
 
   await prisma.order.update({
     where: { id: order.id },
     data: { razorpayOrderId: rzpOrder.id },
   });
 
-  return { orderId: order.id, razorpayOrderId: rzpOrder.id, amountInPaise: pkg.priceInPaise, currency: "INR" };
+  return {
+    orderId: order.id,
+    razorpayOrderId: rzpOrder.id,
+    amountInPaise: pkg.priceInPaise,
+    currency: "INR",
+  };
 }

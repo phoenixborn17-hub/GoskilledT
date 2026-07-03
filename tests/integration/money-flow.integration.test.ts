@@ -24,7 +24,11 @@ function sign(rawBody: string): string {
 }
 
 // Walk a fresh referral chain: buyer → a → b → c (3 uplines).
-async function makeUser(tag: string, prefix: string, referredById: string | null): Promise<{ id: string; phone: string }> {
+async function makeUser(
+  tag: string,
+  prefix: string,
+  referredById: string | null,
+): Promise<{ id: string; phone: string }> {
   const phone = `+91${prefix}${String(Date.now()).slice(-9)}`;
   const user = await prisma.user.create({
     data: { phone, referralCode: `${runId}${tag}`.toUpperCase(), referredById },
@@ -47,29 +51,58 @@ describe.skipIf(!HAS_DB)("money flow (integration)", () => {
     // Fixtures (idempotent — match the seed so a seeded DB is a no-op).
     const ai = await prisma.course.upsert({
       where: { slug: "ai-prompt-mastery" },
-      update: {}, create: { slug: "ai-prompt-mastery", title: "AI Prompt Mastery", status: "PUBLISHED" },
+      update: {},
+      create: {
+        slug: "ai-prompt-mastery",
+        title: "AI Prompt Mastery",
+        status: "PUBLISHED",
+      },
       select: { id: true },
     });
     const dm = await prisma.course.upsert({
       where: { slug: "digital-marketing" },
-      update: {}, create: { slug: "digital-marketing", title: "Digital Marketing", status: "COMING_SOON" },
+      update: {},
+      create: {
+        slug: "digital-marketing",
+        title: "Digital Marketing",
+        status: "COMING_SOON",
+      },
       select: { id: true },
     });
     const cb = await prisma.package.upsert({
       where: { slug: "career-booster" },
-      update: { priceInPaise: CB_PRICE, includesFutureCourses: true, isActive: true },
-      create: { slug: "career-booster", name: "Career Booster", priceInPaise: CB_PRICE, includesFutureCourses: true, isActive: true },
+      update: {
+        priceInPaise: CB_PRICE,
+        includesFutureCourses: true,
+        isActive: true,
+      },
+      create: {
+        slug: "career-booster",
+        name: "Career Booster",
+        priceInPaise: CB_PRICE,
+        includesFutureCourses: true,
+        isActive: true,
+      },
       select: { id: true },
     });
     for (const courseId of [ai.id, dm.id]) {
       await prisma.packageCourse.upsert({
         where: { packageId_courseId: { packageId: cb.id, courseId } },
-        update: {}, create: { packageId: cb.id, courseId },
+        update: {},
+        create: { packageId: cb.id, courseId },
       });
     }
     courseCount = 2;
-    for (const type of ["REVENUE", "COMMISSION_PAYABLE", "PAYOUT_CLEARING", "GST_PAYABLE"] as const) {
-      const exists = await prisma.ledgerAccount.findFirst({ where: { type, userId: null }, select: { id: true } });
+    for (const type of [
+      "REVENUE",
+      "COMMISSION_PAYABLE",
+      "PAYOUT_CLEARING",
+      "GST_PAYABLE",
+    ] as const) {
+      const exists = await prisma.ledgerAccount.findFirst({
+        where: { type, userId: null },
+        select: { id: true },
+      });
       if (!exists) await prisma.ledgerAccount.create({ data: { type } });
     }
 
@@ -94,21 +127,38 @@ describe.skipIf(!HAS_DB)("money flow (integration)", () => {
   function capturedBody() {
     return JSON.stringify({
       event: "payment.captured",
-      payload: { payment: { entity: { id: paymentId, order_id: razorpayOrderId, amount: CB_PRICE, status: "captured" } } },
+      payload: {
+        payment: {
+          entity: {
+            id: paymentId,
+            order_id: razorpayOrderId,
+            amount: CB_PRICE,
+            status: "captured",
+          },
+        },
+      },
     });
   }
 
   it("captured webhook → PAID + enrollments + 3 HELD balanced commissions", async () => {
     const body = capturedBody();
-    const res = await handleRazorpayWebhook(body, sign(body), `evt_capture_${runId}`);
+    const res = await handleRazorpayWebhook(
+      body,
+      sign(body),
+      `evt_capture_${runId}`,
+    );
     expect(res.status).toBe(200);
 
-    const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+    });
     expect(order.status).toBe("PAID");
     expect(order.paidAt).not.toBeNull();
     expect(order.razorpayPaymentId).toBe(paymentId);
 
-    const enrollments = await prisma.enrollment.findMany({ where: { userId: buyerId } });
+    const enrollments = await prisma.enrollment.findMany({
+      where: { userId: buyerId },
+    });
     expect(enrollments.length).toBe(courseCount);
 
     const commissions = await prisma.ledgerTransaction.findMany({
@@ -119,7 +169,9 @@ describe.skipIf(!HAS_DB)("money flow (integration)", () => {
     for (const t of commissions) {
       expect(t.entries.reduce((s, e) => s + e.amountInPaise, 0)).toBe(0); // balanced
     }
-    const walletCredits = commissions.flatMap((t) => t.entries.filter((e) => e.amountInPaise > 0).map((e) => e.amountInPaise));
+    const walletCredits = commissions.flatMap((t) =>
+      t.entries.filter((e) => e.amountInPaise > 0).map((e) => e.amountInPaise),
+    );
     expect(walletCredits.sort((x, y) => y - x)).toEqual([125000, 25000, 15000]); // ₹1250/250/150
 
     // Commissions accrue to the UPLINES, all HELD (within the 48h window) → nothing available yet.
@@ -133,27 +185,51 @@ describe.skipIf(!HAS_DB)("money flow (integration)", () => {
 
   it("duplicate webhook → nothing changes (idempotent)", async () => {
     const body = capturedBody();
-    const res = await handleRazorpayWebhook(body, sign(body), `evt_capture_${runId}`);
+    const res = await handleRazorpayWebhook(
+      body,
+      sign(body),
+      `evt_capture_${runId}`,
+    );
     expect(res.status).toBe(200);
 
-    const commissions = await prisma.ledgerTransaction.count({ where: { type: "COMMISSION", refType: "Order", refId: orderId } });
+    const commissions = await prisma.ledgerTransaction.count({
+      where: { type: "COMMISSION", refType: "Order", refId: orderId },
+    });
     expect(commissions).toBe(3); // no double credit
-    const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+    });
     expect(order.status).toBe("PAID");
   });
 
   it("refund within window → clawbacks, available = 0, enrollments revoked", async () => {
     const body = JSON.stringify({
       event: "refund.processed",
-      payload: { refund: { entity: { id: `rfnd_${runId}`, payment_id: paymentId, amount: CB_PRICE } } },
+      payload: {
+        refund: {
+          entity: {
+            id: `rfnd_${runId}`,
+            payment_id: paymentId,
+            amount: CB_PRICE,
+          },
+        },
+      },
     });
-    const res = await handleRazorpayWebhook(body, sign(body), `evt_refund_${runId}`);
+    const res = await handleRazorpayWebhook(
+      body,
+      sign(body),
+      `evt_refund_${runId}`,
+    );
     expect(res.status).toBe(200);
 
-    const order = await prisma.order.findUniqueOrThrow({ where: { id: orderId } });
+    const order = await prisma.order.findUniqueOrThrow({
+      where: { id: orderId },
+    });
     expect(order.status).toBe("REFUNDED");
 
-    const clawbacks = await prisma.ledgerTransaction.count({ where: { type: "CLAWBACK", refType: "Order", refId: orderId } });
+    const clawbacks = await prisma.ledgerTransaction.count({
+      where: { type: "CLAWBACK", refType: "Order", refId: orderId },
+    });
     expect(clawbacks).toBe(3);
 
     // Credit + clawback net every upline wallet to zero. Even AFTER the 48h hold expires,
@@ -163,7 +239,9 @@ describe.skipIf(!HAS_DB)("money flow (integration)", () => {
     expect(balanceOf(upline)).toBe(0);
     expect(availableBalanceOf(upline, afterWindow)).toBe(0);
 
-    const enrollments = await prisma.enrollment.count({ where: { userId: buyerId } });
+    const enrollments = await prisma.enrollment.count({
+      where: { userId: buyerId },
+    });
     expect(enrollments).toBe(0);
   });
 
@@ -180,7 +258,9 @@ describe.skipIf(!HAS_DB)("money flow (integration)", () => {
   });
 });
 
-async function loadWalletEntries(userIds: string[]): Promise<{ amountInPaise: number; holdUntil: Date | null }[]> {
+async function loadWalletEntries(
+  userIds: string[],
+): Promise<{ amountInPaise: number; holdUntil: Date | null }[]> {
   const accounts = await prisma.ledgerAccount.findMany({
     where: { userId: { in: userIds } },
     include: { entries: { select: { amountInPaise: true, holdUntil: true } } },

@@ -18,8 +18,11 @@ export function ResolveButton({ orderId }: { orderId: string }) {
   }
 
   return (
-    <button onClick={onClick} disabled={busy}
-      className="rounded-lg bg-charcoal px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className="rounded-lg bg-charcoal px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+    >
       {busy ? "Saving…" : error ? "Retry" : "Mark resolved"}
     </button>
   );

@@ -12,7 +12,10 @@ export interface AdminActionInput {
   meta?: Prisma.InputJsonValue;
 }
 
-export async function recordAdminAction(client: Prisma.TransactionClient, input: AdminActionInput) {
+export async function recordAdminAction(
+  client: Prisma.TransactionClient,
+  input: AdminActionInput,
+) {
   return client.adminAction.create({
     data: {
       actorSupabaseId: input.actor.supabaseId,

@@ -11,10 +11,17 @@ const phone = (d: string) => `+919${d}${runId}`; // unique 10-digit-ish per run
 describe.skipIf(!HAS_DB)("user sync (integration)", () => {
   it("creates a new user and attributes the referral", async () => {
     const referrer = await prisma.user.create({
-      data: { supabaseId: `sb_ref_${runId}`, phone: phone("1"), referralCode: `REF${runId}` },
+      data: {
+        supabaseId: `sb_ref_${runId}`,
+        phone: phone("1"),
+        referralCode: `REF${runId}`,
+      },
       select: { id: true },
     });
-    const res = await syncUser({ id: `sb_new_${runId}`, phone: phone("2") }, `ref${runId}`); // lower-case → uppercased internally
+    const res = await syncUser(
+      { id: `sb_new_${runId}`, phone: phone("2") },
+      `ref${runId}`,
+    ); // lower-case → uppercased internally
     expect(res.supabaseId).toBe(`sb_new_${runId}`);
     expect(res.referredById).toBe(referrer.id);
     expect(res.referralCode).toMatch(/^GS[0-9A-F]{8}$/);
@@ -30,7 +37,10 @@ describe.skipIf(!HAS_DB)("user sync (integration)", () => {
 
   it("links an existing phone-only user (checkout-created) to the Supabase id", async () => {
     const p = phone("4");
-    const pre = await prisma.user.create({ data: { phone: p, referralCode: `PC${runId}` }, select: { id: true } });
+    const pre = await prisma.user.create({
+      data: { phone: p, referralCode: `PC${runId}` },
+      select: { id: true },
+    });
     const res = await syncUser({ id: `sb_link_${runId}`, phone: p });
     expect(res.id).toBe(pre.id); // same row, not a duplicate
     expect(res.supabaseId).toBe(`sb_link_${runId}`);
@@ -38,7 +48,10 @@ describe.skipIf(!HAS_DB)("user sync (integration)", () => {
   });
 
   it("ignores unknown referral codes (no false attribution)", async () => {
-    const res = await syncUser({ id: `sb_noref_${runId}`, phone: phone("5") }, "DOES-NOT-EXIST");
+    const res = await syncUser(
+      { id: `sb_noref_${runId}`, phone: phone("5") },
+      "DOES-NOT-EXIST",
+    );
     expect(res.referredById).toBeNull();
   });
 });

@@ -97,4 +97,6 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
 ];
 
 /** The homepage teaser shows the flagged `top` items (kept to the first four). */
-export const TOP_FAQS: FaqItem[] = FAQ_CATEGORIES.flatMap((c) => c.items).filter((i) => i.top).slice(0, 4);
+export const TOP_FAQS: FaqItem[] = FAQ_CATEGORIES.flatMap((c) => c.items)
+  .filter((i) => i.top)
+  .slice(0, 4);

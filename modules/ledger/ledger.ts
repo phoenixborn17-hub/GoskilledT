@@ -31,8 +31,10 @@ export interface TxSpec {
 
 export function assertBalanced(legs: { amountInPaise: number }[]): void {
   const sum = legs.reduce((a, l) => a + l.amountInPaise, 0);
-  if (sum !== 0) throw new Error(`Unbalanced ledger transaction: sum=${sum} (must be 0)`);
-  if (legs.length < 2) throw new Error("A ledger transaction needs at least 2 legs");
+  if (sum !== 0)
+    throw new Error(`Unbalanced ledger transaction: sum=${sum} (must be 0)`);
+  if (legs.length < 2)
+    throw new Error("A ledger transaction needs at least 2 legs");
 }
 
 /** Total balance = sum of ALL entry amounts (held + available). */
@@ -45,7 +47,10 @@ export function availableBalanceOf(
   entries: { amountInPaise: number; holdUntil?: Date | null }[],
   now: Date = new Date(),
 ): number {
-  return entries.reduce((a, e) => (!e.holdUntil || e.holdUntil <= now ? a + e.amountInPaise : a), 0);
+  return entries.reduce(
+    (a, e) => (!e.holdUntil || e.holdUntil <= now ? a + e.amountInPaise : a),
+    0,
+  );
 }
 
 /** HELD balance — visible to the affiliate but not yet withdrawable (DR-025 UX rule). */
@@ -53,7 +58,10 @@ export function heldBalanceOf(
   entries: { amountInPaise: number; holdUntil?: Date | null }[],
   now: Date = new Date(),
 ): number {
-  return entries.reduce((a, e) => (e.holdUntil && e.holdUntil > now ? a + e.amountInPaise : a), 0);
+  return entries.reduce(
+    (a, e) => (e.holdUntil && e.holdUntil > now ? a + e.amountInPaise : a),
+    0,
+  );
 }
 
 /**

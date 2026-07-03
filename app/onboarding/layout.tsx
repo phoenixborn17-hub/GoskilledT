@@ -8,6 +8,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function OnboardingLayout({ children }: { children: React.ReactNode }) {
+export default function OnboardingLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return children;
 }

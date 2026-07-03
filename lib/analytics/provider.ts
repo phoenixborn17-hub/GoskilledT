@@ -3,7 +3,11 @@
 // with ONE deliberate difference: analytics is NOT part of the hard production guard —
 // console-in-prod only soft-warns (softWarnProductionAnalytics). posthog-node is loaded LAZILY
 // so console mode (and the whole test suite) never touches it. NO client-side SDK this ticket.
-import { analyticsProviderName, softWarnProductionAnalytics, type AnalyticsProviderName } from "../config/providers";
+import {
+  analyticsProviderName,
+  softWarnProductionAnalytics,
+  type AnalyticsProviderName,
+} from "../config/providers";
 import { requireEnv } from "../env";
 import type { AnalyticsEvent } from "../../modules/analytics/events";
 
@@ -19,7 +23,14 @@ export const consoleAnalyticsProvider: AnalyticsProvider = {
   name: "console",
   async capture(event) {
     // Single line so log processors can parse it; properties are already PII-stripped upstream.
-    console.log(JSON.stringify({ analytics: event.name, distinctId: event.distinctId, ts: event.timestamp, ...event.properties }));
+    console.log(
+      JSON.stringify({
+        analytics: event.name,
+        distinctId: event.distinctId,
+        ts: event.timestamp,
+        ...event.properties,
+      }),
+    );
   },
   async flush() {},
 };
@@ -56,5 +67,7 @@ export const posthogAnalyticsProvider: AnalyticsProvider = {
 /** Select the active analytics provider. Soft-warns (never throws) on console-in-production. */
 export function getAnalyticsProvider(): AnalyticsProvider {
   softWarnProductionAnalytics();
-  return analyticsProviderName() === "posthog" ? posthogAnalyticsProvider : consoleAnalyticsProvider;
+  return analyticsProviderName() === "posthog"
+    ? posthogAnalyticsProvider
+    : consoleAnalyticsProvider;
 }

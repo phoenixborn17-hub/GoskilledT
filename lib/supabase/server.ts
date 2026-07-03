@@ -17,7 +17,8 @@ export async function createSupabaseServerClient() {
       },
       setAll(cookiesToSet: CookieToSet[]) {
         try {
-          for (const { name, value, options } of cookiesToSet) cookieStore.set(name, value, options);
+          for (const { name, value, options } of cookiesToSet)
+            cookieStore.set(name, value, options);
         } catch {
           // Called from a Server Component (read-only cookies) — middleware refreshes the session.
         }

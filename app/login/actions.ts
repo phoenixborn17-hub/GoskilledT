@@ -9,24 +9,48 @@ import { syncUser } from "../../lib/auth/user-sync";
 export type LoginResult = { ok: true } | { ok: false; error: string };
 
 const sendSchema = z.object({ phone: phoneSchema });
-const verifyLoginSchema = z.object({ phone: phoneSchema, token: z.string().trim().regex(/^\d{4,8}$/, "Enter the OTP") });
+const verifyLoginSchema = z.object({
+  phone: phoneSchema,
+  token: z
+    .string()
+    .trim()
+    .regex(/^\d{4,8}$/, "Enter the OTP"),
+});
 
-export async function sendLoginOtp(input: z.input<typeof sendSchema>): Promise<LoginResult> {
+export async function sendLoginOtp(
+  input: z.input<typeof sendSchema>,
+): Promise<LoginResult> {
   const parsed = sendSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid phone" };
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid phone",
+    };
   try {
     await getOtpProvider().sendOtp(parsed.data.phone);
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "Could not send OTP" };
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Could not send OTP",
+    };
   }
 }
 
-export async function verifyLoginOtp(input: z.input<typeof verifyLoginSchema>): Promise<LoginResult> {
+export async function verifyLoginOtp(
+  input: z.input<typeof verifyLoginSchema>,
+): Promise<LoginResult> {
   const parsed = verifyLoginSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: parsed.error.issues[0]?.message ?? "Invalid OTP" };
+  if (!parsed.success)
+    return {
+      ok: false,
+      error: parsed.error.issues[0]?.message ?? "Invalid OTP",
+    };
   try {
-    const { user } = await getOtpProvider().verifyOtp(parsed.data.phone, parsed.data.token);
+    const { user } = await getOtpProvider().verifyOtp(
+      parsed.data.phone,
+      parsed.data.token,
+    );
     await syncUser(user);
     return { ok: true };
   } catch (e) {

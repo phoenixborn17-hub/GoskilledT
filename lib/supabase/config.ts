@@ -15,7 +15,9 @@ export function isSupabaseConfigured(): boolean {
 
 export function requireSupabaseConfig(): { url: string; anonKey: string } {
   if (!isSupabaseConfigured()) {
-    throw new Error("Supabase is not configured — set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (see SETUP.md / Task 1 dashboard steps).");
+    throw new Error(
+      "Supabase is not configured — set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY (see SETUP.md / Task 1 dashboard steps).",
+    );
   }
   return { url: supabaseUrl(), anonKey: supabaseAnonKey() };
 }

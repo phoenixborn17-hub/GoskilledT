@@ -13,9 +13,14 @@ async function reviewState() {
       orderBy: { createdAt: "desc" },
       select: { id: true, entityId: true, meta: true, createdAt: true },
     }),
-    prisma.adminAction.findMany({ where: { action: "REVIEW_RESOLVED" }, select: { entityId: true } }),
+    prisma.adminAction.findMany({
+      where: { action: "REVIEW_RESOLVED" },
+      select: { entityId: true },
+    }),
   ]);
-  const resolvedIds = new Set(resolved.map((r) => r.entityId).filter((x): x is string => !!x));
+  const resolvedIds = new Set(
+    resolved.map((r) => r.entityId).filter((x): x is string => !!x),
+  );
   return { flags, resolvedIds };
 }
 
@@ -42,7 +47,10 @@ export async function getAdminOverview() {
   const [users, paidOrders, revenue, leadGroups, queue] = await Promise.all([
     prisma.user.count(),
     prisma.order.count({ where: { status: "PAID" } }),
-    prisma.order.aggregate({ _sum: { amountInPaise: true }, where: { status: "PAID" } }),
+    prisma.order.aggregate({
+      _sum: { amountInPaise: true },
+      where: { status: "PAID" },
+    }),
     prisma.lead.groupBy({ by: ["stage"], _count: { _all: true } }),
     listReviewQueue(),
   ]);
@@ -50,7 +58,9 @@ export async function getAdminOverview() {
     users,
     paidOrders,
     revenueInPaise: revenue._sum.amountInPaise ?? 0,
-    leadsByStage: Object.fromEntries(leadGroups.map((g) => [g.stage, g._count._all])) as Record<string, number>,
+    leadsByStage: Object.fromEntries(
+      leadGroups.map((g) => [g.stage, g._count._all]),
+    ) as Record<string, number>,
     pendingReview: queue.filter((q) => !q.resolved).length,
     payoutsEnabled: payoutsEnabled(),
   };
@@ -60,7 +70,12 @@ export async function listUsers(opts: { page: number; q?: string }) {
   const page = Math.max(1, opts.page);
   const q = opts.q?.trim();
   const where = q
-    ? { OR: [{ phone: { contains: q } }, { referralCode: { contains: q.toUpperCase() } }] }
+    ? {
+        OR: [
+          { phone: { contains: q } },
+          { referralCode: { contains: q.toUpperCase() } },
+        ],
+      }
     : {};
   const [rows, total] = await Promise.all([
     prisma.user.findMany({
@@ -79,7 +94,13 @@ export async function listUsers(opts: { page: number; q?: string }) {
     }),
     prisma.user.count({ where }),
   ]);
-  return { rows, total, page, pageSize: USERS_PAGE_SIZE, pageCount: Math.max(1, Math.ceil(total / USERS_PAGE_SIZE)) };
+  return {
+    rows,
+    total,
+    page,
+    pageSize: USERS_PAGE_SIZE,
+    pageCount: Math.max(1, Math.ceil(total / USERS_PAGE_SIZE)),
+  };
 }
 
 export async function listPayments(opts: { status?: OrderStatus }) {
