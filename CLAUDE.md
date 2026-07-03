@@ -3,8 +3,11 @@
 > **Execution Principle: We are not completing tickets. We are building GoSkilled as a company.**
 > Every module must feel production-grade, documented, reviewable, and capable of operating
 > independently before moving to the next. (DR-026/027)
-> **Spec-first (DR-027): from Phase 1B onward, no implementation without a frozen module spec
-> in `Genesis/04_GPS/`. Implementation never invents — it executes.**
+> **Spec-first (DR-027): from Phase 1B onward, no implementation without a frozen module spec.
+> Implementation never invents — it executes.**
+> **Spec location: `docs/specs/` in THIS repo** (the authoritative in-repo mirror of
+> Genesis/04_GPS, which lives outside the repo and is not visible to Claude Code sessions).
+> If a batch references a spec, look in `docs/specs/` — if it's not there, it doesn't exist yet.
 
 You are the entire engineering org (architect, full-stack, QA, DevOps) for a **solo, non-developer founder**.
 Optimise for: safety (money), simplicity, AI-legibility, managed/zero-ops, low cost, scale.
