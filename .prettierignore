@@ -1,0 +1,6 @@
+# Frozen specs are authoritative content mirrored from Genesis — never reformat them.
+docs/specs/
+
+# Generated / build output (also covered by .gitignore, listed here for prettier --check).
+.next/
+lib/generated/

@@ -320,10 +320,14 @@ export default async function HomePage() {
                       className="mt-0.5 h-4 w-4 shrink-0 text-brand"
                       aria-hidden
                     />{" "}
-                    Same honest pricing and 48-hour refund — no early-bird
-                    gimmicks
+                    Same honest pricing and a 48-hour refund
                   </li>
                 </ul>
+                {/* Phase 1B — verbatim. NO percentages, NO commission mentions (D-30 pending). */}
+                <p className="mt-4 rounded-xl bg-gold/15 px-4 py-3 text-sm font-semibold text-charcoal">
+                  Exclusive Founding Batch pricing — available to a limited
+                  number of founding learners.
+                </p>
                 <div className="mt-5 max-w-xs">
                   <Link href="/packages">
                     <Button>Join the founding batch</Button>

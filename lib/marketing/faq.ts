@@ -2,11 +2,8 @@
 // RULE: only REAL answers we can stand behind today. D-29: no income promises, no numbers on
 // the affiliate answer. No "(DR-..." or internal decision codes in customer copy.
 //
-// FOUNDER CONTENT REQUIRED — these questions are intentionally NOT rendered until the founder
-// confirms the answers. Do not invent answers (DR-027 "implementation never invents"):
-//   • Which languages are the courses taught in? (Hinglish/Hindi/English mix — confirm exact)
-//   • Do I get a certificate on completion? (product decision pending)
-//   • When exactly is the next webinar? (scheduled per-webinar; /webinar shows the live date)
+// The three previously-pending answers (language, certificate, live sessions) are now supplied
+// VERBATIM by the frozen Phase 1B spec (docs/specs/PHASE_1B_CONTENT_SPEC.md).
 
 export interface FaqItem {
   q: string;
@@ -69,6 +66,18 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
       {
         q: "Is there a free preview before I buy?",
         a: "Yes. Selected lessons are free to preview so you can see the teaching style before deciding.",
+      },
+      {
+        q: "What language are the courses in?",
+        a: "Courses are taught in simple Hinglish — the way you actually speak — with supporting resources in English. The website is currently in English; a full Hinglish version is planned.",
+      },
+      {
+        q: "Do I get a certificate?",
+        a: "Yes. Complete your course's required progress and all mandatory assignments, and you'll receive a digital GoSkilled Course Completion Certificate with a unique verification ID and downloadable PDF.* (*Detailed eligibility terms on the Terms page.)",
+      },
+      {
+        q: "When are the live sessions?",
+        a: "Every Friday: Live Skill Training for enrolled learners. Every Sunday: a free Introduction Webinar for new learners — what GoSkilled is, the learning roadmap, packages, and how to get started. Registered users get announcements if timings change.",
       },
     ],
   },

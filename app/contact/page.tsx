@@ -1,9 +1,8 @@
-// /contact — lead-capture form is READY (reuses LeadCaptureForm, source "contact", rate-limited).
-// The direct-channel details (WhatsApp / email / phone / hours) are BLOCKED on a founder decision
-// (which channel to publish). That block is a single labeled slot below — we do NOT invent a
-// contact address (a fake/placeholder channel would be a broken promise; D-29 honesty).
+// /contact — lead-capture form is primary (reuses LeadCaptureForm, source "contact", rate-limited).
+// Direct-channel details are unblocked by the Phase 1B spec. Some values are temporary and flagged
+// `// REPLACE:` — the office-address block is intentionally omitted until confirmed.
 import { Suspense } from "react";
-import { Clock } from "lucide-react";
+import { Clock, Mail, MessageCircle } from "lucide-react";
 import { submitContact } from "./actions";
 import { pageMetadata } from "../../lib/seo";
 import { SiteHeader } from "../../components/marketing/site-header";
@@ -34,24 +33,34 @@ export default function ContactPage() {
             your name and number and we&apos;ll get back to you.
           </p>
 
-          {/* Direct-channel details — BLOCKED (founder decision on channel). Slot built; when the
-              channel is chosen, render it here instead of the pending note. */}
-          <Card className="mt-6 flex items-start gap-3 bg-brand/5">
-            <div
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand"
-              aria-hidden
-            >
-              <Clock className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-charcoal">
-                Our direct support channel is being set up
-              </p>
-              <p className="text-sm text-muted">
-                Leave your details for now and we&apos;ll reach out. We usually
-                respond within one business day.
-              </p>
-            </div>
+          {/* Direct-channel details (Phase 1B). Office-address block intentionally omitted
+              (// REPLACE: pending). Email + WhatsApp are temporary (// REPLACE: temp); hours to
+              confirm (// REPLACE: confirm). */}
+          <Card className="mt-6 space-y-4 bg-brand/5">
+            <ChannelRow Icon={Mail} label="Email">
+              {/* // REPLACE: temp */}
+              <a
+                href="mailto:goskilled.in@gmail.com"
+                className="font-semibold text-brand-deep hover:underline"
+              >
+                goskilled.in@gmail.com
+              </a>
+            </ChannelRow>
+            <ChannelRow Icon={MessageCircle} label="WhatsApp">
+              {/* // REPLACE: temp */}
+              <a
+                href="https://wa.me/918572887888"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-brand-deep hover:underline"
+              >
+                +91 85728 87888
+              </a>
+            </ChannelRow>
+            <ChannelRow Icon={Clock} label="Business hours">
+              {/* // REPLACE: confirm */}
+              <span className="text-charcoal/80">Mon–Sat, 10:00–18:00 IST</span>
+            </ChannelRow>
           </Card>
         </section>
 
@@ -70,5 +79,32 @@ export default function ContactPage() {
       </main>
       <SiteFooter />
     </>
+  );
+}
+
+function ChannelRow({
+  Icon,
+  label,
+  children,
+}: {
+  Icon: typeof Mail;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div
+        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand"
+        aria-hidden
+      >
+        <Icon className="h-5 w-5" />
+      </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted">
+          {label}
+        </p>
+        <p className="text-sm">{children}</p>
+      </div>
+    </div>
   );
 }
