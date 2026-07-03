@@ -1,13 +1,16 @@
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
-type Variant = "primary" | "outline" | "ghost";
+type Variant = "primary" | "outline" | "ghost" | "gold";
 
 const variants: Record<Variant, string> = {
   primary: "press bg-brand text-brand-fg hover:bg-brand/90 disabled:opacity-50",
   outline:
     "border border-brand/30 bg-transparent text-charcoal hover:bg-brand/5",
   ghost: "bg-transparent text-charcoal hover:bg-charcoal/5",
+  // Gold-forward affiliate CTA — charcoal text on a gold fill (Golden Rule 14: gold is never
+  // text on light; here it's a fill with dark text → AA).
+  gold: "press bg-gold text-charcoal hover:bg-gold/90 disabled:opacity-50",
 };
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
