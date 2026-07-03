@@ -35,6 +35,18 @@ describe("buildReceiptEmail (pure)", () => {
     expect(m.html).toContain("Career Booster");
   });
 
+  it("escapes HTML in user-supplied fields (buyerName injection guard)", () => {
+    const m = buildReceiptEmail({
+      ...BASE,
+      buyerName: `<img src=x onerror="x">O'Brien & Co`,
+    });
+    expect(m.html).not.toContain("<img");
+    expect(m.html).toContain("&lt;img");
+    expect(m.html).toContain("O&#39;Brien &amp; Co");
+    // Text part is plain text — no escaping expected there.
+    expect(m.text).toContain("O'Brien & Co");
+  });
+
   it("greets by name when present, generically otherwise", () => {
     expect(buildReceiptEmail(BASE).text.startsWith("Hi Asha,")).toBe(true);
     expect(

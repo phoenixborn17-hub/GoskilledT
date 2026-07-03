@@ -20,6 +20,17 @@ export interface EmailMessage {
   idempotencyKey: string;
 }
 
+/** Escape HTML special chars — buyerName is user-supplied (onboarding), so the HTML body must
+ *  never interpolate it raw (content-injection/phishing vector in email clients). */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 function formatDate(d: Date): string {
   return new Intl.DateTimeFormat("en-IN", {
     dateStyle: "medium",
@@ -49,12 +60,12 @@ export function buildReceiptEmail(i: ReceiptInput): EmailMessage {
   ].join("\n");
 
   const html = `<div style="font-family:system-ui,sans-serif;color:#2A302A;line-height:1.6">
-  <p>${greeting}</p>
+  <p>${escapeHtml(greeting)}</p>
   <p>Thank you for your purchase on GoSkilled. Here is your receipt:</p>
   <table style="border-collapse:collapse">
-    <tr><td style="padding:2px 12px 2px 0"><strong>Package</strong></td><td>${i.packageName}</td></tr>
+    <tr><td style="padding:2px 12px 2px 0"><strong>Package</strong></td><td>${escapeHtml(i.packageName)}</td></tr>
     <tr><td style="padding:2px 12px 2px 0"><strong>Amount paid</strong></td><td>${amount} (GST-inclusive)</td></tr>
-    <tr><td style="padding:2px 12px 2px 0"><strong>Order ID</strong></td><td>${i.orderId}</td></tr>
+    <tr><td style="padding:2px 12px 2px 0"><strong>Order ID</strong></td><td>${escapeHtml(i.orderId)}</td></tr>
     <tr><td style="padding:2px 12px 2px 0"><strong>Date</strong></td><td>${when} IST</td></tr>
   </table>
   <p>Your access unlocks within about 60 seconds. If you need a refund, you have 48 hours from purchase — just reply or contact us.</p>
