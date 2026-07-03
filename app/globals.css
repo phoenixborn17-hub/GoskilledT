@@ -81,7 +81,14 @@ html { scroll-behavior: smooth; }
 
 /* ── Micro-interactions (CSS-only) ───────────────────────────────────────── */
 @media (prefers-reduced-motion: no-preference) {
-  .lift { transition: transform 180ms ease, box-shadow 180ms ease; }
+  /* Longhand transition-property (not the `transition` shorthand) so `.lift` doesn't reset the
+     color/border transition set by Tailwind's `transition-colors` on the same element (e.g. the
+     course card hovers border AND lifts). Includes those properties so both animate together. */
+  .lift {
+    transition-property: transform, box-shadow, color, background-color, border-color;
+    transition-duration: 180ms;
+    transition-timing-function: ease;
+  }
   .lift:hover { transform: translateY(-2px); box-shadow: var(--gs-shadow-lg); }
   /* Longhand (not the `transition` shorthand) so it doesn't reset the color/bg/border
      transition set by Tailwind's `transition-colors`; the property list includes them so
