@@ -1,12 +1,13 @@
-// /about — mission + values are canon (ready to build). Founder story + photo is FOUNDER CONTENT
-// REQUIRED: the layout slot is built below but gated on `FOUNDER` (null until the founder supplies
-// a real bio + photo). We render NOTHING incomplete — no placeholder bio, no stock photo (DR-027:
-// implementation never invents; D-29: honesty as identity).
+// /about — Phase 1B: founder message, founding team, company facts, and "the gap" section are now
+// unblocked by the frozen spec (docs/specs/PHASE_1B_CONTENT_SPEC.md). All copy is VERBATIM from the
+// spec. Team avatars are branded monograms — NO photos, NO AI faces (Fable trust override); the
+// layout lets real photos swap in later without a redesign.
 import Link from "next/link";
-import { Eye, HandHeart, ShieldCheck, Sparkles } from "lucide-react";
+import { Eye, HandHeart, ShieldCheck, Sparkles, Quote } from "lucide-react";
 import { pageMetadata } from "../../lib/seo";
 import { SiteHeader } from "../../components/marketing/site-header";
 import { SiteFooter } from "../../components/marketing/site-footer";
+import { Monogram } from "../../components/marketing/monogram";
 import { Card } from "../../components/ui/card";
 import { Button } from "../../components/ui/button";
 
@@ -17,14 +18,20 @@ export const metadata = pageMetadata({
   path: "/about",
 });
 
-// FOUNDER CONTENT REQUIRED — set to a real bio + photo to unblock the founder section. Until then
-// the section renders nothing (see the guarded block below).
-const FOUNDER: {
-  name: string;
-  role: string;
-  bio: string;
-  photo: string;
-} | null = null;
+// Verbatim spec copy (do not edit — frozen).
+const FOUNDER_QUOTE =
+  "GoSkilled was founded with one clear vision — to make practical, industry-ready education accessible to everyone. We believe real skills create real opportunities, and learning should lead to confidence, growth, and long-term success — not unrealistic promises. Every decision we make is guided by trust, transparency, and helping learners build skills that truly matter.";
+const GAP_COPY =
+  "Every year, millions of students graduate with degrees but struggle to find meaningful opportunities, because the gap between education and industry keeps growing. GoSkilled was created to bridge that gap — practical skills, real confidence, honest guidance.";
+const BRAND_STATEMENT =
+  "We will never sell dreams. We will help you build skills that create opportunities.";
+
+// Founding team — monogram avatars only (NO photos / NO AI faces per spec).
+const TEAM = [
+  { name: "Ashish Sangwal", role: "Founder & CEO" },
+  { name: "Neha", role: "Co-Founder & Operations" },
+  { name: "Aniket", role: "Partner" },
+];
 
 const VALUES = [
   {
@@ -92,8 +99,18 @@ export default function AboutPage() {
           </div>
         </section>
 
+        {/* The gap we exist to close (Phase 1B — verbatim) */}
+        <section aria-labelledby="gap" className="reveal bg-white">
+          <div className="mx-auto w-full max-w-3xl px-4 py-14">
+            <h2 id="gap" className="font-heading text-2xl font-bold">
+              The gap we exist to close
+            </h2>
+            <p className="mt-4 text-charcoal/80">{GAP_COPY}</p>
+          </div>
+        </section>
+
         {/* The goal — Constitution Art 2 fact (public-safe phrasing, no internal codes) */}
-        <section aria-label="Our goal" className="reveal bg-white">
+        <section aria-label="Our goal" className="reveal">
           <div className="mx-auto w-full max-w-3xl px-4 py-14 text-center">
             <p className="font-heading text-3xl font-extrabold text-brand sm:text-4xl">
               10 million skilled Indians by 2035
@@ -129,31 +146,70 @@ export default function AboutPage() {
           </div>
         </section>
 
-        {/* Founder story — BLOCKED slot (FOUNDER CONTENT). Renders only when FOUNDER is supplied. */}
-        {FOUNDER && (
-          <section aria-labelledby="founder" className="reveal bg-white">
-            <div className="mx-auto w-full max-w-3xl px-4 py-14">
-              <h2 id="founder" className="mb-6 font-heading text-2xl font-bold">
-                Meet the founder
-              </h2>
-              <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={FOUNDER.photo}
-                  alt={FOUNDER.name}
-                  className="h-28 w-28 rounded-2xl object-cover"
-                />
+        {/* Message from the Founder (Phase 1B — verbatim quote) */}
+        <section aria-labelledby="founder-message" className="reveal bg-white">
+          <div className="mx-auto w-full max-w-3xl px-4 py-14">
+            <h2
+              id="founder-message"
+              className="mb-6 font-heading text-2xl font-bold"
+            >
+              Message from the Founder
+            </h2>
+            <Card className="bg-brand/5">
+              <figure className="flex flex-col gap-4">
+                <Quote className="h-8 w-8 text-brand" aria-hidden />
+                <blockquote className="text-lg leading-relaxed text-charcoal/90">
+                  {FOUNDER_QUOTE}
+                </blockquote>
+                <figcaption className="flex items-center gap-3">
+                  <Monogram name="Ashish Sangwal" className="h-12 w-12" />
+                  <span>
+                    <span className="block font-heading font-bold text-charcoal">
+                      Ashish Sangwal
+                    </span>
+                    <span className="block text-sm text-brand">
+                      Founder &amp; CEO
+                    </span>
+                  </span>
+                </figcaption>
+              </figure>
+            </Card>
+          </div>
+        </section>
+
+        {/* Founding Team (Phase 1B — monograms only) */}
+        <section
+          aria-labelledby="team"
+          className="reveal mx-auto w-full max-w-5xl px-4 py-14"
+        >
+          <h2 id="team" className="mb-6 font-heading text-2xl font-bold">
+            Founding Team
+          </h2>
+          <div className="grid gap-4 sm:grid-cols-3">
+            {TEAM.map((m) => (
+              <Card key={m.name} className="flex items-center gap-4">
+                <Monogram name={m.name} />
                 <div>
-                  <p className="font-heading text-lg font-bold">
-                    {FOUNDER.name}
-                  </p>
-                  <p className="text-sm text-brand">{FOUNDER.role}</p>
-                  <p className="mt-3 text-charcoal/80">{FOUNDER.bio}</p>
+                  <p className="font-heading text-lg font-bold">{m.name}</p>
+                  <p className="text-sm text-brand">{m.role}</p>
                 </div>
-              </div>
-            </div>
-          </section>
-        )}
+              </Card>
+            ))}
+          </div>
+          {/* Company facts strip (Phase 1B — verbatim; no office city / no other members) */}
+          <p className="mt-6 text-center text-sm text-muted">
+            GoSkilled is a brand of EDZERA LLP · Founded 2025
+          </p>
+        </section>
+
+        {/* Brand statement (Phase 1B — verbatim closing line) */}
+        <section aria-label="Our promise" className="reveal bg-white">
+          <div className="mx-auto w-full max-w-3xl px-4 py-14 text-center">
+            <p className="font-heading text-2xl font-bold leading-snug text-charcoal sm:text-3xl">
+              {BRAND_STATEMENT}
+            </p>
+          </div>
+        </section>
 
         {/* CTA */}
         <section className="reveal mx-auto w-full max-w-3xl px-4 py-16">

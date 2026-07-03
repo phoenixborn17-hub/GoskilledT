@@ -40,10 +40,10 @@ export function SiteFooter() {
             <p className="font-heading text-lg font-bold text-brand">
               GoSkilled
             </p>
-            {/* COPY: draft — D-29 honest positioning */}
+            {/* Brand statement (Phase 1B — verbatim footer tagline) */}
             <p className="mt-2 text-sm text-muted">
-              We sell skills, not dreams. Practical courses in simple Hinglish —
-              honest, GST-inclusive pricing and a 48-hour refund window.
+              We will never sell dreams. We will help you build skills that
+              create opportunities.
             </p>
             {SOCIALS.length > 0 && (
               <nav aria-label="Social" className="mt-4 flex gap-3">

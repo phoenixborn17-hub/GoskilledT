@@ -73,6 +73,11 @@ export default async function PackagesPage() {
             One price, GST included. Koi hidden charge nahi — and a 48-hour
             refund if it&apos;s not for you.
           </p>
+          {/* Phase 1B — Founding Batch note. NO percentages, NO commission (D-30 pending). */}
+          <p className="mx-auto mt-4 inline-block rounded-full bg-gold/15 px-4 py-1.5 text-sm font-semibold text-charcoal">
+            Exclusive Founding Batch pricing — available to a limited number of
+            founding learners.
+          </p>
         </header>
 
         {/* Pricing cards */}
