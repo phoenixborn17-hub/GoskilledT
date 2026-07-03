@@ -21,7 +21,7 @@ export const metadata = pageMetadata({
 
 // COPY: draft
 const FAQS = [
-  { q: "What is the refund policy?", a: "Full refund within 48 hours of purchase — no questions asked (DR-025). After 48 hours, purchases are final." },
+  { q: "What is the refund policy?", a: "Full refund within 48 hours of purchase — no questions asked. After 48 hours, purchases are final." },
   { q: "Are there any hidden charges or GST?", a: "No. The price you see is the final price — GST is already included. Koi hidden charge nahi." },
   { q: "How quickly do I get access?", a: "Instantly. Your courses unlock within about 60 seconds of a successful payment." },
   { q: "How does course choice work?", a: "Skill Builder includes one launch course of your choice. Career Booster includes both launch courses, plus future courses as they are released." },
