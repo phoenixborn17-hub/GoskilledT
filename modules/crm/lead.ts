@@ -4,6 +4,25 @@
 
 export type LeadStage = "NEW" | "CONTACTED" | "WEBINAR_REGISTERED" | "CONVERTED" | "LOST";
 
+// Stage ordering for the AUTOMATED public-upsert path (Ticket 8, Task 0). A lead must never
+// move BACKWARD on its own: a buyer who already CONVERTED (bought) can re-submit the webinar
+// form a week later — that must never undo the sale. CONVERTED is terminal/sticky. LOST (an
+// admin disposition) also outranks the automated funnel stages so a stray re-registration
+// can't silently resurrect it. Admin's explicit, audited updateLeadStage is a SEPARATE trusted
+// authority and intentionally bypasses this rule (a human can correct a mistake).
+const STAGE_RANK: Record<LeadStage, number> = {
+  NEW: 0,
+  CONTACTED: 1,
+  WEBINAR_REGISTERED: 2,
+  LOST: 3,
+  CONVERTED: 4,
+};
+
+/** Pure: the further-along of two stages. Never downgrades; CONVERTED always wins. */
+export function mergeStage(current: LeadStage, incoming: LeadStage): LeadStage {
+  return STAGE_RANK[incoming] > STAGE_RANK[current] ? incoming : current;
+}
+
 export interface UtmParams {
   source: string | null;
   medium: string | null;

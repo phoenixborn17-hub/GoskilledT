@@ -1,6 +1,6 @@
 // Ticket 6, Task 4 — pure lead-shaping + UTM extraction. No DB.
 import { describe, it, expect } from "vitest";
-import { buildLeadData, extractUtm } from "../modules/crm/lead";
+import { buildLeadData, extractUtm, mergeStage } from "../modules/crm/lead";
 
 describe("buildLeadData", () => {
   it("canonicalizes phone to +91 and maps fields", () => {
@@ -32,6 +32,26 @@ describe("buildLeadData", () => {
     expect(d.utmCampaign).toBeNull();
     expect(d.packageInterest).toBeNull();
     expect(d.phone).toBe("+919000000001");
+  });
+});
+
+describe("mergeStage (never downgrades; CONVERTED is sticky)", () => {
+  it("advances forward through the funnel", () => {
+    expect(mergeStage("NEW", "WEBINAR_REGISTERED")).toBe("WEBINAR_REGISTERED");
+    expect(mergeStage("CONTACTED", "WEBINAR_REGISTERED")).toBe("WEBINAR_REGISTERED");
+  });
+  it("never moves backward", () => {
+    expect(mergeStage("WEBINAR_REGISTERED", "NEW")).toBe("WEBINAR_REGISTERED");
+    expect(mergeStage("CONTACTED", "NEW")).toBe("CONTACTED");
+  });
+  it("CONVERTED is sticky against every automated stage", () => {
+    expect(mergeStage("CONVERTED", "NEW")).toBe("CONVERTED");
+    expect(mergeStage("CONVERTED", "WEBINAR_REGISTERED")).toBe("CONVERTED");
+    expect(mergeStage("CONVERTED", "CONTACTED")).toBe("CONVERTED");
+  });
+  it("a LOST disposition is not resurrected by an automated re-register", () => {
+    expect(mergeStage("LOST", "NEW")).toBe("LOST");
+    expect(mergeStage("LOST", "WEBINAR_REGISTERED")).toBe("LOST");
   });
 });
 

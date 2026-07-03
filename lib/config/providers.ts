@@ -6,6 +6,7 @@
 export type PaymentProviderName = "mock" | "razorpay";
 export type OtpProviderName = "test" | "live";
 export type VideoProviderName = "mock" | "stream";
+export type AnalyticsProviderName = "console" | "posthog";
 
 export function paymentProviderName(): PaymentProviderName {
   const v = (process.env.PAYMENT_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
@@ -22,6 +23,12 @@ export function otpProviderName(): OtpProviderName {
 export function videoProviderName(): VideoProviderName {
   const v = (process.env.VIDEO_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
   if (v !== "mock" && v !== "stream") throw new Error(`Invalid VIDEO_PROVIDER: "${v}" (expected mock|stream)`);
+  return v;
+}
+
+export function analyticsProviderName(): AnalyticsProviderName {
+  const v = (process.env.ANALYTICS_PROVIDER || "console").toLowerCase(); // empty/unset → dev default
+  if (v !== "console" && v !== "posthog") throw new Error(`Invalid ANALYTICS_PROVIDER: "${v}" (expected console|posthog)`);
   return v;
 }
 
@@ -48,5 +55,25 @@ export function assertProductionProviderSafety(): void {
   }
 }
 
-// Startup guard — importing this module anywhere enforces it.
+let warnedAnalytics = false;
+
+/**
+ * Analytics is the ONE deliberate EXCEPTION to the production provider guard (Ticket 8): running
+ * `console` in production is degraded (no funnel data) but NOT unsafe — money still moves, PII is
+ * still protected. So we WARN instead of throwing, and this is intentionally kept OUT of
+ * assertProductionProviderSafety(). Called by getAnalyticsProvider(); warns once.
+ */
+export function softWarnProductionAnalytics(): void {
+  if (process.env.NODE_ENV !== "production") return;
+  if (analyticsProviderName() !== "console") return;
+  if (warnedAnalytics) return;
+  warnedAnalytics = true;
+  console.warn(
+    "[analytics] WARNING: ANALYTICS_PROVIDER=console in production — funnel analytics are NOT being captured. " +
+      "Set ANALYTICS_PROVIDER=posthog with POSTHOG_API_KEY to enable.",
+  );
+}
+
+// Startup guard — importing this module anywhere enforces it. (Analytics is intentionally
+// excluded here; see softWarnProductionAnalytics above.)
 assertProductionProviderSafety();

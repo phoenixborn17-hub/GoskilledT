@@ -21,6 +21,8 @@ import { coursesToEnroll } from "../../modules/lms/entitlement";
 import type { PackageSlug } from "../../modules/affiliate/commission";
 import { executeTxSpec } from "../../modules/ledger/persist";
 import type { AccountRef, TxSpec } from "../../modules/ledger/ledger";
+import { track } from "../analytics/track";
+import type { AnalyticsEventName } from "../../modules/analytics/events";
 
 const PROVIDER = "razorpay";
 
@@ -240,5 +242,28 @@ export async function handleRazorpayWebhook(
     throw e;
   }
 
+  // Analytics: emit AFTER the money tx committed (never inside it). track() is fail-safe, so a
+  // sink outage can't break the webhook; we only reach here on a fresh, successfully-processed
+  // event. `purchase` is money-truth — it fires exactly once per order (webhook idempotency).
+  if (order) await emitWebhookAnalytics(decision.actions, order);
+
   return { status: 200, note: decision.note };
+}
+
+/** Map the committed webhook actions to at most one funnel event and capture it (best-effort). */
+async function emitWebhookAnalytics(actions: readonly Action[], order: OrderContext): Promise<void> {
+  const dos = new Set(actions.map((a) => a.do));
+  const name: AnalyticsEventName | null = dos.has("MARK_PAID")
+    ? "purchase"
+    : dos.has("MARK_REFUNDED")
+      ? "refund_processed"
+      : dos.has("MARK_FAILED")
+        ? "payment_failed"
+        : null;
+  if (!name) return;
+  await track(name, order.userId, {
+    order_id: order.id,
+    package: order.package.slug,
+    amount_paise: order.amountInPaise,
+  });
 }
