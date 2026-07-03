@@ -21,6 +21,7 @@ export const ANALYTICS_EVENTS = [
   // lead-gen entry points
   "webinar_registered",
   "waitlist_joined",
+  "contact_submitted",
   "user_onboarded",
   "referral_share",
 ] as const;
