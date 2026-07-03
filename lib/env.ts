@@ -35,6 +35,7 @@ export const EnvSchema = z
     OTP_PROVIDER: z.enum(["test", "live"]).optional(),
     VIDEO_PROVIDER: z.enum(["mock", "stream"]).optional(),
     ANALYTICS_PROVIDER: z.enum(["console", "posthog"]).optional(),
+    EMAIL_PROVIDER: z.enum(["console", "resend"]).optional(),
     // App
     NEXT_PUBLIC_APP_URL: z.string().trim().url().optional(), // has a localhost default in lib/seo.ts
     AFFILIATE_PAYOUTS_ENABLED: z.enum(["true", "false"]).optional(),
@@ -44,6 +45,7 @@ export const EnvSchema = z
     RAZORPAY_WEBHOOK_SECRET: z.string().optional(),
     CLOUDFLARE_STREAM_CUSTOMER_CODE: z.string().optional(),
     POSTHOG_API_KEY: z.string().optional(),
+    RESEND_API_KEY: z.string().optional(),
     MSG91_AUTH_KEY: z.string().optional(),
     PII_ENCRYPTION_KEY: z.string().optional(),
     NODE_ENV: z.string().optional(),
@@ -74,6 +76,9 @@ export const EnvSchema = z
     }
     if ((env.ANALYTICS_PROVIDER ?? "console") === "posthog") {
       require("POSTHOG_API_KEY", "when ANALYTICS_PROVIDER=posthog");
+    }
+    if ((env.EMAIL_PROVIDER ?? "console") === "resend") {
+      require("RESEND_API_KEY", "when EMAIL_PROVIDER=resend");
     }
 
     // Production-only requirements.

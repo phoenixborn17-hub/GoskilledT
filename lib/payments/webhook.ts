@@ -23,6 +23,7 @@ import { executeTxSpec } from "../../modules/ledger/persist";
 import type { AccountRef, TxSpec } from "../../modules/ledger/ledger";
 import { track } from "../analytics/track";
 import type { AnalyticsEventName } from "../../modules/analytics/events";
+import { sendPurchaseReceipt } from "../email/send";
 
 const PROVIDER = "razorpay";
 
@@ -328,7 +329,20 @@ export async function handleRazorpayWebhook(
   // Analytics: emit AFTER the money tx committed (never inside it). track() is fail-safe, so a
   // sink outage can't break the webhook; we only reach here on a fresh, successfully-processed
   // event. `purchase` is money-truth — it fires exactly once per order (webhook idempotency).
-  if (order) await emitWebhookAnalytics(decision.actions, order);
+  if (order) {
+    await emitWebhookAnalytics(decision.actions, order);
+    // Purchase receipt: same post-commit, fail-safe contract as analytics. Fires once per order
+    // (fresh MARK_PAID + provider idempotency key). Never inside the money tx, never throws.
+    if (decision.actions.some((a) => a.do === "MARK_PAID")) {
+      await sendPurchaseReceipt({
+        id: order.id,
+        userId: order.userId,
+        packageName: order.package.name,
+        amountInPaise: order.amountInPaise,
+        paidAt: order.paidAt ?? now,
+      });
+    }
+  }
 
   return { status: 200, note: decision.note };
 }
