@@ -7,6 +7,7 @@
 import { z } from "zod";
 import { phoneSchema } from "../../modules/payments/schemas";
 import { getOtpProvider } from "../../lib/auth/otp";
+import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
 import { syncUser } from "../../lib/auth/user-sync";
 import { startCheckout as placeOrder } from "../../lib/payments/checkout";
 import { getPaymentProvider } from "../../lib/payments/provider";
@@ -63,6 +64,8 @@ export async function startCheckout(
     };
   const id = anonId(parsed.data.phone);
   await track("begin_checkout", id, { package: parsed.data.packageSlug });
+  const rl = await checkOtpSendRate(parsed.data.phone);
+  if (!rl.ok) return { ok: false, error: rl.error };
   try {
     await getOtpProvider().sendOtp(parsed.data.phone);
     await track("checkout_otp_sent", id, { package: parsed.data.packageSlug });

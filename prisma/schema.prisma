@@ -307,9 +307,9 @@ model Kyc {
   id            String    @id @default(cuid())
   userId        String    @unique
   user          User      @relation(fields: [userId], references: [id])
-  panEnc        String?                        // AES-256-GCM ciphertext
-  bankNameEnc   String?
-  accountNoEnc  String?
+  panEnc           String?                     // AES-256-GCM ciphertext
+  accountHolderEnc String?                     // account-holder name, encrypted (LC #32; was bankNameEnc)
+  accountNoEnc     String?
   ifsc          String?
   upi           String?
   whatsapp      String?

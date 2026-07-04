@@ -170,7 +170,7 @@ describe.skipIf(!HAS_DB)("affiliate adapters (integration)", () => {
         userId,
         panEnc: encryptPii("ABCDE1234F", key),
         accountNoEnc: encryptPii("123456789012", key),
-        bankNameEnc: encryptPii("Root User", key),
+        accountHolderEnc: encryptPii("Root User", key),
         ifsc: "SBIN0001234",
         status: "APPROVED",
         submittedAt: new Date(),
