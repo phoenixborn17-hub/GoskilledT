@@ -62,6 +62,14 @@ export function PayoutFlagCeremony({
         </span>
       </div>
 
+      {/* Always-visible ceremony contract: this records an audited decision; it does not toggle
+          the live flag. Runtime activation = env change + redeploy. */}
+      <p className="text-xs text-muted">
+        Flipping here records an audited decision — it does <strong>not</strong>{" "}
+        toggle payouts live. Runtime activation is an env change (
+        <code>AFFILIATE_PAYOUTS_ENABLED</code>) + redeploy.
+      </p>
+
       {blocked ? (
         <p className="text-sm text-muted">
           Enabling payouts is locked until D-01 legal clearance (LC #1) is
