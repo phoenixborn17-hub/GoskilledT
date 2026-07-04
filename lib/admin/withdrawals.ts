@@ -22,6 +22,7 @@ export interface WithdrawalRow {
   kycStatus: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED" | null;
   accountLast4: string | null;
   holderName: string | null;
+  availableInPaise: number | null; // current AVAILABLE balance (queue only; null in history)
   requestedAt: Date;
   paidAt: Date | null;
   adminNote: string | null;
@@ -45,6 +46,7 @@ async function shapeRows(
       } | null;
     };
   }[],
+  availByUser?: Map<string, number>,
 ): Promise<WithdrawalRow[]> {
   return rows.map((w) => {
     const kyc = w.user.kyc;
@@ -69,6 +71,7 @@ async function shapeRows(
       kycStatus: (kyc?.status as WithdrawalRow["kycStatus"]) ?? null,
       accountLast4,
       holderName,
+      availableInPaise: availByUser?.get(w.userId) ?? null,
       requestedAt: w.requestedAt,
       paidAt: w.paidAt,
       adminNote: w.adminNote,
@@ -94,14 +97,28 @@ const rowSelect = {
   },
 } as const;
 
-/** The open payout queue: APPLIED / IN_PROGRESS, oldest first. */
+/** The open payout queue: APPLIED / IN_PROGRESS, oldest first, with each affiliate's live AVAILABLE
+ * balance (for the verify checklist — the real gate is still server-recomputed at marking time). */
 export async function listWithdrawalQueue(): Promise<WithdrawalRow[]> {
   const rows = await prisma.withdrawal.findMany({
     where: { status: { in: ["APPLIED", "IN_PROGRESS"] } },
     orderBy: { requestedAt: "asc" },
     select: rowSelect,
   });
-  return shapeRows(rows);
+  const userIds = [...new Set(rows.map((r) => r.userId))];
+  const accounts = userIds.length
+    ? await prisma.ledgerAccount.findMany({
+        where: { userId: { in: userIds } },
+        select: {
+          userId: true,
+          entries: { select: { amountInPaise: true, holdUntil: true } },
+        },
+      })
+    : [];
+  const availByUser = new Map(
+    accounts.map((a) => [a.userId!, availableBalanceOf(a.entries)]),
+  );
+  return shapeRows(rows, availByUser);
 }
 
 /** Completed history: PAID / REJECTED, newest first. */
