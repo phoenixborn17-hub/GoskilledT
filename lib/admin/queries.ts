@@ -1,6 +1,5 @@
 // Admin read-only queries (Ticket 6). Server-only. Revenue/counts from real rows.
 import { prisma } from "../prisma";
-import { payoutsEnabled } from "../env";
 import { recentAudit } from "./audit-log";
 import type { LeadStage } from "../../modules/crm/lead";
 import type { OrderStatus } from "../generated/prisma";
@@ -42,29 +41,6 @@ export async function listReviewQueue(): Promise<ReviewItem[]> {
     createdAt: f.createdAt,
     resolved: f.entityId ? resolvedIds.has(f.entityId) : false,
   }));
-}
-
-export async function getAdminOverview() {
-  const [users, paidOrders, revenue, leadGroups, queue] = await Promise.all([
-    prisma.user.count(),
-    prisma.order.count({ where: { status: "PAID" } }),
-    prisma.order.aggregate({
-      _sum: { amountInPaise: true },
-      where: { status: "PAID" },
-    }),
-    prisma.lead.groupBy({ by: ["stage"], _count: { _all: true } }),
-    listReviewQueue(),
-  ]);
-  return {
-    users,
-    paidOrders,
-    revenueInPaise: revenue._sum.amountInPaise ?? 0,
-    leadsByStage: Object.fromEntries(
-      leadGroups.map((g) => [g.stage, g._count._all]),
-    ) as Record<string, number>,
-    pendingReview: queue.filter((q) => !q.resolved).length,
-    payoutsEnabled: payoutsEnabled(),
-  };
 }
 
 /**
