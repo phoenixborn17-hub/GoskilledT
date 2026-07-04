@@ -1,6 +1,11 @@
 // Read-only catalog queries for the marketing pages (Ticket 5). Server-only, no writes,
 // no money/auth logic — just published catalog data for display.
 import { prisma } from "../prisma";
+import { GETTING_STARTED_SLUG } from "../lms/getting-started";
+
+// The Lesson-0 system course (DR-030) is a real course but must never surface in any public
+// catalog, sitemap, or course-detail page. Excluded by slug at every read boundary.
+const NOT_SYSTEM_COURSE = { slug: { not: GETTING_STARTED_SLUG } } as const;
 
 const lessonStatsSelect = {
   select: { durationSec: true, isFreePreview: true },
@@ -9,7 +14,7 @@ const lessonStatsSelect = {
 /** All catalog courses (PUBLISHED first, then COMING_SOON) with lesson stats for cards. */
 export async function listCatalogCourses() {
   return prisma.course.findMany({
-    where: { status: { in: ["PUBLISHED", "COMING_SOON"] } },
+    where: { status: { in: ["PUBLISHED", "COMING_SOON"] }, ...NOT_SYSTEM_COURSE },
     orderBy: [{ status: "asc" }, { order: "asc" }], // enum order: DRAFT < PUBLISHED < COMING_SOON
     select: {
       slug: true,
@@ -24,6 +29,7 @@ export async function listCatalogCourses() {
 
 /** Full course detail with ordered modules + lessons for the [slug] page. Null if absent. */
 export async function getCourseDetail(slug: string) {
+  if (slug === GETTING_STARTED_SLUG) return null; // system course is never publicly viewable
   return prisma.course.findUnique({
     where: { slug },
     select: {
@@ -75,7 +81,7 @@ export async function listPackages() {
 /** Published course slugs for the sitemap. */
 export async function publishedCourseSlugs(): Promise<string[]> {
   const rows = await prisma.course.findMany({
-    where: { status: "PUBLISHED" },
+    where: { status: "PUBLISHED", ...NOT_SYSTEM_COURSE },
     select: { slug: true },
   });
   return rows.map((r) => r.slug);

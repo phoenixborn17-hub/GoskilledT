@@ -25,11 +25,17 @@ if (existsSync(envPath)) {
     if (eq === -1) continue;
     const k = t.slice(0, eq).trim();
     let v = t.slice(eq + 1).trim();
-    if (
-      (v.startsWith('"') && v.endsWith('"')) ||
-      (v.startsWith("'") && v.endsWith("'"))
-    )
-      v = v.slice(1, -1);
+    // Quoted value: take up to the MATCHING closing quote (anything after it — e.g. an
+    // inline "# comment" — is ignored, matching Next.js's own .env loader behaviour).
+    const quote = v[0] === '"' || v[0] === "'" ? v[0] : null;
+    if (quote) {
+      const end = v.indexOf(quote, 1);
+      v = end === -1 ? v.slice(1) : v.slice(1, end);
+    } else {
+      // Unquoted value: strip a trailing inline comment (whitespace + '#').
+      const hash = v.search(/\s#/);
+      if (hash !== -1) v = v.slice(0, hash).trim();
+    }
     if (!(k in process.env)) process.env[k] = v;
   }
 }

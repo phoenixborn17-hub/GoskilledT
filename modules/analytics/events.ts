@@ -18,6 +18,15 @@ export const ANALYTICS_EVENTS = [
   "refund_processed",
   // learning
   "lesson_complete",
+  // Day-0 experience (DR-030). Registration is decoupled from purchase; these are the free-signup
+  // funnel. `account_created` / `welcome_viewed` / `welcome_skipped` / `checklist_item_done` fire
+  // server-side (real truth). `register_started` is a top-of-funnel page view — like `view_home`
+  // it needs the client SDK (later phase), so it lives in the taxonomy but isn't emitted yet.
+  "register_started",
+  "account_created",
+  "welcome_viewed",
+  "welcome_skipped",
+  "checklist_item_done",
   // lead-gen entry points
   "webinar_registered",
   "waitlist_joined",

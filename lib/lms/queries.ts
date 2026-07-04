@@ -9,6 +9,7 @@ import {
   type ProgressSummary,
 } from "../../modules/lms/progress";
 import type { PlaybackSource, VideoProvider } from "../video/provider";
+import { GETTING_STARTED_SLUG } from "./getting-started";
 
 export class LmsAccessError extends Error {
   constructor(message = "You don't have access to this lesson") {
@@ -130,7 +131,8 @@ export async function getEnrolledCourses(
   userId: string,
 ): Promise<EnrolledCourseCard[]> {
   const enrollments = await prisma.enrollment.findMany({
-    where: { userId },
+    // The Lesson-0 system course (DR-030) is enrolled but hidden from learner course lists.
+    where: { userId, course: { slug: { not: GETTING_STARTED_SLUG } } },
     include: { course: { include: courseInclude } },
     orderBy: { enrolledAt: "asc" },
   });
