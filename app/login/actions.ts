@@ -5,6 +5,7 @@ import { z } from "zod";
 import { phoneSchema } from "../../modules/payments/schemas";
 import { getOtpProvider } from "../../lib/auth/otp";
 import { syncUser } from "../../lib/auth/user-sync";
+import { readRefCookie } from "../../lib/auth/ref-cookie";
 
 export type LoginResult = { ok: true } | { ok: false; error: string };
 
@@ -51,7 +52,10 @@ export async function verifyLoginOtp(
       parsed.data.phone,
       parsed.data.token,
     );
-    await syncUser(user);
+    // First-touch ref capture also applies at /login (DR-030 §2): a genuinely new user who lands
+    // here with ?ref= is attributed; returning users keep their original upline (syncUser never
+    // overwrites an existing attribution).
+    await syncUser(user, await readRefCookie());
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Invalid OTP" };

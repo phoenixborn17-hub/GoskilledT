@@ -56,7 +56,7 @@ export default async function CoursePlayerPage({
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/dashboard" className="text-sm text-brand">
+        <Link href="/dashboard/learn" className="text-sm text-brand">
           ← Back
         </Link>
         <h1 className="font-heading text-2xl font-bold">{view.course.title}</h1>

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check } from "lucide-react";
 import { Button } from "../ui/button";
+import { Confetti } from "../ui/confetti";
 import { completeLessonAction } from "../../app/dashboard/actions";
 
 export function LessonPlayer({
@@ -24,6 +25,7 @@ export function LessonPlayer({
 }) {
   const router = useRouter();
   const [completed, setCompleted] = useState(initiallyCompleted);
+  const [celebrate, setCelebrate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Video load-error failure path (§2.3): retry (reload) + WhatsApp "report issue" deep-link.
@@ -40,6 +42,7 @@ export function LessonPlayer({
     setBusy(false);
     if (!res.ok) return setError(res.error);
     setCompleted(true);
+    setCelebrate(true); // purposeful-delight moment (§5) — reduced-motion safe inside <Confetti>
     router.refresh(); // updates the lesson list + progress ring
   }
 
@@ -50,6 +53,7 @@ export function LessonPlayer({
 
   return (
     <div className="space-y-4">
+      <Confetti fire={celebrate} />
       <div className="overflow-hidden rounded-2xl bg-charcoal">
         {/* Guru companion-panel slot (§1E, GPS-M5) reserved alongside the player — no UI in M2. */}
         {videoError ? (

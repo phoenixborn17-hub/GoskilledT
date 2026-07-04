@@ -4,27 +4,41 @@
 // Importing the providers config runs the production safety guard at startup.
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "./lib/supabase/middleware";
+import { captureRefFromRequest } from "./lib/auth/ref-cookie";
 import "./lib/config/providers";
 
-function redirectTo(request: NextRequest, path: string): NextResponse {
+function redirectTo(
+  request: NextRequest,
+  path: string,
+  base?: NextResponse,
+): NextResponse {
   const url = request.nextUrl.clone();
   url.pathname = path;
   if (path === "/login") url.searchParams.set("next", request.nextUrl.pathname);
-  return NextResponse.redirect(url);
+  const redirect = NextResponse.redirect(url);
+  // Carry over any cookies set on the base response (session refresh + first-touch ref) so a
+  // redirect never drops them.
+  base?.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+  return redirect;
 }
 
 export async function middleware(request: NextRequest) {
   const { response, user } = await updateSession(request);
   const path = request.nextUrl.pathname;
 
+  // First-touch referral capture (DR-030 §2). Runs on every matched route so a ?ref= on ANY
+  // page (marketing, /register, /login) is attributed once. Set on `response` so redirects below
+  // (which return their own response) don't drop it — capture BEFORE any early return.
+  captureRefFromRequest(request, response);
+
   if (path.startsWith("/dashboard") && !user) {
-    return redirectTo(request, "/login");
+    return redirectTo(request, "/login", response);
   }
 
   if (path.startsWith("/admin")) {
-    if (!user) return redirectTo(request, "/login");
+    if (!user) return redirectTo(request, "/login", response);
     const role = (user.app_metadata as { role?: string } | undefined)?.role;
-    if (role !== "admin") return redirectTo(request, "/"); // not an admin → bounce home
+    if (role !== "admin") return redirectTo(request, "/", response); // not an admin → bounce home
   }
 
   return response;

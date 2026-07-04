@@ -1,18 +1,18 @@
 "use client";
+// Registration form (DR-030 §3). Two steps: phone (+ optional name) → segmented OTP. Uses the
+// shared OtpInput so the code-entry experience matches login everywhere. No passwords, ever.
 import { useState } from "react";
-import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Card, CardTitle, CardDescription } from "../../components/ui/card";
 import { OtpInput } from "../../components/ui/otp-input";
-import { sendLoginOtp, verifyLoginOtp } from "./actions";
+import { sendRegisterOtp, verifyRegisterOtp } from "./actions";
 
-export function LoginForm() {
-  const nextParam = useSearchParams().get("next");
-  const [step, setStep] = useState<"phone" | "otp" | "done">("phone");
+export function RegisterForm() {
+  const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
+  const [name, setName] = useState("");
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -21,7 +21,7 @@ export function LoginForm() {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    const res = await sendLoginOtp({ phone });
+    const res = await sendRegisterOtp({ phone });
     setBusy(false);
     if (res.ok) {
       setToken("");
@@ -32,20 +32,39 @@ export function LoginForm() {
   async function submitOtp(code: string) {
     setBusy(true);
     setError(null);
-    const res = await verifyLoginOtp({ phone, token: code });
+    const res = await verifyRegisterOtp({
+      phone,
+      token: code,
+      name: name.trim() || undefined,
+    });
     setBusy(false);
     if (!res.ok) return setError(res.error);
-    if (nextParam) window.location.assign(nextParam);
-    else setStep("done");
+    window.location.assign(res.redirectTo);
   }
 
   return (
     <Card>
-      <CardTitle>Welcome back</CardTitle>
-      <CardDescription>Log in with your mobile number.</CardDescription>
+      <CardTitle>Create your free account</CardTitle>
+      <CardDescription>
+        Just your mobile number — no passwords, ever. You&apos;re part of the
+        Founding Batch.
+      </CardDescription>
 
       {step === "phone" && (
         <form onSubmit={onSend} className="mt-6 space-y-4">
+          <div>
+            <Label htmlFor="name">What should we call you? (optional)</Label>
+            <Input
+              id="name"
+              name="name"
+              type="text"
+              autoComplete="given-name"
+              placeholder="Your name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              maxLength={80}
+            />
+          </div>
           <div>
             <Label htmlFor="phone">Mobile number</Label>
             <Input
@@ -67,21 +86,15 @@ export function LoginForm() {
             </p>
           )}
           <Button type="submit" disabled={busy}>
-            {busy ? "Sending…" : "Send OTP"}
+            {busy ? "Sending…" : "Create free account"}
           </Button>
-          <p className="text-center text-sm text-muted">
-            New here?{" "}
-            <Link href="/register" className="font-semibold text-brand">
-              Register free
-            </Link>
-          </p>
         </form>
       )}
 
       {step === "otp" && (
         <div className="mt-6 space-y-4">
           <div>
-            <Label htmlFor="otp">Enter OTP</Label>
+            <Label htmlFor="otp">Enter the OTP</Label>
             <OtpInput
               id="otp"
               value={token}
@@ -102,7 +115,7 @@ export function LoginForm() {
             onClick={() => submitOtp(token)}
             disabled={busy || token.length < 4}
           >
-            {busy ? "Verifying…" : "Verify & log in"}
+            {busy ? "Verifying…" : "Verify & continue"}
           </Button>
           <Button
             type="button"
@@ -115,12 +128,6 @@ export function LoginForm() {
             Change number
           </Button>
         </div>
-      )}
-
-      {step === "done" && (
-        <p className="mt-6 text-sm font-medium text-brand">
-          You&apos;re signed in ✓
-        </p>
       )}
     </Card>
   );

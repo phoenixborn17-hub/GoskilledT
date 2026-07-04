@@ -18,6 +18,19 @@ export async function signOutAction(): Promise<void> {
   redirect("/");
 }
 
+// Dismiss the Get-Started checklist (DR-030 §6.2). Persists a timestamp in User.checklistState —
+// derived item progress is NEVER stored there (truthful data only). Idempotent.
+export async function dismissChecklist(): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { checklistState: { dismissedAt: new Date().toISOString() } },
+  });
+  revalidatePath("/dashboard");
+  return { ok: true };
+}
+
 // Profile edit (§2.5): name/email/goal only. Phone is auth identity (read-only). Zod-validated;
 // the client is never trusted. Email is unique — a collision is reported, not thrown.
 const profileSchema = z.object({
@@ -94,7 +107,8 @@ export async function completeLessonAction(input: {
       }
     }
     revalidatePath(`/dashboard/learn/${input.courseSlug}`);
-    revalidatePath("/dashboard");
+    revalidatePath("/dashboard"); // Hub: checklist + continue card reflect new progress
+    revalidatePath("/dashboard/learn");
     revalidatePath("/dashboard/progress");
     return { ok: true, progress };
   } catch (e) {

@@ -123,6 +123,58 @@ async function main() {
     await seedCurriculum(row.id, c.slug);
   }
 
+  // ── Lesson 0 — hidden "Getting Started" system course (DR-030 §5) ────────────────────────────
+  // A REAL LMS course, hidden from every learner-facing catalog by slug (lib/lms/getting-started).
+  // One free-preview lesson = the onboarding video. Content is LAUNCH_CONFIG #10 (founder 60–90s
+  // recording); the mock asset stands in for dev, YouTube-unlisted allowed until Stream (DR-022).
+  // Auto-enrolled at registration; free-preview means it plays even without enrollment.
+  const gettingStarted = await prisma.course.upsert({
+    where: { slug: "getting-started" },
+    update: {
+      title: "Getting Started",
+      summary: "How GoSkilled works — a 2-minute intro.",
+      category: "Onboarding",
+      status: "PUBLISHED",
+      order: 0,
+    },
+    create: {
+      slug: "getting-started",
+      title: "Getting Started",
+      summary: "How GoSkilled works — a 2-minute intro.",
+      category: "Onboarding",
+      status: "PUBLISHED",
+      order: 0,
+    },
+    select: { id: true },
+  });
+  await prisma.module.upsert({
+    where: { id: "getting-started-m1" },
+    update: { title: "Welcome", order: 1, courseId: gettingStarted.id },
+    create: {
+      id: "getting-started-m1",
+      title: "Welcome",
+      order: 1,
+      courseId: gettingStarted.id,
+    },
+  });
+  {
+    // Lesson 0 — free preview so it plays for any signed-in user (DR-030). Mock video asset until
+    // LAUNCH_CONFIG #10 lands (founder recording / YouTube-unlisted / Cloudflare Stream).
+    const l0 = {
+      title: "GoSkilled kaise kaam karta hai",
+      durationSec: 90,
+      videoAssetId: "mock-getting-started-m1-l1",
+      order: 1,
+      isFreePreview: true,
+      moduleId: "getting-started-m1",
+    };
+    await prisma.lesson.upsert({
+      where: { id: "getting-started-m1-l1" },
+      update: l0,
+      create: { id: "getting-started-m1-l1", ...l0 },
+    });
+  }
+
   // ── Coming-soon roadmap (5) — DR-011 catalog. Honest "coming soon", no content, no placeholder. ──
   const comingSoon = [
     {
@@ -243,6 +295,7 @@ async function main() {
 
   console.log(
     "Seed complete: 2 launch courses ([PLACEHOLDER], PUBLISHED, 2 modules × 3 lessons, mock video), " +
+      "1 hidden Getting-Started course (Lesson 0, free preview, mock video — DR-030), " +
       "5 coming-soon courses (DR-011), 2 packages, 4 package-course links, 4 system ledger accounts.",
   );
 }

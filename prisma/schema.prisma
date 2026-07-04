@@ -40,6 +40,12 @@ model User {
   isVerified    Boolean  @default(false)
   goal          UserGoal?
   onboardedAt   DateTime?
+  // DR-030 Day-0: one-time /welcome moment. Null = never seen; set on completion OR skip.
+  welcomeSeenAt DateTime?
+  // DR-030 Day-0: Get-Started checklist persistence (dismissal + seen-item ledger for analytics).
+  // Derivable items (Lesson 0, preview, invites) are computed from real data — NEVER stored here.
+  // Shape: { dismissedAt?: string(ISO); doneSeen?: string[] }. Zod-validated on read/write.
+  checklistState Json?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 

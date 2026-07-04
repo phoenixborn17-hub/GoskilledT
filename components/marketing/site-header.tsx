@@ -39,6 +39,12 @@ export function SiteHeader() {
               Log in
             </span>
           </Link>
+          {/* DR-030: free registration is the primary public CTA. */}
+          <Link href="/register">
+            <span className="press inline-flex h-9 items-center rounded-xl bg-brand px-4 text-sm font-semibold text-brand-fg hover:bg-brand/90">
+              Register free
+            </span>
+          </Link>
         </nav>
 
         {/* Mobile menu — CSS-only <details> disclosure, no JS */}
@@ -63,7 +69,13 @@ export function SiteHeader() {
                 {l.label}
               </Link>
             ))}
-            <div className="mt-1 border-t border-charcoal/10 pt-2">
+            <div className="mt-1 space-y-1 border-t border-charcoal/10 pt-2">
+              <Link
+                href="/register"
+                className="block rounded-lg bg-brand px-3 py-2.5 text-center text-sm font-semibold text-brand-fg"
+              >
+                Register free
+              </Link>
               <Link
                 href="/login"
                 className="block rounded-lg px-3 py-2.5 text-sm font-semibold text-brand hover:bg-brand/5"
