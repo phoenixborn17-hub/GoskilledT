@@ -75,7 +75,9 @@ export function CatalogCourseEditor({ course }: { course: CourseData }) {
       order: Number(order),
     });
     setBusy(false);
-    setMsg(res.ok ? { ok: true, text: "Saved." } : { ok: false, text: res.error });
+    setMsg(
+      res.ok ? { ok: true, text: "Saved." } : { ok: false, text: res.error },
+    );
     if (res.ok) router.refresh();
   }
 

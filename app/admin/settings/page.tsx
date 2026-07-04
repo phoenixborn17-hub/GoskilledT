@@ -48,11 +48,11 @@ export default async function SettingsPage() {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
-          <h2 className="mb-3 font-heading text-lg font-bold">
-            Environment
-          </h2>
+          <h2 className="mb-3 font-heading text-lg font-bold">Environment</h2>
           {s.envIssues.length === 0 ? (
-            <p className="text-sm text-brand-deep">✓ All required variables valid.</p>
+            <p className="text-sm text-brand-deep">
+              ✓ All required variables valid.
+            </p>
           ) : (
             <ul className="space-y-1 text-sm text-red-600">
               {s.envIssues.map((i, idx) => (
@@ -72,7 +72,8 @@ export default async function SettingsPage() {
           <div className="mt-3 border-t border-charcoal/5 pt-3">
             <p className="text-sm font-medium">OTP send throttle</p>
             <p className="text-xs text-muted">
-              {s.otpRateLimit.active ? "Active" : "Inactive"} — {s.otpRateLimit.note}
+              {s.otpRateLimit.active ? "Active" : "Inactive"} —{" "}
+              {s.otpRateLimit.note}
             </p>
           </div>
         </Card>

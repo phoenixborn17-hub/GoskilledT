@@ -10,8 +10,7 @@ const PAGE = 50; // matches listAuditLog page size
 
 export async function GET(request: NextRequest) {
   const admin = await getAdminUser();
-  if (!admin)
-    return new NextResponse("Not authorized", { status: 403 });
+  if (!admin) return new NextResponse("Not authorized", { status: 403 });
 
   const sp = request.nextUrl.searchParams;
   const action = sp.get("action") ?? undefined;

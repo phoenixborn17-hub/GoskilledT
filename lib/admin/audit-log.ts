@@ -81,7 +81,14 @@ function csvCell(v: string): string {
 
 /** Serialize audit rows to CSV (no PII — meta is JSON-stringified as-is). */
 export function auditToCsv(rows: AuditRow[]): string {
-  const header = ["createdAt", "actorEmail", "action", "entity", "entityId", "meta"];
+  const header = [
+    "createdAt",
+    "actorEmail",
+    "action",
+    "entity",
+    "entityId",
+    "meta",
+  ];
   const lines = rows.map((r) =>
     [
       r.createdAt.toISOString(),

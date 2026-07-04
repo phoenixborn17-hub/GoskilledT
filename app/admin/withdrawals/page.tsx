@@ -15,10 +15,7 @@ export const dynamic = "force-dynamic";
 
 function Check({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span
-      className={ok ? "text-brand-deep" : "text-red-600"}
-      title={label}
-    >
+    <span className={ok ? "text-brand-deep" : "text-red-600"} title={label}>
       {ok ? "✓" : "✗"} {label}
     </span>
   );

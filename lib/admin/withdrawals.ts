@@ -161,7 +161,9 @@ export async function markWithdrawalPaid(
         }),
         tx.ledgerAccount.findUnique({
           where: { userId: w.userId },
-          select: { entries: { select: { amountInPaise: true, holdUntil: true } } },
+          select: {
+            entries: { select: { amountInPaise: true, holdUntil: true } },
+          },
         }),
       ]);
       const available = availableBalanceOf(account?.entries ?? []);

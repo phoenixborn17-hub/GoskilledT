@@ -7,7 +7,7 @@ import Link from "next/link";
 import { CheckCircle2, CalendarClock, GraduationCap } from "lucide-react";
 import { getNextWebinar } from "../../lib/crm/webinar";
 import { registerWebinar } from "./actions";
-import { pageMetadata } from "../../lib/seo";
+import { pageMetadata, eventJsonLd } from "../../lib/seo";
 import { SiteHeader } from "../../components/marketing/site-header";
 import { SiteFooter } from "../../components/marketing/site-footer";
 import { LeadCaptureForm } from "../../components/marketing/lead-capture-form";
@@ -43,6 +43,15 @@ export default async function WebinarPage() {
 
   return (
     <>
+      {webinar && (
+        // Event JSON-LD — published automatically when a session is scheduled (GPS-M4 §2.6).
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify(eventJsonLd(webinar)),
+          }}
+        />
+      )}
       <SiteHeader />
       <main className="mx-auto w-full max-w-4xl px-4 py-12">
         {/* Primary: Sunday Free Introduction Webinar */}

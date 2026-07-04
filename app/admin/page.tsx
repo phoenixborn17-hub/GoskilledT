@@ -73,11 +73,7 @@ export default async function AdminDashboardPage() {
             href="/admin/review-queue"
             hint="flagged payments"
           />
-          <QueueCard
-            label="New leads"
-            count={d.newLeads}
-            href="/admin/leads"
-          />
+          <QueueCard label="New leads" count={d.newLeads} href="/admin/leads" />
         </div>
       </div>
 
@@ -110,7 +106,9 @@ export default async function AdminDashboardPage() {
                   {a.entity}
                   {a.entityId ? ` · ${a.entityId.slice(0, 10)}…` : ""}
                 </span>
-                <span className="text-xs text-muted">{fmtDateTime(a.createdAt)}</span>
+                <span className="text-xs text-muted">
+                  {fmtDateTime(a.createdAt)}
+                </span>
               </li>
             ))}
           </ul>

@@ -2,7 +2,11 @@
 // editor. DR-011: the 7-course catalog is fixed — an 8th course needs a DR (no create button here).
 import Link from "next/link";
 import { listAdminCatalog } from "../../../lib/admin/catalog";
-import { PageHeading, DataTable, type Column } from "../../../components/admin/primitives";
+import {
+  PageHeading,
+  DataTable,
+  type Column,
+} from "../../../components/admin/primitives";
 import { Badge } from "../../../components/ui/badge";
 
 export const dynamic = "force-dynamic";

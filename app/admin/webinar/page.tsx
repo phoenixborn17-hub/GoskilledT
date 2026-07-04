@@ -73,7 +73,9 @@ export default async function WebinarAdminPage() {
       />
 
       <Card>
-        <h2 className="mb-3 font-heading text-lg font-bold">Schedule a session</h2>
+        <h2 className="mb-3 font-heading text-lg font-bold">
+          Schedule a session
+        </h2>
         <ScheduleWebinarForm />
       </Card>
 

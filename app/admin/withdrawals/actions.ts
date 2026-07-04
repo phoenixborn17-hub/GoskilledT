@@ -10,10 +10,11 @@ import {
 } from "../../../lib/admin/withdrawals";
 
 export type MarkResult =
-  | { ok: true; idempotent: boolean }
-  | { ok: false; error: string };
+  { ok: true; idempotent: boolean } | { ok: false; error: string };
 
-export async function markPaidAction(withdrawalId: string): Promise<MarkResult> {
+export async function markPaidAction(
+  withdrawalId: string,
+): Promise<MarkResult> {
   const admin = await getAdminUser();
   if (!admin) return { ok: false, error: "Not authorized" };
   if (!withdrawalId) return { ok: false, error: "Missing withdrawal" };

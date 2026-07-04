@@ -6,10 +6,7 @@ import { prisma } from "../prisma";
 import { decryptPii, maskLast4 } from "../pii";
 import type { AdminIdentity } from "../auth/admin";
 import { recordAdminAction } from "./audit";
-import {
-  decideKycReview,
-  type KycDecision,
-} from "../../modules/admin/review";
+import { decideKycReview, type KycDecision } from "../../modules/admin/review";
 
 export interface KycQueueRow {
   userId: string;
@@ -82,7 +79,11 @@ export async function getKycReviewDetail(
   if (!kyc) return null;
 
   const history = await prisma.adminAction.findMany({
-    where: { entity: "Kyc", entityId: userId, action: { in: KYC_AUDIT_ACTIONS } },
+    where: {
+      entity: "Kyc",
+      entityId: userId,
+      action: { in: KYC_AUDIT_ACTIONS },
+    },
     orderBy: { createdAt: "desc" },
     select: { action: true, meta: true, createdAt: true, actorEmail: true },
   });
@@ -96,9 +97,7 @@ export async function getKycReviewDetail(
     accountMasked = kyc.accountNoEnc
       ? maskLast4(decryptPii(kyc.accountNoEnc))
       : null;
-    holderName = kyc.accountHolderEnc
-      ? decryptPii(kyc.accountHolderEnc)
-      : null;
+    holderName = kyc.accountHolderEnc ? decryptPii(kyc.accountHolderEnc) : null;
   } catch {
     // Never surface partial PII or the underlying error (which could echo ciphertext).
     decryptError = true;
@@ -176,8 +175,7 @@ export async function revealKyc(
 }
 
 export type KycReviewOutcome =
-  | { ok: true; status: "APPROVED" | "REJECTED" }
-  | { ok: false; error: string };
+  { ok: true; status: "APPROVED" | "REJECTED" } | { ok: false; error: string };
 
 /**
  * Approve/reject a submitted KYC record. Domain rule decides legality; the status change and its
@@ -205,7 +203,8 @@ export async function reviewKyc(
     });
     await recordAdminAction(tx, {
       actor,
-      action: verdict.nextStatus === "APPROVED" ? "KYC_APPROVED" : "KYC_REJECTED",
+      action:
+        verdict.nextStatus === "APPROVED" ? "KYC_APPROVED" : "KYC_REJECTED",
       entity: "Kyc",
       entityId: userId,
       meta: reason?.trim() ? { reason: reason.trim() } : undefined,

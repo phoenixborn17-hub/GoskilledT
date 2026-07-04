@@ -42,7 +42,10 @@ export function KycDecision({ userId }: { userId: string }) {
 
       {mode === "rejecting" && (
         <div className="space-y-2">
-          <label htmlFor="kyc-reason" className="text-sm font-medium text-charcoal">
+          <label
+            htmlFor="kyc-reason"
+            className="text-sm font-medium text-charcoal"
+          >
             Rejection reason (shown to the learner)
           </label>
           <textarea

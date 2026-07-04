@@ -13,8 +13,7 @@ const schema = z.object({
 });
 
 export type FlagActionResult =
-  | { ok: true; note: string }
-  | { ok: false; error: string };
+  { ok: true; note: string } | { ok: false; error: string };
 
 export async function setPayoutsFlagAction(
   input: z.input<typeof schema>,

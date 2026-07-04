@@ -7,8 +7,7 @@ import { getAdminUser } from "../../../lib/auth/admin";
 import { revealKyc, reviewKyc, type RevealedKyc } from "../../../lib/admin/kyc";
 
 export type RevealResult =
-  | { ok: true; data: RevealedKyc }
-  | { ok: false; error: string };
+  { ok: true; data: RevealedKyc } | { ok: false; error: string };
 
 export async function revealKycAction(userId: string): Promise<RevealResult> {
   const admin = await getAdminUser();

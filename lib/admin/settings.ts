@@ -110,7 +110,6 @@ export async function setPayoutsFlag(
   return {
     ok: true,
     action: verdict.action,
-    note:
-      "Ceremony recorded. Runtime activation requires setting AFFILIATE_PAYOUTS_ENABLED and redeploying (LAUNCH_CONFIG #18).",
+    note: "Ceremony recorded. Runtime activation requires setting AFFILIATE_PAYOUTS_ENABLED and redeploying (LAUNCH_CONFIG #18).",
   };
 }

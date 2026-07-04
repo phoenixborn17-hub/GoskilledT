@@ -88,9 +88,9 @@ describe("canPublishCourse", () => {
     expect(canPublishCourse([]).ok).toBe(false);
   });
   it("blocks when no lesson has a video asset", () => {
-    expect(
-      canPublishCourse([{ lessons: [{ videoAssetId: null }] }]).ok,
-    ).toBe(false);
+    expect(canPublishCourse([{ lessons: [{ videoAssetId: null }] }]).ok).toBe(
+      false,
+    );
   });
   it("allows with a video lesson", () => {
     expect(
@@ -115,7 +115,9 @@ describe("canMarkWithdrawalPaid", () => {
     if (!r.ok) expect(r.code).toBe("BALANCE_CHANGED");
   });
   it("refuses without approved KYC", () => {
-    expect(canMarkWithdrawalPaid({ ...base, kycApproved: false }).ok).toBe(false);
+    expect(canMarkWithdrawalPaid({ ...base, kycApproved: false }).ok).toBe(
+      false,
+    );
   });
   it("treats an already-PAID row as not markable", () => {
     const r = canMarkWithdrawalPaid({ ...base, status: "PAID" });
@@ -134,9 +136,7 @@ describe("buildPayoutTxSpec", () => {
     expect(spec.type).toBe("PAYOUT");
     expect(spec.idempotencyKey).toBe(payoutIdempotencyKey("w1"));
     expect(() => assertBalanced(spec.legs)).not.toThrow();
-    const wallet = spec.legs.find(
-      (l) => l.account.kind === "USER_WALLET",
-    );
+    const wallet = spec.legs.find((l) => l.account.kind === "USER_WALLET");
     const clearing = spec.legs.find(
       (l) => l.account.kind === "PAYOUT_CLEARING",
     );

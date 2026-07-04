@@ -6,7 +6,10 @@ import Link from "next/link";
 import { getKycReviewDetail } from "../../../../lib/admin/kyc";
 import { KycReveal } from "../../../../components/admin/kyc-reveal";
 import { KycDecision } from "../../../../components/admin/kyc-decision";
-import { PageHeading, fmtDateTime } from "../../../../components/admin/primitives";
+import {
+  PageHeading,
+  fmtDateTime,
+} from "../../../../components/admin/primitives";
 import { Card } from "../../../../components/ui/card";
 import { Badge } from "../../../../components/ui/badge";
 
@@ -30,7 +33,10 @@ export default async function KycDetailPage({
 
   return (
     <section className="space-y-5">
-      <Link href="/admin/kyc" className="text-sm text-muted hover:text-charcoal">
+      <Link
+        href="/admin/kyc"
+        className="text-sm text-muted hover:text-charcoal"
+      >
         ← Back to queue
       </Link>
       <PageHeading
@@ -96,9 +102,7 @@ export default async function KycDetailPage({
                 className="flex flex-wrap items-center justify-between gap-2 py-2"
               >
                 <span className="font-medium text-charcoal">{h.action}</span>
-                {h.reason && (
-                  <span className="text-muted">“{h.reason}”</span>
-                )}
+                {h.reason && <span className="text-muted">“{h.reason}”</span>}
                 <span className="text-xs text-muted">
                   {h.actorEmail ?? "—"} · {fmtDateTime(h.at)}
                 </span>

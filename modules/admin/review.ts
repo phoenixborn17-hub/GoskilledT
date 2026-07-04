@@ -26,7 +26,10 @@ export function decideKycReview(
       code: "REASON_REQUIRED",
       message: "A rejection reason is required.",
     };
-  return { ok: true, nextStatus: decision === "APPROVE" ? "APPROVED" : "REJECTED" };
+  return {
+    ok: true,
+    nextStatus: decision === "APPROVE" ? "APPROVED" : "REJECTED",
+  };
 }
 
 // ── Payout flag ceremony: OFF↔ON, gated by LC #1 (D-01 legal) + typed confirmation ──

@@ -124,7 +124,10 @@ export default async function AuditPage({
       />
 
       {pageCount > 1 && (
-        <nav className="flex items-center justify-between text-sm" aria-label="Pagination">
+        <nav
+          className="flex items-center justify-between text-sm"
+          aria-label="Pagination"
+        >
           <PageLink
             href={`/admin/audit${qs({ action, entity, page: page - 1 })}`}
             disabled={page <= 1}
@@ -155,8 +158,7 @@ function PageLink({
   disabled: boolean;
   children: React.ReactNode;
 }) {
-  if (disabled)
-    return <span className="text-muted/40">{children}</span>;
+  if (disabled) return <span className="text-muted/40">{children}</span>;
   return (
     <Link
       href={href}

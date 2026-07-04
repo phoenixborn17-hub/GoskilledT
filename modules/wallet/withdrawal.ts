@@ -66,8 +66,7 @@ export function payoutIdempotencyKey(withdrawalId: string): string {
 // ── Admin payout marking (GPS-M4 §2.3) — domain rules; the admin adapter NEVER hand-writes legs. ──
 
 export type PayoutMarkDecision =
-  | { ok: true }
-  | { ok: false; code: string; message: string };
+  { ok: true } | { ok: false; code: string; message: string };
 
 /**
  * Server-recomputed gate for "Mark PAID" (GPS-M4 §2.3). Never trusts the queue row: the admin
@@ -120,7 +119,10 @@ export function buildPayoutTxSpec(input: {
       account: { kind: "USER_WALLET", userId: input.userId },
       amountInPaise: -input.amountInPaise,
     },
-    { account: { kind: "PAYOUT_CLEARING" }, amountInPaise: input.amountInPaise },
+    {
+      account: { kind: "PAYOUT_CLEARING" },
+      amountInPaise: input.amountInPaise,
+    },
   ];
   return {
     type: "PAYOUT",

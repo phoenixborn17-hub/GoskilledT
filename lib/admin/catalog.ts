@@ -193,7 +193,8 @@ export async function upsertLesson(
   edit: LessonEdit,
   lessonId?: string,
 ): Promise<CatalogResult> {
-  if (!edit.title.trim()) return { ok: false, error: "Lesson title is required." };
+  if (!edit.title.trim())
+    return { ok: false, error: "Lesson title is required." };
   const data = {
     title: edit.title.trim(),
     videoAssetId: edit.videoAssetId?.trim() || null,

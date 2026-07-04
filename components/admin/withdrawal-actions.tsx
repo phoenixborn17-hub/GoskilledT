@@ -52,7 +52,9 @@ export function WithdrawalActions({
         <button
           onClick={onMarkPaid}
           disabled={busy || !canMark}
-          title={canMark ? undefined : "KYC must be approved and balance sufficient"}
+          title={
+            canMark ? undefined : "KYC must be approved and balance sufficient"
+          }
           className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-brand-fg hover:bg-brand/90 disabled:opacity-40"
         >
           {busy ? "…" : "Mark PAID"}

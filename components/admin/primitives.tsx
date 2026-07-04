@@ -132,7 +132,10 @@ export function DataTable<Row>({
         <thead className="border-b border-charcoal/10 text-left text-muted">
           <tr>
             {columns.map((c) => (
-              <th key={c.key} className={cn("px-4 py-3 font-medium", c.className)}>
+              <th
+                key={c.key}
+                className={cn("px-4 py-3 font-medium", c.className)}
+              >
                 {c.header}
               </th>
             ))}

@@ -11,7 +11,13 @@ export type WebinarActionResult = { ok: true } | { ok: false; error: string };
 const scheduleSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(160),
   startsAt: z.string().min(1, "Date/time is required"),
-  joinUrl: z.string().trim().url("Enter a valid URL").max(500).optional().or(z.literal("")),
+  joinUrl: z
+    .string()
+    .trim()
+    .url("Enter a valid URL")
+    .max(500)
+    .optional()
+    .or(z.literal("")),
 });
 
 export async function scheduleWebinarAction(

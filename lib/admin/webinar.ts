@@ -8,7 +8,13 @@ import { recordAdminAction } from "./audit";
 export async function listWebinars() {
   return prisma.webinar.findMany({
     orderBy: { startsAt: "desc" },
-    select: { id: true, title: true, startsAt: true, joinUrl: true, isActive: true },
+    select: {
+      id: true,
+      title: true,
+      startsAt: true,
+      joinUrl: true,
+      isActive: true,
+    },
   });
 }
 
@@ -58,7 +64,10 @@ export async function scheduleWebinar(
         action: "WEBINAR_SCHEDULED",
         entity: "Webinar",
         entityId: w.id,
-        meta: { title: input.title.trim(), startsAt: input.startsAt.toISOString() },
+        meta: {
+          title: input.title.trim(),
+          startsAt: input.startsAt.toISOString(),
+        },
       });
     });
     return { ok: true };

@@ -5,10 +5,7 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { executeTxSpec } from "@/modules/ledger/persist";
-import {
-  markWithdrawalPaid,
-  rejectWithdrawal,
-} from "@/lib/admin/withdrawals";
+import { markWithdrawalPaid, rejectWithdrawal } from "@/lib/admin/withdrawals";
 import { payoutIdempotencyKey } from "@/modules/wallet/withdrawal";
 import { encryptPii } from "@/lib/pii";
 
@@ -38,7 +35,11 @@ async function creditWallet(userId: string, amount: number) {
       refId: `${runId}-order`,
       legs: [
         { account: { kind: "COMMISSION_PAYABLE" }, amountInPaise: -amount },
-        { account: { kind: "USER_WALLET", userId }, amountInPaise: amount, holdUntil: PAST },
+        {
+          account: { kind: "USER_WALLET", userId },
+          amountInPaise: amount,
+          holdUntil: PAST,
+        },
       ],
     }),
   );
@@ -58,7 +59,10 @@ async function approveKyc(userId: string) {
   });
 }
 
-async function applyWithdrawal(userId: string, amount: number): Promise<string> {
+async function applyWithdrawal(
+  userId: string,
+  amount: number,
+): Promise<string> {
   const w = await prisma.withdrawal.create({
     data: { userId, amountInPaise: amount, status: "APPLIED" },
     select: { id: true },
@@ -91,7 +95,9 @@ describe.skipIf(!HAS_DB)("withdrawal payout marking (integration)", () => {
     expect(tx?.type).toBe("PAYOUT");
     const sum = (tx?.entries ?? []).reduce((a, e) => a + e.amountInPaise, 0);
     expect(sum).toBe(0);
-    expect((tx?.entries ?? []).some((e) => e.amountInPaise === -50_000)).toBe(true);
+    expect((tx?.entries ?? []).some((e) => e.amountInPaise === -50_000)).toBe(
+      true,
+    );
 
     const row = await prisma.withdrawal.findUniqueOrThrow({
       where: { id: wid },
