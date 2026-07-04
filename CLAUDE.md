@@ -61,6 +61,24 @@ Each module owns its domain logic, Zod schemas, server actions, and components.
    **SURFACE REPORT — [name]:** What was built (2–3 lines) · Files changed (list) · Tests passed (count/names) · Screenshot of the UI via the running preview (where a UI exists; skip for pure backend and say so) · Known limitations · Remaining work for this surface.
    Keep it tight (~15 lines max) — this is a progress pulse for the founder, not a second close-out. The module close-out report (rule 4) still happens at the end and supersedes nothing.
 
+## Quality Doctrine (DR-031 — governs ALL remaining development, from 2026-07-05)
+
+**Architecture, core features, and product scope are FROZEN.** Do not add modules/features/pages beyond the frozen specs unless the founder explicitly requests them. Before implementing any idea, ask: *does this improve an existing experience, or introduce new scope?* New scope → do NOT build; list it under "Future ideas" at the end of your report instead.
+
+**The objective is no longer functionality — it is making every existing module feel world-class.** Per surface, prioritize in this exact order: (1) implementation quality (2) UX (3) visual polish (4) premium UI (5) responsiveness (6) accessibility (7) performance (8) delightful micro-interactions.
+
+**UI bar:** premium, modern, trustworthy, memorable — the quality standards of Apple/Stripe/Linear/Framer/Vercel/Notion/Arc/Raycast/Duolingo (standards, not copying). This EXTENDS DESIGN_DIRECTION (which remains the north-star: fast + mobile-first for Tier-2/3 wins over flashy). For every screen: visual hierarchy · spacing · typography · transitions · purposeful animation · hover states · micro-interactions · premium skeletons · thoughtful empty states · beautiful success/error states · consistent iconography · pixel-perfect responsiveness.
+
+**Motion rule:** if a subtle animation improves usability, communicates a state change, or creates earned delight — include it. If not — don't. Never distracting; always `prefers-reduced-motion`-gated.
+
+**"Works" ≠ complete.** A module/surface is done only when it passes the world-class review: UI quality · UX quality · trust · consistency · accessibility · responsiveness · performance · premium feel. Keep refining until it does.
+
+Still in scope (frozen specs, not new scope): pending merges, QA-01, GPS-M5 Premium (DR-026 Phase 5), ops/CI, LAUNCH_CONFIG lane.
+
+**Design constitution = `docs/DESIGN_DIRECTION.md` v1.0** (Part A audience-truth wins conflicts; Part B = the enforceable World-Class Standard §9–§19). Every surface ends with the §19 review ritual — verdict is *"meets Design Direction v1.0"* or PRODUCT_DEBT rows, never bare "complete".
+
+**Sequencing (founder directive 2026-07-05):** (a) every NEW module/surface is built to the v1.0 standard from the first commit; (b) already-closed modules are NOT revisited during active feature development — when you notice a UI/UX gap in one, add a `docs/PRODUCT_DEBT.md` row and keep moving; (c) after the core roadmap (through GPS-M5) completes, dedicated **Product Polish Sprints** upgrade every existing page to the final premium standard, working PRODUCT_DEBT by severity.
+
 ## Two-Layer Development Rule (DR-029 — permanent engineering principle)
 
 **Layer 1 = Product Platform (build now):** website, UX, dashboards, navigation, components, flows, APIs, backend, admin, affiliate system, LMS, wallet, AI infrastructure. **Layer 2 = Launch Configuration (finalize before go-live):** legal policies, referral programme rules, commission percentages, pricing, campaigns, copywriting, contact info, founder content, certificates, business messaging.
