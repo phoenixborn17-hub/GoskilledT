@@ -1,24 +1,26 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, BarChart3, Coins, User } from "lucide-react";
+import { Home, BookOpen, Coins, User } from "lucide-react";
 import { cn } from "../../lib/utils";
 
+// DR-030 §2 bottom nav: Home · Learn · Earn · Profile. Home = the Dashboard Hub (/dashboard);
+// Learn = the course home (/dashboard/learn); the Progress route still exists and lights up Learn.
 const TABS = [
   {
     href: "/dashboard",
+    label: "Home",
+    Icon: Home,
+    match: (p: string) => p === "/dashboard",
+  },
+  {
+    href: "/dashboard/learn",
     label: "Learn",
     Icon: BookOpen,
     match: (p: string) =>
-      p === "/dashboard" ||
       p.startsWith("/dashboard/learn") ||
-      p.startsWith("/dashboard/courses"),
-  },
-  {
-    href: "/dashboard/progress",
-    label: "Progress",
-    Icon: BarChart3,
-    match: (p: string) => p.startsWith("/dashboard/progress"),
+      p.startsWith("/dashboard/courses") ||
+      p.startsWith("/dashboard/progress"),
   },
   {
     href: "/dashboard/earn",

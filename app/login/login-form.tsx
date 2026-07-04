@@ -1,10 +1,12 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Card, CardTitle, CardDescription } from "../../components/ui/card";
+import { OtpInput } from "../../components/ui/otp-input";
 import { sendLoginOtp, verifyLoginOtp } from "./actions";
 
 export function LoginForm() {
@@ -21,15 +23,16 @@ export function LoginForm() {
     setError(null);
     const res = await sendLoginOtp({ phone });
     setBusy(false);
-    if (res.ok) setStep("otp");
-    else setError(res.error);
+    if (res.ok) {
+      setToken("");
+      setStep("otp");
+    } else setError(res.error);
   }
 
-  async function onVerify(e: React.FormEvent) {
-    e.preventDefault();
+  async function submitOtp(code: string) {
     setBusy(true);
     setError(null);
-    const res = await verifyLoginOtp({ phone, token });
+    const res = await verifyLoginOtp({ phone, token: code });
     setBusy(false);
     if (!res.ok) return setError(res.error);
     if (nextParam) window.location.assign(nextParam);
@@ -53,7 +56,7 @@ export function LoginForm() {
               autoComplete="tel"
               placeholder="10-digit mobile"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
               maxLength={10}
               required
             />
@@ -66,33 +69,39 @@ export function LoginForm() {
           <Button type="submit" disabled={busy}>
             {busy ? "Sending…" : "Send OTP"}
           </Button>
+          <p className="text-center text-sm text-muted">
+            New here?{" "}
+            <Link href="/register" className="font-semibold text-brand">
+              Register free
+            </Link>
+          </p>
         </form>
       )}
 
       {step === "otp" && (
-        <form onSubmit={onVerify} className="mt-6 space-y-4">
+        <div className="mt-6 space-y-4">
           <div>
             <Label htmlFor="otp">Enter OTP</Label>
-            <Input
+            <OtpInput
               id="otp"
-              name="otp"
-              type="text"
-              inputMode="numeric"
-              autoComplete="one-time-code"
-              placeholder="6-digit code"
               value={token}
-              onChange={(e) => setToken(e.target.value)}
-              maxLength={8}
-              required
+              onChange={setToken}
+              onComplete={submitOtp}
+              disabled={busy}
+              autoFocus
             />
-            <p className="mt-1 text-xs text-muted">Sent to +91 {phone}</p>
+            <p className="mt-2 text-xs text-muted">Sent to +91 {phone}</p>
           </div>
           {error && (
             <p role="alert" className="text-sm text-red-600">
               {error}
             </p>
           )}
-          <Button type="submit" disabled={busy}>
+          <Button
+            type="button"
+            onClick={() => submitOtp(token)}
+            disabled={busy || token.length < 4}
+          >
             {busy ? "Verifying…" : "Verify & log in"}
           </Button>
           <Button
@@ -105,7 +114,7 @@ export function LoginForm() {
           >
             Change number
           </Button>
-        </form>
+        </div>
       )}
 
       {step === "done" && (
