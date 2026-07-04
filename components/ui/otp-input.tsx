@@ -107,7 +107,9 @@ export function OtpInput({
           inputMode="numeric"
           autoComplete={i === 0 ? "one-time-code" : "off"}
           pattern="[0-9]*"
-          maxLength={length} /* allow autofill/paste of the whole code into one box */
+          maxLength={
+            length
+          } /* allow autofill/paste of the whole code into one box */
           aria-label={`Digit ${i + 1} of ${length}`}
           value={d}
           disabled={disabled}

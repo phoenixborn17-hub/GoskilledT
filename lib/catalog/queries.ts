@@ -14,7 +14,10 @@ const lessonStatsSelect = {
 /** All catalog courses (PUBLISHED first, then COMING_SOON) with lesson stats for cards. */
 export async function listCatalogCourses() {
   return prisma.course.findMany({
-    where: { status: { in: ["PUBLISHED", "COMING_SOON"] }, ...NOT_SYSTEM_COURSE },
+    where: {
+      status: { in: ["PUBLISHED", "COMING_SOON"] },
+      ...NOT_SYSTEM_COURSE,
+    },
     orderBy: [{ status: "asc" }, { order: "asc" }], // enum order: DRAFT < PUBLISHED < COMING_SOON
     select: {
       slug: true,

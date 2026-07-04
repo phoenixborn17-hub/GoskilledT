@@ -83,9 +83,15 @@ export function ChecklistCard({
               className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-charcoal/5"
             >
               {item.done ? (
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-brand" aria-hidden />
+                <CheckCircle2
+                  className="h-5 w-5 shrink-0 text-brand"
+                  aria-hidden
+                />
               ) : (
-                <Circle className="h-5 w-5 shrink-0 text-charcoal/25" aria-hidden />
+                <Circle
+                  className="h-5 w-5 shrink-0 text-charcoal/25"
+                  aria-hidden
+                />
               )}
               <span
                 className={

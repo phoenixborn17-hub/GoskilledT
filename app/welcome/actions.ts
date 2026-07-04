@@ -9,8 +9,7 @@ import { getLesson0Status } from "../../lib/lms/getting-started";
 import { track } from "../../lib/analytics/track";
 
 export type WelcomeResult =
-  | { ok: true; redirectTo: string }
-  | { ok: false; error: string };
+  { ok: true; redirectTo: string } | { ok: false; error: string };
 
 const schema = z.object({
   intent: z.enum(["start", "skip"]),

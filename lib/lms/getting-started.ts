@@ -46,7 +46,11 @@ export async function getLesson0Status(userId: string): Promise<Lesson0Status> {
   });
   const lessonId = course?.modules[0]?.lessons[0]?.id ?? null;
   if (!lessonId) {
-    return { lessonId: null, completed: false, courseSlug: GETTING_STARTED_SLUG };
+    return {
+      lessonId: null,
+      completed: false,
+      courseSlug: GETTING_STARTED_SLUG,
+    };
   }
   const done = await prisma.lessonProgress.findUnique({
     where: { userId_lessonId: { userId, lessonId } },

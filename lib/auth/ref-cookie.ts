@@ -13,7 +13,10 @@ const MAX_LEN = 24;
 /** Normalize a raw ?ref= value to the referralCode shape (GS + hex). Junk/empty → null. */
 export function sanitizeRefCode(raw: string | null | undefined): string | null {
   if (!raw) return null;
-  const cleaned = raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const cleaned = raw
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "");
   return cleaned.length >= 3 && cleaned.length <= MAX_LEN ? cleaned : null;
 }
 

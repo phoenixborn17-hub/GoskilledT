@@ -114,7 +114,10 @@ function LearnCard({
     <Card className="space-y-5">
       <div className="flex items-center justify-between gap-2">
         <CardTitle className="text-lg">Learn</CardTitle>
-        <Link href="/dashboard/learn" className="text-sm font-semibold text-brand">
+        <Link
+          href="/dashboard/learn"
+          className="text-sm font-semibold text-brand"
+        >
           My courses →
         </Link>
       </div>
@@ -125,7 +128,10 @@ function LearnCard({
         </CardDescription>
       ) : (
         courses.map((c) => (
-          <div key={c.slug} className="rounded-xl border border-charcoal/10 p-4">
+          <div
+            key={c.slug}
+            className="rounded-xl border border-charcoal/10 p-4"
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate font-heading font-bold text-charcoal">
@@ -160,7 +166,10 @@ function LearnCard({
                         aria-hidden
                       />
                     ) : l.locked ? (
-                      <Lock className="h-4 w-4 shrink-0 text-muted" aria-hidden />
+                      <Lock
+                        className="h-4 w-4 shrink-0 text-muted"
+                        aria-hidden
+                      />
                     ) : (
                       <PlayCircle
                         className="h-4 w-4 shrink-0 text-brand"
@@ -230,15 +239,16 @@ function EarnCard({
         <Users className="h-5 w-5 text-charcoal" aria-hidden />
         <CardTitle className="text-lg">Invite friends</CardTitle>
       </div>
-      <CardDescription>
-        {AFFILIATE_COPY.inviteBody}
-      </CardDescription>
+      <CardDescription>{AFFILIATE_COPY.inviteBody}</CardDescription>
       <p className="text-sm font-semibold text-charcoal">
         {inviteCount === 0
           ? AFFILIATE_COPY.inviteZero
           : `${inviteCount} friend${inviteCount === 1 ? "" : "s"} invited`}
       </p>
-      <ShareBlock shareUrl={shareUrl} shareMessage={AFFILIATE_COPY.shareMessage} />
+      <ShareBlock
+        shareUrl={shareUrl}
+        shareMessage={AFFILIATE_COPY.shareMessage}
+      />
       <Link
         href="/dashboard/earn"
         className="inline-block text-sm font-semibold text-brand"

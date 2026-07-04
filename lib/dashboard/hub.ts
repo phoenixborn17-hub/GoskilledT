@@ -65,7 +65,12 @@ export interface HubData {
   continue: HubContinue;
   learnCourses: HubLearnCourse[];
   inviteCount: number;
-  checklist: { items: ChecklistItem[]; doneCount: number; total: number; dismissed: boolean };
+  checklist: {
+    items: ChecklistItem[];
+    doneCount: number;
+    total: number;
+    dismissed: boolean;
+  };
   webinar: { startsAt: Date | null; title: string | null };
 }
 
@@ -74,7 +79,12 @@ export async function getHubData(userId: string): Promise<HubData> {
     await Promise.all([
       prisma.user.findUnique({
         where: { id: userId },
-        select: { name: true, goal: true, referralCode: true, checklistState: true },
+        select: {
+          name: true,
+          goal: true,
+          referralCode: true,
+          checklistState: true,
+        },
       }),
       getLesson0Status(userId),
       getEnrolledCourses(userId),
@@ -184,7 +194,10 @@ export async function getHubData(userId: string): Promise<HubData> {
     learnCourses,
     inviteCount,
     checklist: { items, doneCount, total: items.length, dismissed },
-    webinar: { startsAt: webinar?.startsAt ?? null, title: webinar?.title ?? null },
+    webinar: {
+      startsAt: webinar?.startsAt ?? null,
+      title: webinar?.title ?? null,
+    },
   };
 }
 
