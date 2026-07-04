@@ -4,6 +4,7 @@
 import { z } from "zod";
 import { phoneSchema } from "../../modules/payments/schemas";
 import { getOtpProvider } from "../../lib/auth/otp";
+import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
 import { syncUser } from "../../lib/auth/user-sync";
 import { readRefCookie } from "../../lib/auth/ref-cookie";
 
@@ -27,6 +28,8 @@ export async function sendLoginOtp(
       ok: false,
       error: parsed.error.issues[0]?.message ?? "Invalid phone",
     };
+  const rl = await checkOtpSendRate(parsed.data.phone);
+  if (!rl.ok) return { ok: false, error: rl.error };
   try {
     await getOtpProvider().sendOtp(parsed.data.phone);
     return { ok: true };

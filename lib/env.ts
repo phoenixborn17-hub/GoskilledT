@@ -39,6 +39,8 @@ export const EnvSchema = z
     // App
     NEXT_PUBLIC_APP_URL: z.string().trim().url().optional(), // has a localhost default in lib/seo.ts
     AFFILIATE_PAYOUTS_ENABLED: z.enum(["true", "false"]).optional(),
+    D01_LEGAL_CLEARED: z.enum(["true", "false"]).optional(), // LC #1 gate for the payout-flag ceremony
+
     // Provider secrets (conditionally required below)
     RAZORPAY_KEY_ID: z.string().optional(),
     RAZORPAY_KEY_SECRET: z.string().optional(),

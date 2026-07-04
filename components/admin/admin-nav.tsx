@@ -7,16 +7,28 @@ import {
   CreditCard,
   Contact,
   Flag,
+  ShieldCheck,
+  Banknote,
+  BookOpen,
+  Video,
+  ScrollText,
+  Settings,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 // Admin = charcoal-neutral (Blueprint), not green-forward.
 const TABS = [
   { href: "/admin", label: "Overview", Icon: LayoutDashboard, exact: true },
-  { href: "/admin/users", label: "Users", Icon: Users },
+  { href: "/admin/kyc", label: "KYC", Icon: ShieldCheck },
+  { href: "/admin/withdrawals", label: "Withdrawals", Icon: Banknote },
   { href: "/admin/payments", label: "Payments", Icon: CreditCard },
+  { href: "/admin/users", label: "Users", Icon: Users },
   { href: "/admin/leads", label: "Leads", Icon: Contact },
   { href: "/admin/review-queue", label: "Review", Icon: Flag },
+  { href: "/admin/catalog", label: "Catalog", Icon: BookOpen },
+  { href: "/admin/webinar", label: "Webinar", Icon: Video },
+  { href: "/admin/audit", label: "Audit", Icon: ScrollText },
+  { href: "/admin/settings", label: "Settings", Icon: Settings },
 ];
 
 function isActive(pathname: string, href: string, exact?: boolean) {

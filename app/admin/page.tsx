@@ -1,119 +1,122 @@
-// /admin — overview (Ticket 6, Task 3). Read-only counts. Payouts flag shown read-only
-// (it's an env flag by design — D-01/M5).
-import Link from "next/link";
-import { getAdminOverview } from "../../lib/admin/queries";
+// /admin — dashboard hub (GPS-M4 §2.0). One glance = state of the business today; pending queues
+// surfaced by urgency; recent audit trail. All real aggregates; zero-states truthful.
+import { getDashboardData } from "../../lib/admin/queries";
 import { formatINR } from "../../lib/money";
+import {
+  PageHeading,
+  StatCard,
+  QueueCard,
+  fmtDateTime,
+} from "../../components/admin/primitives";
 import { Card } from "../../components/ui/card";
-import { Badge } from "../../components/ui/badge";
 
 export const dynamic = "force-dynamic";
 
-function Stat({
-  label,
-  value,
-  href,
-}: {
-  label: string;
-  value: string;
-  href?: string;
-}) {
-  const body = (
-    <Card className="h-full">
-      <p className="text-xs font-medium uppercase tracking-wide text-muted">
-        {label}
-      </p>
-      <p className="mt-1 font-heading text-2xl font-extrabold text-charcoal">
-        {value}
-      </p>
-    </Card>
-  );
-  return href ? (
-    <Link href={href} className="block">
-      {body}
-    </Link>
-  ) : (
-    body
-  );
-}
-
-export default async function AdminOverviewPage() {
-  const o = await getAdminOverview();
-  const stages = [
-    "NEW",
-    "WEBINAR_REGISTERED",
-    "CONTACTED",
-    "CONVERTED",
-    "LOST",
-  ];
+export default async function AdminDashboardPage() {
+  const d = await getDashboardData();
 
   return (
     <section className="space-y-6">
-      <h1 className="font-heading text-2xl font-bold">Overview</h1>
+      <PageHeading
+        title="Today"
+        subtitle="Live business state — real figures, updated on load."
+      />
 
+      {/* KPI strip — today with a 7-day trailing sub-figure. */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          label="Users"
-          value={o.users.toLocaleString("en-IN")}
+        <StatCard
+          label="Signups"
+          value={d.signupsToday.toLocaleString("en-IN")}
+          sub={`${d.signups7d.toLocaleString("en-IN")} in last 7d`}
           href="/admin/users"
         />
-        <Stat
+        <StatCard
           label="Paid orders"
-          value={o.paidOrders.toLocaleString("en-IN")}
+          value={d.ordersToday.toLocaleString("en-IN")}
+          sub={`${d.orders7d.toLocaleString("en-IN")} in last 7d`}
           href="/admin/payments"
         />
-        <Stat
-          label="Revenue (paid)"
-          value={formatINR(o.revenueInPaise)}
+        <StatCard
+          label="Revenue"
+          value={formatINR(d.revenueTodayInPaise)}
+          sub={`${formatINR(d.revenue7dInPaise)} in last 7d`}
           href="/admin/payments"
         />
-        <Stat
-          label="Pending review"
-          value={o.pendingReview.toLocaleString("en-IN")}
-          href="/admin/review-queue"
+        <StatCard
+          label="Active learners"
+          value={d.activeLearners.toLocaleString("en-IN")}
+          sub="enrolled in ≥1 course"
         />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <Card>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-heading text-lg font-bold">Leads by stage</h2>
-            <Link
-              href="/admin/leads"
-              className="text-sm font-semibold text-muted hover:text-charcoal"
-            >
-              View all →
-            </Link>
-          </div>
-          <ul className="space-y-1.5 text-sm">
-            {stages.map((s) => (
+      {/* Pending work — deep-linked queue cards, urgency-highlighted. */}
+      <div>
+        <h2 className="mb-3 font-heading text-lg font-bold text-charcoal">
+          Pending work
+        </h2>
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <QueueCard
+            label="KYC review"
+            count={d.pendingKyc}
+            href="/admin/kyc"
+            hint="before payouts"
+          />
+          <QueueCard
+            label="Withdrawals"
+            count={d.pendingWithdrawals}
+            href="/admin/withdrawals"
+            hint="Tuesday run"
+          />
+          <QueueCard
+            label="Review queue"
+            count={d.pendingReview}
+            href="/admin/review-queue"
+            hint="flagged payments"
+          />
+          <QueueCard label="New leads" count={d.newLeads} href="/admin/leads" />
+        </div>
+      </div>
+
+      {/* Recent audit trail — last 10 admin/money mutations. */}
+      <Card>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-heading text-lg font-bold text-charcoal">
+            Recent activity
+          </h2>
+          <a
+            href="/admin/audit"
+            className="text-sm font-semibold text-muted hover:text-charcoal"
+          >
+            Full audit log →
+          </a>
+        </div>
+        {d.recentAudit.length === 0 ? (
+          <p className="py-6 text-center text-sm text-muted">
+            No admin activity yet.
+          </p>
+        ) : (
+          <ul className="divide-y divide-charcoal/5 text-sm">
+            {d.recentAudit.map((a) => (
               <li
-                key={s}
-                className="flex items-center justify-between border-b border-charcoal/5 pb-1.5 last:border-0"
+                key={a.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2"
               >
-                <span className="text-muted">{s.replace("_", " ")}</span>
-                <span className="font-semibold">{o.leadsByStage[s] ?? 0}</span>
+                <span className="font-medium text-charcoal">{a.action}</span>
+                <span className="text-muted">
+                  {a.entity}
+                  {a.entityId ? ` · ${a.entityId.slice(0, 10)}…` : ""}
+                </span>
+                <span className="text-xs text-muted">
+                  {fmtDateTime(a.createdAt)}
+                </span>
               </li>
             ))}
           </ul>
-        </Card>
+        )}
+      </Card>
 
-        <Card>
-          <h2 className="mb-3 font-heading text-lg font-bold">
-            Affiliate payouts
-          </h2>
-          <div className="flex items-center gap-2">
-            <Badge variant={o.payoutsEnabled ? "brand" : "muted"}>
-              {o.payoutsEnabled ? "ON" : "OFF"}
-            </Badge>
-            <span className="text-sm text-muted">D-01 gate</span>
-          </div>
-          {/* Read-only: this is an env flag by design (AFFILIATE_PAYOUTS_ENABLED). */}
-          <p className="mt-3 text-xs text-muted">
-            Read-only — change via the <code>AFFILIATE_PAYOUTS_ENABLED</code>{" "}
-            environment variable.
-          </p>
-        </Card>
-      </div>
+      {/* AI hook (GPS-M5+/Command Center): dashboard "ask about today" — Jarvis (DR-016). */}
+      {/* TODO(GPS-M5): natural-language "ask about today" entry slot here. */}
     </section>
   );
 }

@@ -1,11 +1,9 @@
 // KYC read adapter (GPS-M3 §2.4). Decrypts server-side ONLY to mask (PAN/account → last-4) or to
 // show the user their own holder name. PII never leaves the server un-masked; never logged.
 //
-// SCHEMA NOTE (flagged for Fable / GPS-M4): the `Kyc` model has `bankNameEnc` but no dedicated
-// account-holder-name column. The spec's KYC inputs are PAN + account no + IFSC + account-HOLDER
-// name (bank name is derivable from IFSC and not payout-critical). To avoid a schema migration on
-// the shared DB from a parked branch, the account-holder name is stored (encrypted) in
-// `bankNameEnc`. A future migration may add `accountHolderEnc`; the UX/contract is unchanged.
+// SCHEMA NOTE (LC #32, resolved in GPS-M4): the account-holder name now lives in its own
+// `accountHolderEnc` column (migrated from the former `bankNameEnc`). Bank name is derivable from
+// IFSC and not payout-critical, so no separate column exists for it.
 import { prisma } from "../prisma";
 import { decryptPii, maskLast4 } from "../pii";
 import { kycUiStatus, type KycUiStatus } from "../../modules/kyc/kyc";
@@ -25,7 +23,7 @@ export async function getKycView(userId: string): Promise<KycView> {
     select: {
       panEnc: true,
       accountNoEnc: true,
-      bankNameEnc: true,
+      accountHolderEnc: true,
       ifsc: true,
       status: true,
       submittedAt: true,
@@ -50,7 +48,7 @@ export async function getKycView(userId: string): Promise<KycView> {
       ? maskLast4(decryptPii(kyc.accountNoEnc))
       : null,
     ifsc: kyc.ifsc,
-    holderName: kyc.bankNameEnc ? decryptPii(kyc.bankNameEnc) : null,
+    holderName: kyc.accountHolderEnc ? decryptPii(kyc.accountHolderEnc) : null,
     submittedAt: kyc.submittedAt,
   };
 }

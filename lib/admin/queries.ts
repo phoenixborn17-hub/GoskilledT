@@ -1,6 +1,6 @@
 // Admin read-only queries (Ticket 6). Server-only. Revenue/counts from real rows.
 import { prisma } from "../prisma";
-import { payoutsEnabled } from "../env";
+import { recentAudit } from "./audit-log";
 import type { LeadStage } from "../../modules/crm/lead";
 import type { OrderStatus } from "../generated/prisma";
 
@@ -43,26 +43,65 @@ export async function listReviewQueue(): Promise<ReviewItem[]> {
   }));
 }
 
-export async function getAdminOverview() {
-  const [users, paidOrders, revenue, leadGroups, queue] = await Promise.all([
-    prisma.user.count(),
-    prisma.order.count({ where: { status: "PAID" } }),
-    prisma.order.aggregate({
-      _sum: { amountInPaise: true },
-      where: { status: "PAID" },
+/**
+ * Admin dashboard aggregates (GPS-M4 §2.0). All real queries; zero-states stay truthful (0 = "0").
+ * "today" = since local midnight; "7d" = trailing 7 days.
+ */
+export async function getDashboardData(now: Date = new Date()) {
+  const startOfToday = new Date(now);
+  startOfToday.setHours(0, 0, 0, 0);
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+  const paidRevenue = (where: object) =>
+    prisma.order.aggregate({ _sum: { amountInPaise: true }, where });
+
+  const [
+    signupsToday,
+    signups7d,
+    ordersToday,
+    orders7d,
+    revToday,
+    rev7d,
+    activeLearners,
+    pendingKyc,
+    pendingWithdrawals,
+    reviewQueue,
+    newLeads,
+    recent,
+  ] = await Promise.all([
+    prisma.user.count({ where: { createdAt: { gte: startOfToday } } }),
+    prisma.user.count({ where: { createdAt: { gte: sevenDaysAgo } } }),
+    prisma.order.count({
+      where: { status: "PAID", paidAt: { gte: startOfToday } },
     }),
-    prisma.lead.groupBy({ by: ["stage"], _count: { _all: true } }),
+    prisma.order.count({
+      where: { status: "PAID", paidAt: { gte: sevenDaysAgo } },
+    }),
+    paidRevenue({ status: "PAID", paidAt: { gte: startOfToday } }),
+    paidRevenue({ status: "PAID", paidAt: { gte: sevenDaysAgo } }),
+    prisma.user.count({ where: { enrollments: { some: {} } } }),
+    prisma.kyc.count({ where: { status: "SUBMITTED" } }),
+    prisma.withdrawal.count({
+      where: { status: { in: ["APPLIED", "IN_PROGRESS"] } },
+    }),
     listReviewQueue(),
+    prisma.lead.count({ where: { stage: "NEW" } }),
+    recentAudit(10),
   ]);
+
   return {
-    users,
-    paidOrders,
-    revenueInPaise: revenue._sum.amountInPaise ?? 0,
-    leadsByStage: Object.fromEntries(
-      leadGroups.map((g) => [g.stage, g._count._all]),
-    ) as Record<string, number>,
-    pendingReview: queue.filter((q) => !q.resolved).length,
-    payoutsEnabled: payoutsEnabled(),
+    signupsToday,
+    signups7d,
+    ordersToday,
+    orders7d,
+    revenueTodayInPaise: revToday._sum.amountInPaise ?? 0,
+    revenue7dInPaise: rev7d._sum.amountInPaise ?? 0,
+    activeLearners,
+    pendingKyc,
+    pendingWithdrawals,
+    pendingReview: reviewQueue.filter((q) => !q.resolved).length,
+    newLeads,
+    recentAudit: recent,
   };
 }
 

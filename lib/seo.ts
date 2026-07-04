@@ -52,6 +52,31 @@ export function organizationJsonLd(): Record<string, unknown> {
   };
 }
 
+/** Event structured data for a scheduled webinar (GPS-M4 §2.6). Online, free intro session. D-29
+ * clean — describes the session, never promises income. */
+export function eventJsonLd(webinar: {
+  title: string;
+  startsAt: Date;
+  joinUrl: string | null;
+}): Record<string, unknown> {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Event",
+    name: webinar.title,
+    startDate: webinar.startsAt.toISOString(),
+    eventAttendanceMode: "https://schema.org/OnlineEventAttendanceMode",
+    eventStatus: "https://schema.org/EventScheduled",
+    isAccessibleForFree: true,
+    location: {
+      "@type": "VirtualLocation",
+      url: webinar.joinUrl || `${siteUrl()}/webinar`,
+    },
+    organizer: { "@type": "Organization", name: SITE_NAME, url: siteUrl() },
+    description:
+      "Free introduction webinar — what GoSkilled is, the learning roadmap, and how to get started.",
+  };
+}
+
 /** FAQPage structured data from the shared FAQ copy. */
 export function faqPageJsonLd(
   items: { q: string; a: string }[],

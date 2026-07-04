@@ -66,35 +66,38 @@ export async function submitKyc(
   const d = parsed.data;
   try {
     // Encrypt secret fields before they touch the DB; IFSC is a public branch code (plaintext).
-    await prisma.kyc.upsert({
-      where: { userId: user.id },
-      create: {
-        userId: user.id,
-        panEnc: encryptPii(d.pan),
-        accountNoEnc: encryptPii(d.accountNumber),
-        bankNameEnc: encryptPii(d.holderName), // account-holder name (see lib/kyc/queries note)
-        ifsc: d.ifsc,
-        status: "SUBMITTED",
-        submittedAt: new Date(),
-      },
-      update: {
-        panEnc: encryptPii(d.pan),
-        accountNoEnc: encryptPii(d.accountNumber),
-        bankNameEnc: encryptPii(d.holderName),
-        ifsc: d.ifsc,
-        status: "SUBMITTED", // resubmit after a rejection
-        submittedAt: new Date(),
-      },
-    });
-    // Audit — NO PII in the audit row (only that a submission happened).
-    await prisma.adminAction.create({
-      data: {
-        actorSupabaseId: user.supabaseId ?? user.id,
-        action: "KYC_SUBMITTED",
-        entity: "Kyc",
-        entityId: user.id,
-        meta: { anon: anonId(user.id) },
-      },
+    // Module invariant (GPS-M4 §1): the domain write + its audit row commit in ONE $transaction.
+    await prisma.$transaction(async (tx) => {
+      await tx.kyc.upsert({
+        where: { userId: user.id },
+        create: {
+          userId: user.id,
+          panEnc: encryptPii(d.pan),
+          accountNoEnc: encryptPii(d.accountNumber),
+          accountHolderEnc: encryptPii(d.holderName), // account-holder name (LC #32)
+          ifsc: d.ifsc,
+          status: "SUBMITTED",
+          submittedAt: new Date(),
+        },
+        update: {
+          panEnc: encryptPii(d.pan),
+          accountNoEnc: encryptPii(d.accountNumber),
+          accountHolderEnc: encryptPii(d.holderName),
+          ifsc: d.ifsc,
+          status: "SUBMITTED", // resubmit after a rejection
+          submittedAt: new Date(),
+        },
+      });
+      // Audit — NO PII in the audit row (only that a submission happened).
+      await tx.adminAction.create({
+        data: {
+          actorSupabaseId: user.supabaseId ?? user.id,
+          action: "KYC_SUBMITTED",
+          entity: "Kyc",
+          entityId: user.id,
+          meta: { anon: anonId(user.id) },
+        },
+      });
     });
     revalidatePath("/dashboard/earn/kyc");
     revalidatePath("/dashboard/earn/wallet");
@@ -135,22 +138,25 @@ export async function requestWithdrawal(
   if (!check.ok) return { ok: false, error: check.message };
 
   try {
-    const withdrawal = await prisma.withdrawal.create({
-      data: {
-        userId: user.id,
-        amountInPaise: parsed.data.amountInPaise,
-        status: "APPLIED",
-      },
-      select: { id: true },
-    });
-    await prisma.adminAction.create({
-      data: {
-        actorSupabaseId: user.supabaseId ?? user.id,
-        action: "WITHDRAWAL_REQUESTED",
-        entity: "Withdrawal",
-        entityId: withdrawal.id,
-        meta: { amountInPaise: parsed.data.amountInPaise },
-      },
+    // Module invariant (GPS-M4 §1): withdrawal row + its audit row commit atomically.
+    await prisma.$transaction(async (tx) => {
+      const withdrawal = await tx.withdrawal.create({
+        data: {
+          userId: user.id,
+          amountInPaise: parsed.data.amountInPaise,
+          status: "APPLIED",
+        },
+        select: { id: true },
+      });
+      await tx.adminAction.create({
+        data: {
+          actorSupabaseId: user.supabaseId ?? user.id,
+          action: "WITHDRAWAL_REQUESTED",
+          entity: "Withdrawal",
+          entityId: withdrawal.id,
+          meta: { amountInPaise: parsed.data.amountInPaise },
+        },
+      });
     });
     revalidatePath("/dashboard/earn/wallet");
     return { ok: true };
