@@ -57,7 +57,8 @@ Each module owns its domain logic, Zod schemas, server actions, and components.
    NEXT MODULE — Recommended · Why · Dependencies · Estimated work
 5. Tier review protocol + merge checklists still apply per ticket within a module.
 6. **Every new branch is created from up-to-date `main` — never from a parked/feature branch.** Verify with `git branch --show-current` before branching (a branch cut from a parked Tier-A branch will silently drag that un-reviewed work into the next merge).
-7. **Surface completion report (founder directive, 2026-07-04).** After completing every major surface (page/queue/flow) — not just at module close-out — emit a SHORT report before starting the next surface:
+7. **Review Packets (founder directive, 2026-07-05).** End every ticket with a Review Packet in `docs/review-packets/`: unified diff + test output + 5-line self-assessment. Tier-A = MANDATORY · Tier-B = recommended for large changes · Tier-C = optional. **Never ask Fable to read the repository — Fable reviews packets, not repositories.**
+8. **Surface completion report (founder directive, 2026-07-04).** After completing every major surface (page/queue/flow) — not just at module close-out — emit a SHORT report before starting the next surface:
    **SURFACE REPORT — [name]:** What was built (2–3 lines) · Files changed (list) · Tests passed (count/names) · Screenshot of the UI via the running preview (where a UI exists; skip for pure backend and say so) · Known limitations · Remaining work for this surface.
    Keep it tight (~15 lines max) — this is a progress pulse for the founder, not a second close-out. The module close-out report (rule 4) still happens at the end and supersedes nothing.
 
