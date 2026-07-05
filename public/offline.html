@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#137E49" />
+    <title>Offline · GoSkilled</title>
+    <style>
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100dvh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        background: #fefefe;
+        color: #2a302a;
+        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      }
+      .card {
+        max-width: 360px;
+        text-align: center;
+      }
+      .mark {
+        width: 56px;
+        height: 56px;
+        margin: 0 auto 16px;
+        border-radius: 16px;
+        background: #137e49;
+        color: #fff;
+        font-weight: 800;
+        font-size: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      h1 { font-size: 20px; margin: 0 0 8px; }
+      p { color: #6b716a; line-height: 1.6; margin: 0 0 20px; font-size: 15px; }
+      button {
+        border: 0;
+        background: #137e49;
+        color: #fff;
+        font-weight: 700;
+        font-size: 15px;
+        padding: 12px 22px;
+        border-radius: 12px;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="mark" aria-hidden="true">G</div>
+      <h1>You're offline</h1>
+      <p>Internet connection nahi mila. Wapas online hote hi aap yahin se seekhna continue kar sakte ho.</p>
+      <button onclick="location.reload()">Try again</button>
+    </div>
+  </body>
+</html>
