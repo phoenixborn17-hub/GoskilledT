@@ -1,0 +1,40 @@
+commit ff834a97b5019bc87f5f45eaf34060277a56539e
+Author: phoenixborn17 <phoenixborn17@gmail.com>
+Date:   Mon Jul 6 00:05:16 2026 +0530
+
+    @
+    polish-1: guardrail regression lock — 4 Fable-prescribed cases verbatim (Tier-B)
+    
+    Pins the exact income-intent strings Fable prescribed so a future guardrail
+    edit can never regress them (behaviour already correct):
+      "50000 monthly kama sakte ho" / "₹2 lakh per month" → BLOCK
+      "Lesson 5 me 3 steps hain" / "iska price 1499 hai" → NOT.
+    guru-domain 27/27 green.
+    
+    Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+    @
+
+diff --git a/tests/guru-domain.test.ts b/tests/guru-domain.test.ts
+index 8c636a1..c153102 100644
+--- a/tests/guru-domain.test.ts
++++ b/tests/guru-domain.test.ts
+@@ -61,6 +61,19 @@ describe("guardrail: numeric + period hardening (Fable condition 1)", () => {
+   });
+ });
+ 
++// Fable regression lock (DR-031 Batch 1) — the FOUR exact cases Fable prescribed, verbatim. Behaviour
++// is already correct; these pin the exact strings so a future guardrail edit can never regress them.
++describe("guardrail: Fable prescribed regression cases (verbatim)", () => {
++  it.each([
++    ["50000 monthly kama sakte ho", true], // BLOCK — amount + period + earn verb
++    ["₹2 lakh per month", true], // BLOCK — scaled currency + period
++    ["Lesson 5 me 3 steps hain", false], // NOT — lesson/step numbers, no income signal
++    ["iska price 1499 hai", false], // NOT — a price, no earn verb / period / how-much
++  ])("%s → income intent %s", (q, expected) => {
++    expect(hasIncomeIntent(q as string), q as string).toBe(expected);
++  });
++});
++
+ // ── Retrieval (corpus-only, out-of-scope detection) ─────────────────────────────────────────────
+ const chunkOf = (
+   lessonOrder: number,

@@ -1,9 +1,12 @@
 "use client";
 import { useState } from "react";
+import Link from "next/link";
+import { PartyPopper } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Card, CardTitle, CardDescription } from "../../components/ui/card";
+import { Confetti } from "../../components/ui/confetti";
 import { saveOnboarding, skipOnboarding } from "./actions";
 
 const GOALS = [
@@ -42,9 +45,26 @@ export default function OnboardingPage() {
   if (done) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
-        <Card>
-          <CardTitle>You&apos;re all set 🎉</CardTitle>
-          <CardDescription>Start learning from your dashboard.</CardDescription>
+        {/* Purchase-success signature moment (§2.6): honest — the learner has paid + is set up.
+            Confetti self-guards reduced-motion; the card enters via the gated .enter class. */}
+        <Confetti fire />
+        <Card className="enter text-center">
+          <span
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand"
+            aria-hidden
+          >
+            <PartyPopper className="h-8 w-8" />
+          </span>
+          <CardTitle className="text-2xl">You&apos;re all set 🎉</CardTitle>
+          <CardDescription>
+            Welcome aboard! Aapka access ready hai — chalo pehla lesson shuru
+            karte hain.
+          </CardDescription>
+          <div className="mx-auto mt-6 max-w-xs">
+            <Link href="/dashboard">
+              <Button>Start learning</Button>
+            </Link>
+          </div>
         </Card>
       </main>
     );

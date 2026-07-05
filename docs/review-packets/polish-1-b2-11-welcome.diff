@@ -1,0 +1,114 @@
+commit cd6c682ce791293e79934fdd73360d2c8ea1d7bb
+Author: phoenixborn17 <phoenixborn17@gmail.com>
+Date:   Mon Jul 6 00:17:32 2026 +0530
+
+    @
+    polish-1: welcome belonging moment — membership medallion + glow + entrance (Tier-B · #11)
+    
+    §2.6 Signature Moment. Adds a warm HeartHandshake membership medallion (gold as
+    fill, charcoal icon — gold-contrast rule), a soft green→gold glow backdrop, a
+    single gentle halo pulse, and staged entrance. Copy unchanged (LC #34). All
+    motion prefers-reduced-motion-gated. Verified in-browser via QA session.
+    
+    Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+    @
+
+diff --git a/app/globals.css b/app/globals.css
+index fa8dd49..c83b063 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -251,6 +251,47 @@ html {
+   }
+ }
+ 
++/* ── Welcome "belonging" moment (DR-030 §4): a soft green→gold glow behind the one-time screen +
++      a single gentle halo pulse on the membership medallion. Static + haloless under reduced-motion. */
++.welcome-glow {
++  position: relative;
++  isolation: isolate;
++  overflow: hidden;
++}
++.welcome-glow::before {
++  content: "";
++  position: absolute;
++  z-index: -1;
++  left: 50%;
++  top: 30%;
++  width: 30rem;
++  height: 30rem;
++  transform: translate(-50%, -50%);
++  background:
++    radial-gradient(closest-side, rgb(26 160 94 / 0.1), transparent 70%),
++    radial-gradient(closest-side, rgb(237 200 37 / 0.08), transparent 72%);
++  filter: blur(50px);
++  pointer-events: none;
++}
++@media (prefers-reduced-motion: no-preference) {
++  .welcome-medallion::after {
++    content: "";
++    position: absolute;
++    inset: 0;
++    border-radius: 9999px;
++    box-shadow: 0 0 0 0 rgb(26 160 94 / 0.35);
++    animation: welcome-halo 2.4s ease-out 0.3s 2 both;
++  }
++  @keyframes welcome-halo {
++    0% {
++      box-shadow: 0 0 0 0 rgb(26 160 94 / 0.35);
++    }
++    100% {
++      box-shadow: 0 0 0 1.25rem rgb(26 160 94 / 0);
++    }
++  }
++}
++
+ /* ── CSS-only scroll reveal (from T5). Degrades safely: no-JS, unsupported browsers, and
+       reduced-motion all see content instantly. Slides only — NO opacity fade: a fade leaves
+       below-fold content at opacity 0, which reads as invisible to assistive tech and fails
+diff --git a/app/welcome/page.tsx b/app/welcome/page.tsx
+index 5907b1e..88e42df 100644
+--- a/app/welcome/page.tsx
++++ b/app/welcome/page.tsx
+@@ -3,6 +3,7 @@
+ // one-time (welcomeSeenAt short-circuits to the Hub). Honest "Founding Batch" framing (D-29).
+ import type { Metadata } from "next";
+ import { redirect } from "next/navigation";
++import { HeartHandshake } from "lucide-react";
+ import { prisma } from "../../lib/prisma";
+ import { getCurrentUser } from "../../lib/auth/session";
+ import { track } from "../../lib/analytics/track";
+@@ -32,19 +33,29 @@ export default async function WelcomePage() {
+   const name = record?.name?.trim() || null;
+ 
+   return (
+-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10 text-center">
+-      <div className="mx-auto mb-4">
++    <main className="welcome-glow mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10 text-center">
++      {/* Belonging emblem — a warm membership medallion with a soft gold halo (charcoal icon: gold
++          stays a fill, never text on light). Gentle staged entrance; static under reduced-motion. */}
++      <div className="enter mx-auto mb-5">
++        <span
++          className="welcome-medallion relative mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-brand/15 to-gold/25 text-charcoal"
++          aria-hidden
++        >
++          <HeartHandshake className="h-9 w-9" />
++        </span>
++      </div>
++      <div className="enter enter-2 mx-auto mb-4">
+         <Badge variant="gold">Founding Batch</Badge>
+       </div>
+-      <h1 className="font-heading text-3xl font-extrabold text-charcoal">
++      <h1 className="enter enter-2 font-heading text-3xl font-extrabold text-charcoal">
+         Welcome to GoSkilled, {name ?? "friend"} 👋
+       </h1>
+-      <p className="mx-auto mt-3 max-w-sm text-muted">
++      <p className="enter enter-3 mx-auto mt-3 max-w-sm text-muted">
+         You&apos;re part of the Founding Batch. Let&apos;s start with a quick
+         2-minute intro — then you&apos;re off.
+       </p>
+ 
+-      <div className="mt-8">
++      <div className="enter enter-3 mt-8">
+         <WelcomeActions needsName={!name} />
+       </div>
+     </main>

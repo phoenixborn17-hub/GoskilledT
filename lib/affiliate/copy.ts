@@ -10,6 +10,10 @@ export const AFFILIATE_COPY = {
   copyCta: "Copy link",
   copied: "Copied ✓",
   inviteZero: "0 invites yet — share your link to get started.",
+  // Referral MILESTONES (§2.6 signature moment) — community/count framing ONLY. D-29 floor:
+  // no income, no rewards, no ₹. These celebrate the act of inviting learners, never earnings.
+  milestoneReached: "Milestone reached — shabaash! 🎉",
+  milestoneStart: "Pehla invite se milestone journey shuru hoti hai.",
   // Neutral pending note shown on money surfaces while the flag is OFF. Zero earnings language
   // (§1C is stricter than the D-29 floor here): no "earnings", "rewards", "₹", or "credited".
   moneyPendingHeading: "Opens after review",

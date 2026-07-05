@@ -121,12 +121,25 @@ html {
   }
 }
 
-/* ── Hero signature moment: soft green aurora (pure CSS, zero JS, zero risk).
-      Content never depends on it; reduced-motion sees a static gradient. ───── */
+/* ── Hero signature moment: soft green aurora + static gradient-mesh (pure CSS, zero JS, zero risk).
+      Content never depends on it; reduced-motion sees the static mesh + gradient. ───── */
 .hero-aurora {
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  /* Static gradient-mesh: two faint colour pools add depth behind the animated orbs. Always on
+     (no motion), so reduced-motion still gets a richer-than-flat backdrop. */
+  background-image:
+    radial-gradient(
+      55rem 28rem at 88% -12%,
+      rgb(26 160 94 / 0.06),
+      transparent 60%
+    ),
+    radial-gradient(
+      38rem 22rem at -5% 112%,
+      rgb(237 200 37 / 0.05),
+      transparent 60%
+    );
 }
 .hero-aurora::before,
 .hero-aurora::after {
@@ -185,16 +198,34 @@ html {
   }
 }
 
-/* Brand gradient text for ONE hero accent word (green — never gold on light). */
+/* Brand gradient text for ONE hero accent word (green — never gold on light). A slow sheen sweeps
+   across the payoff word ("Kamao.") to draw the eye — motion typography, reduced-motion gated. */
 .text-brand-gradient {
   background: linear-gradient(
     100deg,
     var(--gs-green-deep),
-    var(--gs-green-bright)
+    var(--gs-green-bright),
+    var(--gs-green-deep)
   );
+  background-size: 220% 100%;
+  background-position: 0% 50%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .text-brand-gradient {
+    animation: brand-sheen 7s ease-in-out infinite;
+  }
+  @keyframes brand-sheen {
+    0%,
+    100% {
+      background-position: 0% 50%;
+    }
+    50% {
+      background-position: 100% 50%;
+    }
+  }
 }
 
 /* Staged hero entrance — content fully visible when motion is reduced/unsupported. */
@@ -216,6 +247,47 @@ html {
     to {
       opacity: 1;
       transform: none;
+    }
+  }
+}
+
+/* ── Welcome "belonging" moment (DR-030 §4): a soft green→gold glow behind the one-time screen +
+      a single gentle halo pulse on the membership medallion. Static + haloless under reduced-motion. */
+.welcome-glow {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.welcome-glow::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 30%;
+  width: 30rem;
+  height: 30rem;
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(closest-side, rgb(26 160 94 / 0.1), transparent 70%),
+    radial-gradient(closest-side, rgb(237 200 37 / 0.08), transparent 72%);
+  filter: blur(50px);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .welcome-medallion::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 0 rgb(26 160 94 / 0.35);
+    animation: welcome-halo 2.4s ease-out 0.3s 2 both;
+  }
+  @keyframes welcome-halo {
+    0% {
+      box-shadow: 0 0 0 0 rgb(26 160 94 / 0.35);
+    }
+    100% {
+      box-shadow: 0 0 0 1.25rem rgb(26 160 94 / 0);
     }
   }
 }

@@ -49,6 +49,7 @@ export const EnvSchema = z
     CLOUDFLARE_STREAM_CUSTOMER_CODE: z.string().optional(),
     POSTHOG_API_KEY: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
+    EMAIL_UNSUBSCRIBE_SECRET: z.string().optional(), // HMAC key for unsubscribe links — required in prod
     ANTHROPIC_API_KEY: z.string().optional(), // required when AI_PROVIDER=live (Guru, LC #35)
     MSG91_AUTH_KEY: z.string().optional(),
     // Guru cost caps (GPS-M5 §2.0, LC #36) — optional; safe numeric defaults live in modules/ai/guru/caps.ts.
@@ -92,8 +93,12 @@ export const EnvSchema = z
     }
 
     // Production-only requirements.
-    if (isProd)
+    if (isProd) {
       require("PII_ENCRYPTION_KEY", "in production (PII/KYC encryption)");
+      // Unsubscribe links are HMAC-signed; prod MUST set a dedicated key so it never silently
+      // derives from DATABASE_URL (whose rotation would break every outstanding link).
+      require("EMAIL_UNSUBSCRIBE_SECRET", "in production (unsubscribe-link HMAC key)");
+    }
 
     // Format check: PII_ENCRYPTION_KEY must be a 32-byte base64 key (AES-256-GCM) if present.
     if (env.PII_ENCRYPTION_KEY) {
