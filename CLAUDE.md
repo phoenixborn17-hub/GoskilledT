@@ -121,6 +121,8 @@ Types clean (`npm run typecheck`) · Zod at boundaries · tests for money/critic
 
 ### Tier A merge checklist (ALL boxes required — objective, not subjective)
 
+> **GATE (founder directive, 2026-07-05): NEVER self-authorize a merge — ANY tier.** Do not merge anything yourself. Every item is parked with a Review Packet; the merge happens ONLY when Opus/the founder pastes the explicit authorization. If that paste hasn't arrived, park and stop. (Fable/Opus review the packet; the human-relayed authorization is a separate, required step. Applies to Tier A, B, and C alike — a passing review is NOT a merge authorization.)
+
 - [ ] `npm run typecheck` clean
 - [ ] ALL tests green — unit + live integration (money paths never skipped)
 - [ ] Architecture review passed (adapters thin, no rule re-implemented in routes/adapters)
