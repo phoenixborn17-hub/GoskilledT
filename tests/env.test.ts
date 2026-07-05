@@ -60,8 +60,25 @@ describe("env schema", () => {
       ...DEV_BASE,
       NODE_ENV: "production",
       PII_ENCRYPTION_KEY: PII_KEY_32,
+      EMAIL_UNSUBSCRIBE_SECRET: "prod-unsub-secret",
     });
     expect(ok).toEqual([]);
+  });
+
+  it("requires EMAIL_UNSUBSCRIBE_SECRET in production, not in dev (DR-031 security)", () => {
+    // Prod boot without the secret → flagged (validateEnv throws on this).
+    const missing = envIssues({
+      ...DEV_BASE,
+      NODE_ENV: "production",
+      PII_ENCRYPTION_KEY: PII_KEY_32,
+    });
+    expect(missing.some((i) => i.startsWith("EMAIL_UNSUBSCRIBE_SECRET"))).toBe(
+      true,
+    );
+    // Dev without the secret is fine (unsubscribeKey derives from DATABASE_URL locally).
+    expect(
+      envIssues(DEV_BASE).some((i) => i.startsWith("EMAIL_UNSUBSCRIBE_SECRET")),
+    ).toBe(false);
   });
 
   it("validateEnv throws in production, warns in dev", () => {

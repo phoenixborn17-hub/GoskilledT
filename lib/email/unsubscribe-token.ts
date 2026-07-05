@@ -30,10 +30,25 @@ export function verifyUnsubscribe(
 }
 
 /**
- * Signing key. Prefer a dedicated secret; else derive from an existing REQUIRED server secret
- * (DATABASE_URL) — no hardcoded fallback in code (Golden Rule 5). Rotating the source silently
- * invalidates outstanding links, which is acceptable for a transient unsubscribe token.
+ * Signing key for unsubscribe links. Production MUST set a dedicated `EMAIL_UNSUBSCRIBE_SECRET`
+ * (also enforced at boot by env validation) — we throw fast rather than silently derive a key, so a
+ * misconfigured prod deploy can never sign links with a rotate-prone secret or an empty string.
+ * Dev/test may derive from `DATABASE_URL` (an existing local secret) so a laptop boots without extra
+ * config; no hardcoded secret ever lives in code (Golden Rule 5).
  */
 export function unsubscribeKey(): string {
-  return process.env.EMAIL_UNSUBSCRIBE_SECRET || process.env.DATABASE_URL || "";
+  const dedicated = process.env.EMAIL_UNSUBSCRIBE_SECRET;
+  if (dedicated) return dedicated;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "EMAIL_UNSUBSCRIBE_SECRET is required in production (unsubscribe-link HMAC key).",
+    );
+  }
+  const devFallback = process.env.DATABASE_URL;
+  if (!devFallback) {
+    throw new Error(
+      "No unsubscribe key available: set EMAIL_UNSUBSCRIBE_SECRET (or DATABASE_URL in dev).",
+    );
+  }
+  return devFallback;
 }
