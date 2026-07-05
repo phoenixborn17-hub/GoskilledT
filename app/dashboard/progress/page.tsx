@@ -6,6 +6,8 @@ import {
   getEnrolledCourses,
   getCertificatesByCourse,
 } from "../../../lib/lms/queries";
+import { getGamification } from "../../../lib/dashboard/gamification";
+import { Milestones } from "../../../components/dashboard/gamification/milestones";
 import { ProgressRing } from "../../../components/dashboard/progress-ring";
 import { CertificateCard } from "../../../components/dashboard/certificate-card";
 import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
@@ -15,9 +17,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ProgressPage() {
   const user = await getCurrentUser();
-  const [courses, certs] = await Promise.all([
+  const [courses, certs, game] = await Promise.all([
     getEnrolledCourses(user!.id),
     getCertificatesByCourse(user!.id),
+    getGamification(user!.id),
   ]);
 
   return (
@@ -25,6 +28,15 @@ export default async function ProgressPage() {
       <h1 id="progress-heading" className="font-heading text-2xl font-bold">
         Progress
       </h1>
+
+      {/* Milestones (GPS-M5 §2.3) — real learning achievements, warm next-goal (never pressure). */}
+      {courses.length > 0 && (
+        <Milestones
+          milestones={game.milestones}
+          next={game.next}
+          earnedCount={game.earnedCount}
+        />
+      )}
 
       {courses.length === 0 ? (
         <Card className="text-center">

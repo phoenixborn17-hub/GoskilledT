@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { getCurrentUser } from "../../lib/auth/session";
 import { getHubData } from "../../lib/dashboard/hub";
+import { getGamification } from "../../lib/dashboard/gamification";
+import { StreakChip } from "../../components/dashboard/gamification/streak-chip";
 import { AFFILIATE_COPY } from "../../lib/affiliate/copy";
 import { Card, CardTitle, CardDescription } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -34,7 +36,10 @@ const GOAL_CHIP: Record<string, string> = {
 
 export default async function DashboardHubPage() {
   const user = await getCurrentUser();
-  const hub = await getHubData(user!.id);
+  const [hub, game] = await Promise.all([
+    getHubData(user!.id),
+    getGamification(user!.id),
+  ]);
 
   return (
     <section aria-labelledby="hub-heading" className="space-y-6">
@@ -50,6 +55,9 @@ export default async function DashboardHubPage() {
         </div>
         <Badge variant="gold">Founding Batch</Badge>
       </header>
+
+      {/* 1b · Streak chip (GPS-M5 §2.3) — ethical: celebrates progress, rests without guilt. */}
+      <StreakChip streak={game.streak} />
 
       {/* 2 · Get-Started checklist */}
       {!hub.checklist.dismissed && (

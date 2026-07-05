@@ -1,0 +1,540 @@
+diff --git a/app/dashboard/page.tsx b/app/dashboard/page.tsx
+index 53de498..ebac15b 100644
+--- a/app/dashboard/page.tsx
++++ b/app/dashboard/page.tsx
+@@ -14,6 +14,8 @@ import {
+ } from "lucide-react";
+ import { getCurrentUser } from "../../lib/auth/session";
+ import { getHubData } from "../../lib/dashboard/hub";
++import { getGamification } from "../../lib/dashboard/gamification";
++import { StreakChip } from "../../components/dashboard/gamification/streak-chip";
+ import { AFFILIATE_COPY } from "../../lib/affiliate/copy";
+ import { Card, CardTitle, CardDescription } from "../../components/ui/card";
+ import { Badge } from "../../components/ui/badge";
+@@ -34,7 +36,10 @@ const GOAL_CHIP: Record<string, string> = {
+ 
+ export default async function DashboardHubPage() {
+   const user = await getCurrentUser();
+-  const hub = await getHubData(user!.id);
++  const [hub, game] = await Promise.all([
++    getHubData(user!.id),
++    getGamification(user!.id),
++  ]);
+ 
+   return (
+     <section aria-labelledby="hub-heading" className="space-y-6">
+@@ -51,6 +56,9 @@ export default async function DashboardHubPage() {
+         <Badge variant="gold">Founding Batch</Badge>
+       </header>
+ 
++      {/* 1b · Streak chip (GPS-M5 §2.3) — ethical: celebrates progress, rests without guilt. */}
++      <StreakChip streak={game.streak} />
++
+       {/* 2 · Get-Started checklist */}
+       {!hub.checklist.dismissed && (
+         <ChecklistCard
+diff --git a/app/dashboard/progress/page.tsx b/app/dashboard/progress/page.tsx
+index 9d6257a..52bb154 100644
+--- a/app/dashboard/progress/page.tsx
++++ b/app/dashboard/progress/page.tsx
+@@ -6,6 +6,8 @@ import {
+   getEnrolledCourses,
+   getCertificatesByCourse,
+ } from "../../../lib/lms/queries";
++import { getGamification } from "../../../lib/dashboard/gamification";
++import { Milestones } from "../../../components/dashboard/gamification/milestones";
+ import { ProgressRing } from "../../../components/dashboard/progress-ring";
+ import { CertificateCard } from "../../../components/dashboard/certificate-card";
+ import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
+@@ -15,9 +17,10 @@ export const dynamic = "force-dynamic";
+ 
+ export default async function ProgressPage() {
+   const user = await getCurrentUser();
+-  const [courses, certs] = await Promise.all([
++  const [courses, certs, game] = await Promise.all([
+     getEnrolledCourses(user!.id),
+     getCertificatesByCourse(user!.id),
++    getGamification(user!.id),
+   ]);
+ 
+   return (
+@@ -26,6 +29,15 @@ export default async function ProgressPage() {
+         Progress
+       </h1>
+ 
++      {/* Milestones (GPS-M5 §2.3) — real learning achievements, warm next-goal (never pressure). */}
++      {courses.length > 0 && (
++        <Milestones
++          milestones={game.milestones}
++          next={game.next}
++          earnedCount={game.earnedCount}
++        />
++      )}
++
+       {courses.length === 0 ? (
+         <Card className="text-center">
+           <CardTitle>Nothing to track yet</CardTitle>
+diff --git a/components/dashboard/gamification/milestones.tsx b/components/dashboard/gamification/milestones.tsx
+new file mode 100644
+index 0000000..aa37ef1
+--- /dev/null
++++ b/components/dashboard/gamification/milestones.tsx
+@@ -0,0 +1,92 @@
++// GPS-M5 §2.3 — milestones (Register 1, progress page). Celebrates REAL learning achievements only
++// (D-29: zero earnings framing). Earned = filled; the next one is a POSITIVE goal, never pressure.
++// A new account sees an inviting first goal, not a wall of locked badges. Server component.
++import {
++  PlayCircle,
++  CheckCircle2,
++  TrendingUp,
++  GraduationCap,
++  Award,
++  Flame,
++  Target,
++} from "lucide-react";
++import { Card } from "../../ui/card";
++import type { Milestone, MilestoneId } from "../../../modules/lms/gamification";
++
++const ICON: Record<MilestoneId, typeof Award> = {
++  first_lesson: PlayCircle,
++  quiz_first: CheckCircle2,
++  halfway: TrendingUp,
++  course_complete: GraduationCap,
++  certificate: Award,
++  streak_3: Flame,
++  streak_7: Flame,
++};
++
++export function Milestones({
++  milestones,
++  next,
++  earnedCount,
++}: {
++  milestones: Milestone[];
++  next: Milestone | null;
++  earnedCount: number;
++}) {
++  const earned = milestones.filter((m) => m.achieved);
++
++  return (
++    <Card className="space-y-4">
++      <div className="flex items-center justify-between gap-2">
++        <h2 className="font-heading text-lg font-bold text-charcoal">
++          Milestones
++        </h2>
++        {earnedCount > 0 && (
++          <span className="text-sm font-semibold text-brand">
++            {earnedCount} earned
++          </span>
++        )}
++      </div>
++
++      {earned.length === 0 ? (
++        // Warm first-goal invite — no fake wins, no pressure.
++        <div className="flex items-center gap-3 rounded-xl bg-brand/5 p-4">
++          <span
++            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand"
++            aria-hidden
++          >
++            <Target className="h-5 w-5" />
++          </span>
++          <p className="text-sm text-charcoal">
++            Aapka pehla milestone:{" "}
++            <span className="font-semibold">{next?.label}</span>. Bas ek lesson
++            se shuruaat karo!
++          </p>
++        </div>
++      ) : (
++        <>
++          <ul className="flex flex-wrap gap-2">
++            {earned.map((m) => {
++              const Icon = ICON[m.id];
++              return (
++                <li
++                  key={m.id}
++                  className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1.5 text-sm font-medium text-charcoal"
++                >
++                  <Icon className="h-4 w-4 text-brand" aria-hidden />
++                  {m.label}
++                </li>
++              );
++            })}
++          </ul>
++          {next && (
++            <p className="flex items-center gap-2 text-sm text-muted">
++              <Target className="h-4 w-4 text-brand" aria-hidden />
++              Next goal:{" "}
++              <span className="font-medium text-charcoal">{next.label}</span>
++            </p>
++          )}
++        </>
++      )}
++    </Card>
++  );
++}
+diff --git a/components/dashboard/gamification/streak-chip.tsx b/components/dashboard/gamification/streak-chip.tsx
+new file mode 100644
+index 0000000..84a3206
+--- /dev/null
++++ b/components/dashboard/gamification/streak-chip.tsx
+@@ -0,0 +1,59 @@
++// GPS-M5 §2.3 — streak chip (Register 1, hub). Ethical: celebrates the run, invites warmly when
++// resting, and NEVER warns about losing anything. No countdown, no FOMO. Server component.
++import { Flame } from "lucide-react";
++import type { StreakView } from "../../../modules/lms/gamification";
++
++export function StreakChip({ streak }: { streak: StreakView }) {
++  const active = streak.state === "active" && streak.current > 0;
++  const resting = streak.current > 0 && !active;
++
++  const { title, sub, tone } = active
++    ? {
++        title: `${streak.current} din ki learning streak!`,
++        sub: "Aaj bhi seekha — shabaash. Aise hi chalte raho.",
++        tone: "brand" as const,
++      }
++    : resting
++      ? {
++          title: "Streak resting hai",
++          sub: "Aaj ek chhota lesson se wapas shuru karo — bas 2 minute.",
++          tone: "muted" as const,
++        }
++      : {
++          title: "Apni learning streak shuru karo",
++          sub: "Ek lesson complete karo — aaj se rozana thoda seekho.",
++          tone: "muted" as const,
++        };
++
++  return (
++    <div
++      className={
++        "flex items-center gap-3 rounded-2xl border p-4 " +
++        (tone === "brand"
++          ? "border-brand/20 bg-brand/5"
++          : "border-charcoal/10 bg-white")
++      }
++    >
++      <span
++        className={
++          "flex h-11 w-11 shrink-0 items-center justify-center rounded-full " +
++          (active ? "bg-gold/20 text-charcoal" : "bg-charcoal/5 text-muted")
++        }
++        aria-hidden
++      >
++        <Flame className="h-5 w-5" />
++      </span>
++      <div className="min-w-0 flex-1">
++        <p className="font-heading text-sm font-bold text-charcoal">{title}</p>
++        <p className="text-xs text-muted">{sub}</p>
++      </div>
++      {streak.longest > 1 && (
++        <span className="shrink-0 text-right text-[11px] text-muted">
++          Best
++          <br />
++          <span className="font-bold text-charcoal">{streak.longest} din</span>
++        </span>
++      )}
++    </div>
++  );
++}
+diff --git a/lib/dashboard/gamification.ts b/lib/dashboard/gamification.ts
+new file mode 100644
+index 0000000..a5c5959
+--- /dev/null
++++ b/lib/dashboard/gamification.ts
+@@ -0,0 +1,68 @@
++// GPS-M5 §2.3 — gamification loader. DERIVED from real activity only (no new tables): learning days
++// come from LessonProgress + passed quiz attempts; milestones from progress/certs. Nothing stored,
++// nothing fabricated.
++import { prisma } from "../prisma";
++import { getEnrolledCourses } from "../lms/queries";
++import {
++  computeStreak,
++  computeMilestones,
++  nextMilestone,
++  type StreakView,
++  type Milestone,
++} from "../../modules/lms/gamification";
++
++/** Calendar day (Asia/Kolkata) for a timestamp — a "learning day" is one IST day with activity. */
++function istDay(d: Date): string {
++  return new Date(d.getTime() + 330 * 60_000).toISOString().slice(0, 10);
++}
++
++export interface GamificationView {
++  streak: StreakView;
++  milestones: Milestone[];
++  next: Milestone | null;
++  earnedCount: number;
++}
++
++export async function getGamification(
++  userId: string,
++): Promise<GamificationView> {
++  const [progress, quizPasses, certificateCount, courses] = await Promise.all([
++    prisma.lessonProgress.findMany({
++      where: { userId },
++      select: { completedAt: true },
++    }),
++    prisma.quizAttempt.findMany({
++      where: { userId, passed: true },
++      select: { createdAt: true },
++    }),
++    prisma.certificate.count({ where: { userId } }),
++    getEnrolledCourses(userId),
++  ]);
++
++  const activeDays = [
++    ...new Set([
++      ...progress.map((p) => istDay(p.completedAt)),
++      ...quizPasses.map((q) => istDay(q.createdAt)),
++    ]),
++  ];
++  const streak = computeStreak(activeDays, istDay(new Date()));
++  const maxCoursePercent = courses.reduce(
++    (m, c) => Math.max(m, c.progress.percent),
++    0,
++  );
++
++  const milestones = computeMilestones({
++    anyLessonDone: progress.length > 0,
++    anyQuizPassed: quizPasses.length > 0,
++    maxCoursePercent,
++    certificateCount,
++    longestStreak: streak.longest,
++  });
++
++  return {
++    streak,
++    milestones,
++    next: nextMilestone(milestones),
++    earnedCount: milestones.filter((m) => m.achieved).length,
++  };
++}
+diff --git a/modules/lms/gamification.ts b/modules/lms/gamification.ts
+new file mode 100644
+index 0000000..f9baef4
+--- /dev/null
++++ b/modules/lms/gamification.ts
+@@ -0,0 +1,130 @@
++// GPS-M5 §2.3 — ethical gamification. PURE + derived (no new tables): streaks + milestones are computed
++// from real activity (LessonProgress / quiz passes / certificates). ETHICAL RULES, enforced here:
++//   • ZERO loss-aversion — a gap makes a streak REST, never "break"/"lost". No "you'll lose it", no FOMO.
++//   • Milestones celebrate REAL achievements only (D-29: learning wins, never earnings/income).
++//   • A new/idle account gets a warm INVITE, never a guilt nudge.
++
++/** A learning day = a calendar day (IST) with ≥1 real activity. Dates are 'YYYY-MM-DD' strings. */
++export type StreakState = "active" | "resting";
++
++export interface StreakView {
++  current: number; // length of the run ending today (active) or yesterday (resting)
++  longest: number;
++  state: StreakState;
++}
++
++function addDays(dateStr: string, delta: number): string {
++  // Treat the string as a plain calendar date (already IST-normalized). Noon UTC avoids DST/TZ edges.
++  const d = new Date(`${dateStr}T12:00:00Z`);
++  d.setUTCDate(d.getUTCDate() + delta);
++  return d.toISOString().slice(0, 10);
++}
++
++/**
++ * PURE: compute the streak from the set of active days. The run is anchored at today (active) or, if
++ * today has no activity yet, at yesterday (resting) — so a learner is NEVER punished for not having
++ * studied *yet today*. A longer gap → current 0, resting (the UI shows a warm invite, not a loss).
++ */
++export function computeStreak(activeDays: string[], today: string): StreakView {
++  const set = new Set(activeDays);
++  const longest = longestRun(activeDays);
++
++  let anchor: string | null = null;
++  let state: StreakState = "resting";
++  if (set.has(today)) {
++    anchor = today;
++    state = "active";
++  } else if (set.has(addDays(today, -1))) {
++    anchor = addDays(today, -1);
++    state = "resting"; // studied yesterday, not yet today — resting, not broken
++  }
++
++  let current = 0;
++  if (anchor) {
++    let day = anchor;
++    while (set.has(day)) {
++      current++;
++      day = addDays(day, -1);
++    }
++  }
++  return { current, longest, state };
++}
++
++function longestRun(activeDays: string[]): number {
++  const sorted = [...new Set(activeDays)].sort();
++  let best = 0;
++  let run = 0;
++  let prev: string | null = null;
++  for (const day of sorted) {
++    run = prev && addDays(prev, 1) === day ? run + 1 : 1;
++    if (run > best) best = run;
++    prev = day;
++  }
++  return best;
++}
++
++// ── Milestones (real achievements only) ─────────────────────────────────────────────────────────
++export type MilestoneId =
++  | "first_lesson"
++  | "quiz_first"
++  | "halfway"
++  | "course_complete"
++  | "certificate"
++  | "streak_3"
++  | "streak_7";
++
++export interface Milestone {
++  id: MilestoneId;
++  label: string; // warm, D-29-safe learning achievement
++  achieved: boolean;
++}
++
++export interface MilestoneInput {
++  anyLessonDone: boolean;
++  anyQuizPassed: boolean;
++  maxCoursePercent: number; // highest completion across enrolled courses
++  certificateCount: number;
++  longestStreak: number;
++}
++
++/** PURE: the ordered milestone set with achieved flags (real events only — never fabricated). */
++export function computeMilestones(i: MilestoneInput): Milestone[] {
++  return [
++    {
++      id: "first_lesson",
++      label: "Pehla lesson complete",
++      achieved: i.anyLessonDone,
++    },
++    { id: "quiz_first", label: "Pehla quiz pass", achieved: i.anyQuizPassed },
++    {
++      id: "halfway",
++      label: "Aadha course complete",
++      achieved: i.maxCoursePercent >= 50,
++    },
++    {
++      id: "course_complete",
++      label: "Poora course complete",
++      achieved: i.maxCoursePercent >= 100,
++    },
++    {
++      id: "certificate",
++      label: "Certificate earned",
++      achieved: i.certificateCount > 0,
++    },
++    {
++      id: "streak_3",
++      label: "3-din learning streak",
++      achieved: i.longestStreak >= 3,
++    },
++    {
++      id: "streak_7",
++      label: "7-din learning streak",
++      achieved: i.longestStreak >= 7,
++    },
++  ];
++}
++
++/** The next un-earned milestone — shown as a POSITIVE goal, never as pressure. Null when all earned. */
++export function nextMilestone(milestones: Milestone[]): Milestone | null {
++  return milestones.find((m) => !m.achieved) ?? null;
++}
+diff --git a/tests/gamification-domain.test.ts b/tests/gamification-domain.test.ts
+new file mode 100644
+index 0000000..823b687
+--- /dev/null
++++ b/tests/gamification-domain.test.ts
+@@ -0,0 +1,85 @@
++// GPS-M5 §2.3 — ethical gamification (pure). The ETHICAL rules are the point: a gap RESTS a streak
++// (never breaks it), and a longer gap yields a warm zero, never a punishment.
++import { describe, it, expect } from "vitest";
++import {
++  computeStreak,
++  computeMilestones,
++  nextMilestone,
++} from "../modules/lms/gamification";
++
++const TODAY = "2026-07-05";
++const day = (delta: number) => {
++  const d = new Date(`${TODAY}T12:00:00Z`);
++  d.setUTCDate(d.getUTCDate() + delta);
++  return d.toISOString().slice(0, 10);
++};
++
++describe("computeStreak (ethical)", () => {
++  it("counts an active run ending today", () => {
++    const s = computeStreak([day(-2), day(-1), day(0)], TODAY);
++    expect(s).toEqual({ current: 3, longest: 3, state: "active" });
++  });
++
++  it("RESTS (not breaks) when studied yesterday but not yet today", () => {
++    const s = computeStreak([day(-2), day(-1)], TODAY);
++    expect(s.state).toBe("resting");
++    expect(s.current).toBe(2); // the run is honoured, not zeroed
++  });
++
++  it("returns a warm zero after a longer gap — never negative, never 'broken'", () => {
++    const s = computeStreak([day(-5), day(-4)], TODAY);
++    expect(s).toMatchObject({ current: 0, state: "resting" });
++    expect(s.longest).toBe(2); // history still celebrated
++  });
++
++  it("handles an empty history (new account) as a resting zero", () => {
++    expect(computeStreak([], TODAY)).toEqual({
++      current: 0,
++      longest: 0,
++      state: "resting",
++    });
++  });
++
++  it("computes the longest run across gaps + ignores duplicate days", () => {
++    const s = computeStreak(
++      [day(-10), day(-9), day(-9), day(-1), day(0)],
++      TODAY,
++    );
++    expect(s.longest).toBe(2);
++    expect(s.current).toBe(2);
++  });
++});
++
++describe("computeMilestones (real events only)", () => {
++  it("reflects real achievements and nothing fabricated", () => {
++    const ms = computeMilestones({
++      anyLessonDone: true,
++      anyQuizPassed: false,
++      maxCoursePercent: 60,
++      certificateCount: 0,
++      longestStreak: 4,
++    });
++    const by = Object.fromEntries(ms.map((m) => [m.id, m.achieved]));
++    expect(by).toMatchObject({
++      first_lesson: true,
++      quiz_first: false,
++      halfway: true,
++      course_complete: false,
++      certificate: false,
++      streak_3: true,
++      streak_7: false,
++    });
++  });
++
++  it("a brand-new account has zero milestones (no fake wins)", () => {
++    const ms = computeMilestones({
++      anyLessonDone: false,
++      anyQuizPassed: false,
++      maxCoursePercent: 0,
++      certificateCount: 0,
++      longestStreak: 0,
++    });
++    expect(ms.every((m) => !m.achieved)).toBe(true);
++    expect(nextMilestone(ms)?.id).toBe("first_lesson"); // a positive first goal, not pressure
++  });
++});
