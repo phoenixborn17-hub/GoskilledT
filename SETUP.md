@@ -71,4 +71,32 @@ npm run test            # full suite (unit + live integration)
 npm run dev             # http://localhost:3000
 ```
 
+## 8. QA-01 screenshot & budget harness (optional)
+
+Captures **every route** at **360 / 768 / 1280px** in each reachable state (default · empty ·
+loading · error) and scores each shot against the mechanical **DESIGN_DIRECTION v1.0** budgets
+(horizontal overflow, CLS, dev-advisory LCP, tap targets, render health). Output lands in
+`docs/qa/QA-01/` (`index.md` + `shots/`); broken states are auto-filed to `docs/PRODUCT_DEBT.md`.
+
+```bash
+npm run dev             # in one terminal (the harness reuses a running dev server)
+npm run qa:all          # bootstrap sessions → capture → build index.md + debt rows
+```
+
+`qa:all` runs three steps you can also invoke individually:
+
+- `npm run qa:auth` — provisions two persistent QA accounts in Supabase Auth
+  (`qa-learner@goskilledqa.com`, `qa-admin@goskilledqa.com`) and **mints the admin role via SQL**
+  (`auth.users.raw_app_meta_data.role = 'admin'` — the RBAC claim the middleware checks). It signs
+  both in through GoTrue and captures the exact SSR session cookies into `e2e/.auth/` (git-ignored),
+  plus a `fixtures.json` for the dynamic routes. Idempotent; needs no `service_role` key. The
+  fresh learner account has no data, so authenticated dashboards render their genuine **empty**
+  states (nothing fabricated). **Safety guard:** because it writes to the `auth` schema, it refuses
+  any non-localhost project unless you set `QA_BOOTSTRAP_ALLOW=1` (acknowledging it is dev/staging),
+  and it hard-blocks a configured `PRODUCTION_SUPABASE_URL` regardless — see `.env.example`.
+- `npm run qa:capture` — the Playwright capture pass (`playwright.qa.config.ts`, separate from the
+  read-only public smoke config). Never fails on a budget miss — it records, screenshots, and moves on.
+- `npm run qa:report` — regenerates `docs/qa/QA-01/index.md` and the marker-delimited QA-01 block in
+  `docs/PRODUCT_DEBT.md` (idempotent; manual debt rows untouched).
+
 > Then build modules in the order in CLAUDE.md. Ask Claude Code: "Build the auth module per CLAUDE.md."
