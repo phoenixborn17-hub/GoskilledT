@@ -71,3 +71,6 @@ desktop.ini
 
 # ── Claude Code local machine settings ────────────────────────
 .claude/settings.local.json
+
+# GPS-M5 verification screenshots (regenerable evidence — packets reference them)
+/docs/qa/GPS-M5/

@@ -1,5 +1,6 @@
 // Progress tab (Blueprint §3): per-course progress with a Resume action. Never blank.
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import { getCurrentUser } from "../../../lib/auth/session";
 import {
   getEnrolledCourses,
@@ -66,7 +67,21 @@ export default async function ProgressPage() {
                 </div>
               </div>
             </div>
-            {/* Certificate slot (§2.4). Guru "explain-my-gap" entry (§1E, GPS-M5) reserved here. */}
+            {/* Guru "explain-my-gap" entry (§1E, GPS-M5): opens Guru on the resume lesson with a
+                ready doubt. Shown while there's still something to learn. */}
+            {c.progress.percent < 100 && (
+              <Link
+                href={`/dashboard/learn/${c.slug}?guru=1&q=${encodeURIComponent(
+                  "Jo lesson main abhi padh raha hoon, uska main concept simple words me samjhao.",
+                )}`}
+                className="press mt-4 inline-flex items-center gap-2 rounded-xl bg-brand/5 px-3 py-2 text-sm font-semibold text-brand"
+              >
+                <Sparkles className="h-4 w-4" aria-hidden />
+                Guru se samjho — stuck kahan ho?
+              </Link>
+            )}
+
+            {/* Certificate slot (§2.4). */}
             <CertificateCard
               percent={c.progress.percent}
               certificate={certs.get(c.courseId) ?? null}

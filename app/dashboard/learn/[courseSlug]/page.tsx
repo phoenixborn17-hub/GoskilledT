@@ -12,6 +12,7 @@ import {
 import { getVideoProvider } from "../../../../lib/video/provider";
 import { nextLessonId } from "../../../../modules/lms/progress";
 import { LessonPlayer } from "../../../../components/dashboard/lesson-player";
+import { GuruPanel } from "../../../../components/dashboard/guru/guru-panel";
 import {
   Card,
   CardTitle,
@@ -27,10 +28,10 @@ export default async function CoursePlayerPage({
   searchParams,
 }: {
   params: Promise<{ courseSlug: string }>;
-  searchParams: Promise<{ lesson?: string }>;
+  searchParams: Promise<{ lesson?: string; guru?: string; q?: string }>;
 }) {
   const { courseSlug } = await params;
-  const { lesson: lessonParam } = await searchParams;
+  const { lesson: lessonParam, guru, q } = await searchParams;
 
   const user = await getCurrentUser();
   const view = await getCoursePlayerView(user!.id, courseSlug);
@@ -149,6 +150,16 @@ export default async function CoursePlayerPage({
           ))}
         </aside>
       </div>
+
+      {/* Guru companion panel (GPS-M5 §2.1) — context = the currently-viewed lesson. Deep-linkable
+          via ?guru=1 (auto-open) and ?q= (auto-ask, e.g. progress "explain my gap"). */}
+      <GuruPanel
+        lessonId={selected.id}
+        courseSlug={courseSlug}
+        enrolled={view.isEnrolled}
+        initialOpen={guru === "1"}
+        initialQuestion={q}
+      />
     </div>
   );
 }
