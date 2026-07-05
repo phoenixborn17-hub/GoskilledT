@@ -8,3 +8,6 @@ docs/*.md
 # Generated / build output (also covered by .gitignore, listed here for prettier --check).
 .next/
 lib/generated/
+
+# QA-01 harness generated output (index.md is machine-written by scripts/qa-report.ts).
+docs/qa/QA-01/

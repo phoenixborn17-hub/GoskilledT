@@ -37,6 +37,13 @@ next-env.d.ts
 /blob-report
 /playwright/.cache
 
+# QA-01 screenshot harness: session tokens (SECRET) + regenerable evidence.
+# The durable deliverable is docs/qa/QA-01/index.md (the mechanical record). The screenshots and
+# results.json are regenerable evidence (`npm run qa:all`), so they are NOT tracked.
+/e2e/.auth
+/docs/qa/QA-01/results.json
+/docs/qa/QA-01/shots/
+
 # ── Logs ──────────────────────────────────────────────────────
 *.log
 npm-debug.log*
