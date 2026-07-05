@@ -1,0 +1,130 @@
+commit 4afc341bfe5c8bf8a5c6af8b4e8e045eb75a4033
+Author: phoenixborn17 <phoenixborn17@gmail.com>
+Date:   Mon Jul 6 00:34:21 2026 +0530
+
+    @
+    polish-1: first-lesson moment — moment-grade confetti + first-win banner (Tier-B · #14)
+    
+    §2.6 Signature Moment. Elevates the shared Confetti to a fuller burst (24 pieces,
+    outward drift, varied ribbon/chip shapes, eased fall) and adds a warm first-win
+    banner ("Pehla lesson complete! 🎉") shown only on the FIRST-ever completion
+    (progress.completed === 1). Reduced-motion safe (confetti self-guards; banner via
+    gated .enter). Verified in-browser via QA session (real first-completion flow).
+    
+    Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+    @
+
+diff --git a/components/dashboard/lesson-player.tsx b/components/dashboard/lesson-player.tsx
+index 3535473..60d74ec 100644
+--- a/components/dashboard/lesson-player.tsx
++++ b/components/dashboard/lesson-player.tsx
+@@ -1,7 +1,7 @@
+ "use client";
+ import { useState } from "react";
+ import { useRouter } from "next/navigation";
+-import { Check } from "lucide-react";
++import { Check, PartyPopper } from "lucide-react";
+ import { Button } from "../ui/button";
+ import { Confetti } from "../ui/confetti";
+ import { CertificateMoment } from "./certificate-moment";
+@@ -29,6 +29,7 @@ export function LessonPlayer({
+   const router = useRouter();
+   const [completed, setCompleted] = useState(initiallyCompleted);
+   const [celebrate, setCelebrate] = useState(false);
++  const [firstWin, setFirstWin] = useState(false);
+   const [certSerial, setCertSerial] = useState<string | null>(null);
+   const [busy, setBusy] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+@@ -46,9 +47,14 @@ export function LessonPlayer({
+     setBusy(false);
+     if (!res.ok) return setError(res.error);
+     setCompleted(true);
+-    // Course-complete → the Certificate Earned signature moment (§2.6); otherwise a small confetti win.
+-    if (res.certificateSerial) setCertSerial(res.certificateSerial);
+-    else setCelebrate(true); // purposeful-delight moment (§5) — reduced-motion safe inside <Confetti>
++    // Course-complete → the Certificate Earned signature moment (§2.6); otherwise a confetti win, and
++    // the FIRST-ever completion (progress.completed === 1) earns a warm first-win banner (§2.6).
++    if (res.certificateSerial) {
++      setCertSerial(res.certificateSerial);
++    } else {
++      setCelebrate(true); // purposeful-delight moment (§5) — reduced-motion safe inside <Confetti>
++      if (res.progress.completed === 1) setFirstWin(true);
++    }
+     router.refresh(); // updates the lesson list + progress ring
+   }
+ 
+@@ -60,6 +66,27 @@ export function LessonPlayer({
+   return (
+     <div className="space-y-4">
+       <Confetti fire={celebrate} />
++      {firstWin && (
++        <div
++          role="status"
++          className="enter flex items-center gap-3 rounded-2xl bg-gradient-to-br from-brand/10 to-gold/15 p-4"
++        >
++          <span
++            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand/15 text-brand"
++            aria-hidden
++          >
++            <PartyPopper className="h-5 w-5" />
++          </span>
++          <div className="min-w-0">
++            <p className="font-heading font-bold text-charcoal">
++              Pehla lesson complete! 🎉
++            </p>
++            <p className="text-sm text-muted">
++              Shabaash — aapne shuru kar diya. Isi tarah aage badhte raho.
++            </p>
++          </div>
++        </div>
++      )}
+       {certSerial && (
+         <CertificateMoment
+           serial={certSerial}
+diff --git a/components/ui/confetti.tsx b/components/ui/confetti.tsx
+index 64547f0..741cef3 100644
+--- a/components/ui/confetti.tsx
++++ b/components/ui/confetti.tsx
+@@ -28,12 +28,19 @@ export function Confetti({ fire }: { fire: boolean }) {
+       className="pointer-events-none fixed inset-0 z-50 overflow-hidden"
+     >
+       <style>{`
+-        @keyframes gs-confetti { 0% { transform: translateY(-10vh) rotate(0deg); opacity: 1 } 100% { transform: translateY(110vh) rotate(540deg); opacity: 0 } }
++        @keyframes gs-confetti {
++          0%   { transform: translateY(-12vh) translateX(0) rotate(0deg); opacity: 1 }
++          100% { transform: translateY(110vh) translateX(var(--drift, 0px)) rotate(var(--spin, 540deg)); opacity: 0 }
++        }
+       `}</style>
+-      {Array.from({ length: 16 }, (_, i) => {
+-        const left = (i * 6.1 + 5) % 100;
+-        const delay = (i % 5) * 90;
+-        const duration = 1100 + (i % 4) * 150;
++      {Array.from({ length: 24 }, (_, i) => {
++        const left = (i * 4.05 + 3) % 100;
++        const delay = (i % 6) * 80;
++        const duration = 1150 + (i % 5) * 160;
++        // Drift outward from centre + varied shapes/sizes → a fuller, moment-grade burst.
++        const drift = (left < 50 ? -1 : 1) * (12 + (i % 4) * 16);
++        const spin = (i % 2 ? 1 : -1) * (420 + (i % 3) * 180);
++        const strip = i % 3 === 0; // some thin ribbons, some chips
+         return (
+           <span
+             key={i}
+@@ -41,11 +48,13 @@ export function Confetti({ fire }: { fire: boolean }) {
+               position: "absolute",
+               top: 0,
+               left: `${left}%`,
+-              width: 8,
+-              height: 12,
+-              borderRadius: 2,
++              width: strip ? 5 : 9,
++              height: strip ? 14 : 9,
++              borderRadius: strip ? 1 : 2,
+               background: COLORS[i % COLORS.length],
+-              animation: `gs-confetti ${duration}ms ${delay}ms ease-in forwards`,
++              ["--drift" as string]: `${drift}px`,
++              ["--spin" as string]: `${spin}deg`,
++              animation: `gs-confetti ${duration}ms ${delay}ms cubic-bezier(0.3, 0.7, 0.4, 1) forwards`,
+             }}
+           />
+         );

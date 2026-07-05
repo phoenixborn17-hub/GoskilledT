@@ -1,0 +1,218 @@
+commit b3d7136a58d95cb3d4cf58d91437e47a579b4018
+Author: phoenixborn17 <phoenixborn17@gmail.com>
+Date:   Mon Jul 6 00:26:24 2026 +0530
+
+    @
+    polish-1: referral milestone moment — derived tier track + one-time celebration (Tier-B · #13)
+    
+    §2.6 Signature Moment on the hub Earn card. Pure tier domain
+    (modules/affiliate/milestone.ts, tiers 1/5/10/25) + a client track that lights
+    reached tiers gold (charcoal text — gold-contrast rule) and fires confetti ONCE
+    per newly-crossed tier (localStorage-gated, reduced-motion-safe). Fully DERIVED
+    from the real invite count; D-29 count-only framing, zero earnings language.
+    Tier boundaries unit-tested (5); zero-state verified in-browser.
+    
+    Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+    @
+
+diff --git a/app/dashboard/page.tsx b/app/dashboard/page.tsx
+index ebac15b..7d4f025 100644
+--- a/app/dashboard/page.tsx
++++ b/app/dashboard/page.tsx
+@@ -16,6 +16,7 @@ import { getCurrentUser } from "../../lib/auth/session";
+ import { getHubData } from "../../lib/dashboard/hub";
+ import { getGamification } from "../../lib/dashboard/gamification";
+ import { StreakChip } from "../../components/dashboard/gamification/streak-chip";
++import { ReferralMilestone } from "../../components/dashboard/referral-milestone";
+ import { AFFILIATE_COPY } from "../../lib/affiliate/copy";
+ import { Card, CardTitle, CardDescription } from "../../components/ui/card";
+ import { Badge } from "../../components/ui/badge";
+@@ -248,11 +249,7 @@ function EarnCard({
+         <CardTitle className="text-lg">Invite friends</CardTitle>
+       </div>
+       <CardDescription>{AFFILIATE_COPY.inviteBody}</CardDescription>
+-      <p className="text-sm font-semibold text-charcoal">
+-        {inviteCount === 0
+-          ? AFFILIATE_COPY.inviteZero
+-          : `${inviteCount} friend${inviteCount === 1 ? "" : "s"} invited`}
+-      </p>
++      <ReferralMilestone inviteCount={inviteCount} />
+       <ShareBlock
+         shareUrl={shareUrl}
+         shareMessage={AFFILIATE_COPY.shareMessage}
+diff --git a/components/dashboard/referral-milestone.tsx b/components/dashboard/referral-milestone.tsx
+new file mode 100644
+index 0000000..b6a6a2f
+--- /dev/null
++++ b/components/dashboard/referral-milestone.tsx
+@@ -0,0 +1,86 @@
++"use client";
++// §2.6 Signature Moment — referral milestones. DERIVED from the real invite count (no new table,
++// no fabricated data). D-29 floor: celebrates the ACT of inviting learners by count only — never
++// earnings, rewards, or ₹. A one-time confetti fires the first time a new tier is crossed (tracked
++// in localStorage so it never repeats on every dashboard load); reduced-motion is honoured by Confetti.
++import { useEffect, useState } from "react";
++import { Check } from "lucide-react";
++import { Confetti } from "../ui/confetti";
++import { AFFILIATE_COPY } from "../../lib/affiliate/copy";
++import {
++  REFERRAL_TIERS,
++  highestReachedTier,
++  nextTier,
++} from "../../modules/affiliate/milestone";
++import { cn } from "../../lib/utils";
++
++const STORE_KEY = "gs_referral_tier";
++
++export function ReferralMilestone({ inviteCount }: { inviteCount: number }) {
++  const reached = highestReachedTier(inviteCount);
++  const next = nextTier(inviteCount);
++  const [celebrate, setCelebrate] = useState(false);
++
++  // Fire once per newly-crossed tier. localStorage stores the highest tier already celebrated.
++  useEffect(() => {
++    if (reached === 0) return;
++    try {
++      const seen = Number(localStorage.getItem(STORE_KEY) ?? "0");
++      if (reached > seen) {
++        setCelebrate(true);
++        localStorage.setItem(STORE_KEY, String(reached));
++      }
++    } catch {
++      /* storage blocked (private mode) — silently skip the one-shot */
++    }
++  }, [reached]);
++
++  return (
++    <div className="space-y-3">
++      <Confetti fire={celebrate} />
++
++      {/* Milestone track — reached tiers filled gold (charcoal text = gold-contrast rule). */}
++      <ol className="flex items-center gap-1.5" aria-label="Invite milestones">
++        {REFERRAL_TIERS.map((tier) => {
++          const done = inviteCount >= tier;
++          const isCurrent = tier === reached;
++          return (
++            <li key={tier} className="flex flex-1 flex-col items-center gap-1">
++              <span
++                className={cn(
++                  "flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-colors",
++                  done
++                    ? "bg-gold text-charcoal"
++                    : "border border-charcoal/15 bg-white text-muted",
++                  isCurrent && "ring-2 ring-brand/40 ring-offset-1",
++                )}
++                aria-hidden
++              >
++                {done ? <Check className="h-4 w-4" /> : tier}
++              </span>
++              <span
++                className={cn(
++                  "text-[11px] font-medium",
++                  done ? "text-charcoal" : "text-muted",
++                )}
++              >
++                {tier}
++              </span>
++            </li>
++          );
++        })}
++      </ol>
++
++      {/* Status line — derived + count-only. */}
++      <p className="text-sm font-semibold text-charcoal">
++        {inviteCount === 0
++          ? AFFILIATE_COPY.milestoneStart
++          : next === null
++            ? `${inviteCount} friends invited — top milestone reached! 🎉`
++            : reached > 0
++              ? `${inviteCount} invited · ${next - inviteCount} more to your next milestone (${next})`
++              : `${inviteCount} invited · ${next - inviteCount} more to your first milestone (${next})`}
++      </p>
++    </div>
++  );
++}
+diff --git a/lib/affiliate/copy.ts b/lib/affiliate/copy.ts
+index 6d9c349..6be9dda 100644
+--- a/lib/affiliate/copy.ts
++++ b/lib/affiliate/copy.ts
+@@ -10,6 +10,10 @@ export const AFFILIATE_COPY = {
+   copyCta: "Copy link",
+   copied: "Copied ✓",
+   inviteZero: "0 invites yet — share your link to get started.",
++  // Referral MILESTONES (§2.6 signature moment) — community/count framing ONLY. D-29 floor:
++  // no income, no rewards, no ₹. These celebrate the act of inviting learners, never earnings.
++  milestoneReached: "Milestone reached — shabaash! 🎉",
++  milestoneStart: "Pehla invite se milestone journey shuru hoti hai.",
+   // Neutral pending note shown on money surfaces while the flag is OFF. Zero earnings language
+   // (§1C is stricter than the D-29 floor here): no "earnings", "rewards", "₹", or "credited".
+   moneyPendingHeading: "Opens after review",
+diff --git a/modules/affiliate/milestone.ts b/modules/affiliate/milestone.ts
+new file mode 100644
+index 0000000..f8a7d1b
+--- /dev/null
++++ b/modules/affiliate/milestone.ts
+@@ -0,0 +1,16 @@
++// §2.6 referral milestones — PURE domain (no React, no DB). Derived entirely from the real invite
++// count. D-29: tiers are COUNT thresholds only; any celebration copy is community/count framed, never
++// earnings. Kept pure so the tier boundaries are unit-tested independently of the UI (M1 pattern).
++export const REFERRAL_TIERS = [1, 5, 10, 25] as const;
++
++/** Highest tier the count has reached (0 if none reached yet). */
++export function highestReachedTier(count: number): number {
++  let t = 0;
++  for (const tier of REFERRAL_TIERS) if (count >= tier) t = tier;
++  return t;
++}
++
++/** The next tier above the count, or null once every tier is reached. */
++export function nextTier(count: number): number | null {
++  return REFERRAL_TIERS.find((t) => t > count) ?? null;
++}
+diff --git a/tests/referral-milestone.test.ts b/tests/referral-milestone.test.ts
+new file mode 100644
+index 0000000..005a368
+--- /dev/null
++++ b/tests/referral-milestone.test.ts
+@@ -0,0 +1,41 @@
++// §2.6 referral milestone tier boundaries (pure). Locks the derived thresholds so the celebration
++// fires at the right counts. D-29: these are counts only — no earnings anywhere in the domain.
++import { describe, it, expect } from "vitest";
++import {
++  REFERRAL_TIERS,
++  highestReachedTier,
++  nextTier,
++} from "@/modules/affiliate/milestone";
++
++describe("referral milestone tiers", () => {
++  it("no tier reached below the first threshold", () => {
++    expect(highestReachedTier(0)).toBe(0);
++    expect(nextTier(0)).toBe(1);
++  });
++
++  it("reaches a tier exactly at its threshold", () => {
++    expect(highestReachedTier(1)).toBe(1);
++    expect(highestReachedTier(5)).toBe(5);
++    expect(highestReachedTier(10)).toBe(10);
++    expect(highestReachedTier(25)).toBe(25);
++  });
++
++  it("holds the tier between thresholds and points to the next", () => {
++    expect(highestReachedTier(4)).toBe(1);
++    expect(nextTier(4)).toBe(5);
++    expect(highestReachedTier(9)).toBe(5);
++    expect(nextTier(9)).toBe(10);
++  });
++
++  it("caps at the top tier — no next beyond the last", () => {
++    expect(highestReachedTier(100)).toBe(25);
++    expect(nextTier(25)).toBeNull();
++    expect(nextTier(100)).toBeNull();
++  });
++
++  it("tiers are strictly ascending", () => {
++    for (let i = 1; i < REFERRAL_TIERS.length; i++) {
++      expect(REFERRAL_TIERS[i]).toBeGreaterThan(REFERRAL_TIERS[i - 1]);
++    }
++  });
++});
