@@ -61,6 +61,19 @@ describe("guardrail: numeric + period hardening (Fable condition 1)", () => {
   });
 });
 
+// Fable regression lock (DR-031 Batch 1) — the FOUR exact cases Fable prescribed, verbatim. Behaviour
+// is already correct; these pin the exact strings so a future guardrail edit can never regress them.
+describe("guardrail: Fable prescribed regression cases (verbatim)", () => {
+  it.each([
+    ["50000 monthly kama sakte ho", true], // BLOCK — amount + period + earn verb
+    ["₹2 lakh per month", true], // BLOCK — scaled currency + period
+    ["Lesson 5 me 3 steps hain", false], // NOT — lesson/step numbers, no income signal
+    ["iska price 1499 hai", false], // NOT — a price, no earn verb / period / how-much
+  ])("%s → income intent %s", (q, expected) => {
+    expect(hasIncomeIntent(q as string), q as string).toBe(expected);
+  });
+});
+
 // ── Retrieval (corpus-only, out-of-scope detection) ─────────────────────────────────────────────
 const chunkOf = (
   lessonOrder: number,
