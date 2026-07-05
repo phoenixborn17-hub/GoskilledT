@@ -93,10 +93,11 @@ export default async function ProgressPage() {
               </Link>
             )}
 
-            {/* Certificate slot (§2.4). */}
+            {/* Certificate slot (§2.4) + share (§2.7). */}
             <CertificateCard
               percent={c.progress.percent}
               certificate={certs.get(c.courseId) ?? null}
+              courseTitle={c.title}
             />
           </Card>
         ))

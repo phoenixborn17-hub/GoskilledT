@@ -5,19 +5,22 @@
 //   • below 100%     → honest requirement text
 import Link from "next/link";
 import { Award, CircleDashed } from "lucide-react";
+import { ShareCertButton } from "./share-cert-button";
 
 export function CertificateCard({
   percent,
   certificate,
+  courseTitle,
 }: {
   percent: number;
   certificate: { serial: string; issuedAt: Date } | null;
+  courseTitle: string;
 }) {
   if (certificate) {
     return (
-      <div className="mt-4 flex items-start gap-3 rounded-xl bg-brand/5 p-3">
-        <Award className="mt-0.5 h-5 w-5 shrink-0 text-brand" aria-hidden />
-        <div className="min-w-0">
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-brand/5 p-3">
+        <Award className="h-5 w-5 shrink-0 text-brand" aria-hidden />
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-charcoal">
             Certificate earned
           </p>
@@ -28,6 +31,11 @@ export function CertificateCard({
             View &amp; verify →
           </Link>
         </div>
+        <ShareCertButton
+          serial={certificate.serial}
+          courseTitle={courseTitle}
+          variant="ghost"
+        />
       </div>
     );
   }
