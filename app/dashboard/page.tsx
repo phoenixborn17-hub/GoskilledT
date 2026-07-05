@@ -16,6 +16,7 @@ import { getCurrentUser } from "../../lib/auth/session";
 import { getHubData } from "../../lib/dashboard/hub";
 import { getGamification } from "../../lib/dashboard/gamification";
 import { StreakChip } from "../../components/dashboard/gamification/streak-chip";
+import { ReferralMilestone } from "../../components/dashboard/referral-milestone";
 import { AFFILIATE_COPY } from "../../lib/affiliate/copy";
 import { Card, CardTitle, CardDescription } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -248,11 +249,7 @@ function EarnCard({
         <CardTitle className="text-lg">Invite friends</CardTitle>
       </div>
       <CardDescription>{AFFILIATE_COPY.inviteBody}</CardDescription>
-      <p className="text-sm font-semibold text-charcoal">
-        {inviteCount === 0
-          ? AFFILIATE_COPY.inviteZero
-          : `${inviteCount} friend${inviteCount === 1 ? "" : "s"} invited`}
-      </p>
+      <ReferralMilestone inviteCount={inviteCount} />
       <ShareBlock
         shareUrl={shareUrl}
         shareMessage={AFFILIATE_COPY.shareMessage}
