@@ -32,6 +32,10 @@ const EXAMPLES = [
   "Ek example ke saath batao",
 ];
 
+// Focusable elements inside the sheet (backdrop is deliberately excluded via tabIndex=-1).
+const FOCUSABLE =
+  'a[href],button:not([disabled]),textarea:not([disabled]),input:not([disabled]),select:not([disabled]),[tabindex]:not([tabindex="-1"])';
+
 // Non-ANSWERED verdicts get a calm icon (never a red wall). ANSWERED → no icon (clean).
 const VERDICT_ICON: Partial<Record<GuruVerdict, typeof Moon>> = {
   CAPPED: Moon,
@@ -61,6 +65,8 @@ export function GuruPanel({
   const idRef = useRef(0);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
   const nextId = () => ++idRef.current;
 
   const send = useCallback(
@@ -97,13 +103,42 @@ export function GuruPanel({
     }
   }, [open, initialQuestion, enrolled, send]);
 
-  // Focus the composer on open; Escape closes.
+  // Focus the composer on open; Escape closes; Tab is trapped inside the sheet; focus returns to the
+  // launcher on close (WCAG 2.4.3 — keyboard focus never escapes the modal onto the dimmed backdrop).
   useEffect(() => {
     if (!open) return;
     inputRef.current?.focus();
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setOpen(false);
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const sheet = sheetRef.current;
+      if (!sheet) return;
+      const items = Array.from(
+        sheet.querySelectorAll<HTMLElement>(FOCUSABLE),
+      ).filter((el) => el.offsetParent !== null); // visible only
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      // Wrap at the edges, and pull focus back inside if it ever lands outside the sheet.
+      if (e.shiftKey) {
+        if (active === first || !sheet.contains(active)) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (active === last || !sheet.contains(active)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      launcherRef.current?.focus(); // restore focus to the trigger on close
+    };
   }, [open]);
 
   // Keep the newest message in view.
@@ -120,6 +155,7 @@ export function GuruPanel({
     <>
       {/* Launcher — always reachable, above the mobile bottom-nav. */}
       <button
+        ref={launcherRef}
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
@@ -139,15 +175,19 @@ export function GuruPanel({
           aria-labelledby="guru-title"
           id="guru-panel"
         >
-          {/* Backdrop */}
+          {/* Backdrop — click-to-close, but NOT in the tab order (focus stays trapped in the sheet). */}
           <button
             type="button"
-            aria-label="Close Guru"
+            tabIndex={-1}
+            aria-hidden="true"
             onClick={() => setOpen(false)}
             className="absolute inset-0 bg-charcoal/40"
           />
           {/* Sheet: bottom on mobile, right drawer on desktop */}
-          <div className="guru-sheet absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-offwhite shadow-2xl md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[26rem] md:rounded-3xl">
+          <div
+            ref={sheetRef}
+            className="guru-sheet absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-offwhite shadow-2xl md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[26rem] md:rounded-3xl"
+          >
             {/* Header */}
             <div className="flex items-center gap-3 border-b border-charcoal/10 px-5 py-4">
               <span
