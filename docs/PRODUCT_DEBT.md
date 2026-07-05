@@ -16,6 +16,7 @@
 | 6 | Certificates | Functional serial page; no visual template/PDF yet — proof exists, pride doesn't | S2 | FR (M2) | OPEN | LC #14 (founder asset) + render ticket |
 | 7 | All dashboards | Motion/delight budget largely unspent outside Lesson-0 confetti — "one small moment of delight" per screen unmet | S3 | DESIGN_DIRECTION audit | OPEN | Post-QA-01 pass |
 | 8 | /courses detail | Generic outcomes copy marked draft | S2 | FR (M1) | OPEN | LC #13 |
+| 9 | Guru panel (player) | Modal has `aria-modal` + focus-on-open + Esc, but no full Tab-wrap focus trap — keyboard focus can reach the dimmed backdrop | S3 | FR (§2.1 Tier-B review) | OPEN | a11y; close **before GPS-M5 module close-out** (in-flight module, not launch-gated) |
 
 
 ### QA-01 auto-filed (mechanical) rows

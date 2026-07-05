@@ -1,0 +1,34 @@
+
+[1m[46m RUN [49m[22m [36mv3.2.6 [39m[90mD:/Phoenix Version/Goskilled/goskilled-vnext[39m
+
+ [32m✓[39m tests/quiz-domain.test.ts [2m([22m[2m6 tests[22m[2m)[22m[32m 16[2mms[22m[39m
+[90mstdout[2m | tests/quiz-cert-gate.integration.test.ts[2m > [22m[2mcertificate mandatory-quiz gate (non-regression)[2m > [22m[2mNO quizzes: still eligible + issues on 100% completion; idempotent + immutable
+[22m[39m{"event":"certificate_issued","courseId":"cmr805sx70000wk4omcoeervy","serial":"GS-TY2QU-79EGN"}
+
+[90mstdout[2m | tests/certificate.test.ts[2m > [22m[2mcertificate issuance + verify (integration)[2m > [22m[2missues on 100% completion; is idempotent + immutable
+[22m[39m{"event":"certificate_issued","courseId":"cmr805sqd0000wklsbji6467s","serial":"GS-SRM8S-VDURW"}
+
+ [32m✓[39m tests/certificate.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 6463[2mms[22m[39m
+   [33m[2m✓[22m[39m certificate issuance + verify (integration)[2m > [22mis not eligible before completion; no certificate issued [33m 1141[2mms[22m[39m
+   [33m[2m✓[22m[39m certificate issuance + verify (integration)[2m > [22missues on 100% completion; is idempotent + immutable [33m 3213[2mms[22m[39m
+   [33m[2m✓[22m[39m certificate issuance + verify (integration)[2m > [22mverifies by serial: valid → name/course/date only; unknown → invalid [33m 662[2mms[22m[39m
+[90mstdout[2m | tests/quiz-cert-gate.integration.test.ts[2m > [22m[2mcertificate mandatory-quiz gate (non-regression)[2m > [22m[2mPUBLISHED mandatory quiz gates issuance until passed
+[22m[39m{"analytics":"quiz_passed","distinctId":"cmr805wjc000hwk4o7nlbxu7r","ts":"2026-07-05T16:25:44.185Z","score_percent":100,"mandatory_gate":true}
+
+[90mstdout[2m | tests/quiz-cert-gate.integration.test.ts[2m > [22m[2mcertificate mandatory-quiz gate (non-regression)[2m > [22m[2mPUBLISHED mandatory quiz gates issuance until passed
+[22m[39m{"event":"certificate_issued","courseId":"cmr805w4t000cwk4ol08hi8ve","serial":"GS-CSJ4R-6U6KW"}
+
+[90mstdout[2m | tests/quiz-cert-gate.integration.test.ts[2m > [22m[2mcertificate mandatory-quiz gate (non-regression)[2m > [22m[2mNO retroactive revocation: a cert issued before a mandatory quiz exists stays valid
+[22m[39m{"event":"certificate_issued","courseId":"cmr80669b0018wk4o0ny9x3jb","serial":"GS-67MPA-6EVSC"}
+
+ [32m✓[39m tests/quiz-cert-gate.integration.test.ts [2m([22m[2m5 tests[22m[2m)[22m[33m 21966[2mms[22m[39m
+   [33m[2m✓[22m[39m certificate mandatory-quiz gate (non-regression)[2m > [22mNO quizzes: still eligible + issues on 100% completion; idempotent + immutable [33m 4684[2mms[22m[39m
+   [33m[2m✓[22m[39m certificate mandatory-quiz gate (non-regression)[2m > [22mPUBLISHED mandatory quiz gates issuance until passed [33m 9108[2mms[22m[39m
+   [33m[2m✓[22m[39m certificate mandatory-quiz gate (non-regression)[2m > [22mDRAFT or non-mandatory quizzes do NOT gate (only PUBLISHED + mandatory) [33m 4012[2mms[22m[39m
+   [33m[2m✓[22m[39m certificate mandatory-quiz gate (non-regression)[2m > [22mNO retroactive revocation: a cert issued before a mandatory quiz exists stays valid [33m 3979[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m3 passed[39m[22m[90m (3)[39m
+[2m      Tests [22m [1m[32m16 passed[39m[22m[90m (16)[39m
+[2m   Start at [22m 21:55:29
+[2m   Duration [22m 25.52s[2m (transform 646ms, setup 138ms, collect 1.49s, tests 28.45s, environment 2ms, prepare 1.58s)[22m
+

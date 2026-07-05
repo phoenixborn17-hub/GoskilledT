@@ -14,10 +14,22 @@ import type {
   GuruGeneration,
   GuruGenerationInput,
 } from "../../modules/ai/guru/types";
+import type { QuizQuestionSpec } from "../../modules/lms/quiz";
+
+export interface QuizDraftInput {
+  lessonTitle: string;
+  context: import("../../modules/ai/guru/types").KnowledgeChunk[];
+  count: number;
+}
 
 export interface AiProvider {
   readonly name: AiProviderName;
   generateAnswer(input: GuruGenerationInput): Promise<GuruGeneration>;
+  /**
+   * Guru-assisted quiz DRAFT (Art 6: agents draft, humans decide). Output is always a starting point
+   * an admin edits + approves before publish — never auto-published. Corpus-grounded.
+   */
+  draftQuizQuestions(input: QuizDraftInput): Promise<QuizQuestionSpec[]>;
 }
 
 /**
@@ -77,6 +89,21 @@ export const mockAiProvider: AiProvider = {
     const completionTokens = deterministicTokens(answer);
     return { answer, promptTokens, completionTokens, costPaise: 0 };
   },
+  async draftQuizQuestions({ lessonTitle, context, count }) {
+    // Deterministic, clearly-[DRAFT] questions — the admin replaces them before publish. In prod the
+    // live provider drafts real ones; in dev these are honest placeholders (never auto-published).
+    const n = Math.max(1, Math.min(count, 5));
+    return Array.from({ length: n }, (_, i) => {
+      const topic =
+        context[i % Math.max(1, context.length)]?.lessonTitle ?? lessonTitle;
+      return {
+        prompt: `[DRAFT] ${lessonTitle} — question ${i + 1}: is lesson ka ek concept. (Admin: edit karein.)`,
+        options: ["Option A [edit]", "Option B [edit]", "Option C [edit]"],
+        correctIndex: 0,
+        explanation: `[DRAFT] Sahi jawab yahan samjhayein (${topic}).`,
+      };
+    });
+  },
 };
 
 // ── Live provider (Anthropic Messages API via the official SDK) ──────────────────────────────────
@@ -119,6 +146,39 @@ export const liveAiProvider: AiProvider = {
       completionTokens,
       costPaise: estimateCostPaise(model, promptTokens, completionTokens),
     };
+  },
+  async draftQuizQuestions({ lessonTitle, context, count }) {
+    const res = await anthropic().messages.create({
+      model: guruModel(),
+      max_tokens: 1500,
+      system:
+        "You draft multiple-choice quiz questions ONLY from the given course notes — never from outside knowledge. " +
+        "Reply with STRICT JSON only: an array of {prompt, options (2-4 strings), correctIndex (0-based), explanation}. " +
+        "Prompts + explanations in warm Hinglish. No income/earnings content.",
+      messages: [
+        {
+          role: "user",
+          content: `Lesson: ${lessonTitle}\n\nNOTES:\n${renderContext(context)}\n\nDraft ${count} MCQs as a JSON array. JSON only, no prose.`,
+        },
+      ],
+    });
+    const text = res.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+    const match = text.match(/\[[\s\S]*\]/);
+    if (!match) throw new Error("guru: quiz draft was not valid JSON");
+    const raw = JSON.parse(match[0]) as Array<Partial<QuizQuestionSpec>>;
+    return raw.slice(0, count).map((q) => ({
+      prompt: String(q.prompt ?? "").trim(),
+      options: (Array.isArray(q.options) ? q.options : []).map((o) =>
+        String(o),
+      ),
+      correctIndex: Number.isInteger(q.correctIndex)
+        ? (q.correctIndex as number)
+        : 0,
+      explanation: q.explanation ? String(q.explanation) : null,
+    }));
   },
 };
 

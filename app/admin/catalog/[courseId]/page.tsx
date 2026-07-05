@@ -3,10 +3,12 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getAdminCourse } from "../../../../lib/admin/catalog";
+import { getCourseQuizzes } from "../../../../lib/admin/quiz";
 import {
   CatalogCourseEditor,
   type CourseData,
 } from "../../../../components/admin/catalog-editor";
+import { AdminQuizManager } from "../../../../components/admin/quiz-manager";
 import { PageHeading } from "../../../../components/admin/primitives";
 import { Badge } from "../../../../components/ui/badge";
 
@@ -26,6 +28,7 @@ export default async function CatalogCoursePage({
   const { courseId } = await params;
   const course = await getAdminCourse(courseId);
   if (!course) notFound();
+  const lessonQuizzes = await getCourseQuizzes(courseId);
 
   return (
     <section className="space-y-5">
@@ -44,6 +47,9 @@ export default async function CatalogCoursePage({
         }
       />
       <CatalogCourseEditor course={course as CourseData} />
+      {lessonQuizzes.length > 0 && (
+        <AdminQuizManager courseId={courseId} lessons={lessonQuizzes} />
+      )}
     </section>
   );
 }

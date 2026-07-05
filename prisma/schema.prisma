@@ -52,6 +52,7 @@ model User {
   enrollments   Enrollment[]
   lessonProgress LessonProgress[]
   certificates  Certificate[]
+  quizAttempts  QuizAttempt[]
   orders        Order[]
   affiliate     Affiliate?
   ledgerAccount LedgerAccount?
@@ -123,6 +124,7 @@ model Lesson {
   isFreePreview Boolean @default(false)
   progress      LessonProgress[]
   knowledge     LessonKnowledge[]
+  quiz          Quiz?
 }
 
 enum EnrollmentSource {
@@ -422,4 +424,53 @@ model GuruMessage {
   createdAt        DateTime    @default(now())
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+// ─────────────── Quizzes (GPS-M5 §2.2) ───────────────
+// Admin-drafted → published (Art 6: agents draft, humans decide). One checkpoint per lesson. A quiz
+// marked isMandatory + PUBLISHED extends the course certificate gate (isEligibleForCertificate) —
+// existing courses (no mandatory quizzes) keep their exact prior eligibility outcome.
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Quiz {
+  id          String         @id @default(cuid())
+  lessonId    String         @unique                    // one checkpoint per lesson
+  lesson      Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title       String
+  status      QuizStatus     @default(DRAFT)
+  isMandatory Boolean        @default(false)            // counts toward the course certificate gate
+  passPercent Int            @default(70)               // pass threshold (LC #38)
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model QuizQuestion {
+  id           String  @id @default(cuid())
+  quizId       String
+  quiz         Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  prompt       String
+  options      Json                                     // string[] (2–6 options)
+  correctIndex Int                                      // index into options
+  explanation  String?                                  // warm "Sahi! Kyunki…" feedback
+  order        Int     @default(0)
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  score     Int                                         // correct count
+  total     Int
+  passed    Boolean
+  answers   Json                                        // number[] selected indices
+  createdAt DateTime @default(now())
+  @@index([userId, quizId])
+  @@index([quizId])
 }

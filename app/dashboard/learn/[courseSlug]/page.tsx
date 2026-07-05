@@ -13,6 +13,8 @@ import { getVideoProvider } from "../../../../lib/video/provider";
 import { nextLessonId } from "../../../../modules/lms/progress";
 import { LessonPlayer } from "../../../../components/dashboard/lesson-player";
 import { GuruPanel } from "../../../../components/dashboard/guru/guru-panel";
+import { QuizCheckpoint } from "../../../../components/dashboard/quiz/quiz-checkpoint";
+import { getPublishedQuizForLearner } from "../../../../lib/lms/quiz";
 import {
   Card,
   CardTitle,
@@ -53,6 +55,11 @@ export default async function CoursePlayerPage({
 
   // Only resolve a playback URL if the lesson is actually accessible (server-side gate).
   const playback = resolvePlayback(selected, getVideoProvider());
+
+  // Quiz checkpoint (GPS-M5 §2.2): only when the lesson is accessible + a PUBLISHED quiz exists.
+  const quiz = playback
+    ? await getPublishedQuizForLearner(user!.id, selected.id)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -97,6 +104,17 @@ export default async function CoursePlayerPage({
                 </Link>
               </div>
             </Card>
+          )}
+
+          {/* Quiz checkpoint after the lesson (GPS-M5 §2.2) — practice → real skill + cert gate. */}
+          {quiz && (
+            <div className="mt-6">
+              <QuizCheckpoint
+                quiz={quiz}
+                courseSlug={courseSlug}
+                lessonId={selected.id}
+              />
+            </div>
           )}
         </div>
 
