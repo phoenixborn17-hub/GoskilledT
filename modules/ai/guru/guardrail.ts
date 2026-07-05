@@ -47,11 +47,15 @@ const MONEY_WORD =
 const PERIOD =
   /\b(per\s?(month|day|week|hour)|monthly|daily|weekly|mahine|mahina|maheene|roz|rozana|har\s?(mahine|din|hafte|ghante))\b/;
 // A scaled amount ("50k", "5 lakh", "10 hazaar") or an explicit currency+number ("₹5000", "rs 5000").
-const SCALED_AMOUNT = /\b\d+\s?(k|hazaar|hazar|lakh|lakhs|thousand|thousands|crore|crores)\b/;
+const SCALED_AMOUNT =
+  /\b\d+\s?(k|hazaar|hazar|lakh|lakhs|thousand|thousands|crore|crores)\b/;
 const CURRENCY_NUM = /(₹\s?\d)|(\brs\.?\s?\d)/;
 // Any money/earning signal (excluding a bare number, which alone is fine — "lesson me 5 steps").
 const EARN_SIGNAL = (t: string): boolean =>
-  EARN_STEM.test(t) || EARN_TERMS.test(t) || MONEY_WORD.test(t) || HOW_MUCH.test(t);
+  EARN_STEM.test(t) ||
+  EARN_TERMS.test(t) ||
+  MONEY_WORD.test(t) ||
+  HOW_MUCH.test(t);
 
 /** PURE: does this text carry personal income/earnings intent (D-29 tripwire)? */
 export function hasIncomeIntent(text: string): boolean {
@@ -62,11 +66,21 @@ export function hasIncomeIntent(text: string): boolean {
   if (EARN_PHRASES.some((p) => t.includes(p))) return true;
   if (HOW_MUCH.test(t) && MONEY_WORD.test(t)) return true;
   // A per-period phrase alongside ANY money/amount/earn/how-much signal = an earning-RATE question.
-  if (PERIOD.test(t) && (EARN_SIGNAL(t) || SCALED_AMOUNT.test(t) || CURRENCY_NUM.test(t))) return true;
+  if (
+    PERIOD.test(t) &&
+    (EARN_SIGNAL(t) || SCALED_AMOUNT.test(t) || CURRENCY_NUM.test(t))
+  )
+    return true;
   // A scaled amount or a currency+number alongside an earn/how-much/period signal = an earnings claim.
   // (A currency amount ALONE is allowed — a finance course legitimately says "is stock ki price ₹500".)
   const amount = SCALED_AMOUNT.test(t) || CURRENCY_NUM.test(t);
-  if (amount && (EARN_STEM.test(t) || EARN_TERMS.test(t) || HOW_MUCH.test(t) || PERIOD.test(t)))
+  if (
+    amount &&
+    (EARN_STEM.test(t) ||
+      EARN_TERMS.test(t) ||
+      HOW_MUCH.test(t) ||
+      PERIOD.test(t))
+  )
     return true;
   return false;
 }
