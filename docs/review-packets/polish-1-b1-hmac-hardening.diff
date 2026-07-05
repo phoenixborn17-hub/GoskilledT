@@ -1,0 +1,169 @@
+commit 93fac7b29900d27baec1e8552f746b453b0b1549
+Author: phoenixborn17 <phoenixborn17@gmail.com>
+Date:   Mon Jul 6 00:05:17 2026 +0530
+
+    @
+    polish-1: require EMAIL_UNSUBSCRIBE_SECRET in production (Tier-B · SECURITY)
+    
+    Removes the silent DATABASE_URL/empty-string fallback for the unsubscribe HMAC
+    key. Prod now: env validation flags it at boot + unsubscribeKey() throws fast if
+    unset; dev still derives from DATABASE_URL so a laptop boots. No hardcoded secret
+    (Golden Rule 5). Tests: prod-boot-without-secret flags/throws; dev derives.
+    
+    Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>
+    @
+
+diff --git a/.env.example b/.env.example
+index 1f44d1f..3200ef3 100644
+--- a/.env.example
++++ b/.env.example
+@@ -25,9 +25,9 @@ GURU_DAILY_TOKEN_BUDGET=""        # optional; default 2000000 tokens/day global
+ # --- Email (Resend) — only needed when EMAIL_PROVIDER=resend ---
+ RESEND_API_KEY=""                 # server only
+ EMAIL_FROM="GoSkilled <noreply@goskilled.in>"   # verified sender for Resend
+-# HMAC key for signed unsubscribe links. Optional: falls back to DATABASE_URL (an existing required
+-# server secret) if unset — set a dedicated value in prod so rotating the DB URL doesn't break links.
+-EMAIL_UNSUBSCRIBE_SECRET=""       # server only
++# HMAC key for signed unsubscribe links. REQUIRED in production (boot fails without it). In dev it
++# derives from DATABASE_URL if unset, so a laptop boots without extra config.
++EMAIL_UNSUBSCRIBE_SECRET=""       # server only — set a strong random value in prod
+ 
+ # --- Cloudflare Stream (DR-022) — only needed when VIDEO_PROVIDER=stream ---
+ CLOUDFLARE_STREAM_CUSTOMER_CODE=""
+diff --git a/lib/email/unsubscribe-token.ts b/lib/email/unsubscribe-token.ts
+index d7739b2..d188637 100644
+--- a/lib/email/unsubscribe-token.ts
++++ b/lib/email/unsubscribe-token.ts
+@@ -30,10 +30,25 @@ export function verifyUnsubscribe(
+ }
+ 
+ /**
+- * Signing key. Prefer a dedicated secret; else derive from an existing REQUIRED server secret
+- * (DATABASE_URL) — no hardcoded fallback in code (Golden Rule 5). Rotating the source silently
+- * invalidates outstanding links, which is acceptable for a transient unsubscribe token.
++ * Signing key for unsubscribe links. Production MUST set a dedicated `EMAIL_UNSUBSCRIBE_SECRET`
++ * (also enforced at boot by env validation) — we throw fast rather than silently derive a key, so a
++ * misconfigured prod deploy can never sign links with a rotate-prone secret or an empty string.
++ * Dev/test may derive from `DATABASE_URL` (an existing local secret) so a laptop boots without extra
++ * config; no hardcoded secret ever lives in code (Golden Rule 5).
+  */
+ export function unsubscribeKey(): string {
+-  return process.env.EMAIL_UNSUBSCRIBE_SECRET || process.env.DATABASE_URL || "";
++  const dedicated = process.env.EMAIL_UNSUBSCRIBE_SECRET;
++  if (dedicated) return dedicated;
++  if (process.env.NODE_ENV === "production") {
++    throw new Error(
++      "EMAIL_UNSUBSCRIBE_SECRET is required in production (unsubscribe-link HMAC key).",
++    );
++  }
++  const devFallback = process.env.DATABASE_URL;
++  if (!devFallback) {
++    throw new Error(
++      "No unsubscribe key available: set EMAIL_UNSUBSCRIBE_SECRET (or DATABASE_URL in dev).",
++    );
++  }
++  return devFallback;
+ }
+diff --git a/lib/env.ts b/lib/env.ts
+index 77e6ae1..f1fdc99 100644
+--- a/lib/env.ts
++++ b/lib/env.ts
+@@ -49,6 +49,7 @@ export const EnvSchema = z
+     CLOUDFLARE_STREAM_CUSTOMER_CODE: z.string().optional(),
+     POSTHOG_API_KEY: z.string().optional(),
+     RESEND_API_KEY: z.string().optional(),
++    EMAIL_UNSUBSCRIBE_SECRET: z.string().optional(), // HMAC key for unsubscribe links — required in prod
+     ANTHROPIC_API_KEY: z.string().optional(), // required when AI_PROVIDER=live (Guru, LC #35)
+     MSG91_AUTH_KEY: z.string().optional(),
+     // Guru cost caps (GPS-M5 §2.0, LC #36) — optional; safe numeric defaults live in modules/ai/guru/caps.ts.
+@@ -92,8 +93,12 @@ export const EnvSchema = z
+     }
+ 
+     // Production-only requirements.
+-    if (isProd)
++    if (isProd) {
+       require("PII_ENCRYPTION_KEY", "in production (PII/KYC encryption)");
++      // Unsubscribe links are HMAC-signed; prod MUST set a dedicated key so it never silently
++      // derives from DATABASE_URL (whose rotation would break every outstanding link).
++      require("EMAIL_UNSUBSCRIBE_SECRET", "in production (unsubscribe-link HMAC key)");
++    }
+ 
+     // Format check: PII_ENCRYPTION_KEY must be a 32-byte base64 key (AES-256-GCM) if present.
+     if (env.PII_ENCRYPTION_KEY) {
+diff --git a/tests/env.test.ts b/tests/env.test.ts
+index c395244..32e2a21 100644
+--- a/tests/env.test.ts
++++ b/tests/env.test.ts
+@@ -60,10 +60,27 @@ describe("env schema", () => {
+       ...DEV_BASE,
+       NODE_ENV: "production",
+       PII_ENCRYPTION_KEY: PII_KEY_32,
++      EMAIL_UNSUBSCRIBE_SECRET: "prod-unsub-secret",
+     });
+     expect(ok).toEqual([]);
+   });
+ 
++  it("requires EMAIL_UNSUBSCRIBE_SECRET in production, not in dev (DR-031 security)", () => {
++    // Prod boot without the secret → flagged (validateEnv throws on this).
++    const missing = envIssues({
++      ...DEV_BASE,
++      NODE_ENV: "production",
++      PII_ENCRYPTION_KEY: PII_KEY_32,
++    });
++    expect(missing.some((i) => i.startsWith("EMAIL_UNSUBSCRIBE_SECRET"))).toBe(
++      true,
++    );
++    // Dev without the secret is fine (unsubscribeKey derives from DATABASE_URL locally).
++    expect(
++      envIssues(DEV_BASE).some((i) => i.startsWith("EMAIL_UNSUBSCRIBE_SECRET")),
++    ).toBe(false);
++  });
++
+   it("validateEnv throws in production, warns in dev", () => {
+     expect(() => validateEnv({ ...DEV_BASE, NODE_ENV: "production" })).toThrow(
+       /environment validation failed/i,
+diff --git a/tests/unsubscribe-token.test.ts b/tests/unsubscribe-token.test.ts
+index f71f40a..46af3cc 100644
+--- a/tests/unsubscribe-token.test.ts
++++ b/tests/unsubscribe-token.test.ts
+@@ -1,9 +1,10 @@
+ // GPS-M5 §2.4 (Fable Tier-A condition 3) — unsubscribe token: a valid HMAC opts out; a tampered,
+ // swapped, or missing sig is rejected (one learner can't opt out another; scanners can't forge).
+-import { describe, it, expect } from "vitest";
++import { describe, it, expect, afterEach, vi } from "vitest";
+ import {
+   signUnsubscribe,
+   verifyUnsubscribe,
++  unsubscribeKey,
+ } from "@/lib/email/unsubscribe-token";
+ 
+ const SECRET = "test-secret-key-material";
+@@ -41,3 +42,28 @@ describe("unsubscribe token (HMAC)", () => {
+     expect(verifyUnsubscribe("user_abc", sig, "")).toBe(false);
+   });
+ });
++
++// DR-031 Batch 1 (security) — key resolution: prod must NOT silently derive a key.
++describe("unsubscribeKey() resolution", () => {
++  afterEach(() => vi.unstubAllEnvs());
++
++  it("uses the dedicated secret when set (any environment)", () => {
++    vi.stubEnv("EMAIL_UNSUBSCRIBE_SECRET", "dedicated-key");
++    vi.stubEnv("NODE_ENV", "production");
++    expect(unsubscribeKey()).toBe("dedicated-key");
++  });
++
++  it("THROWS in production when the dedicated secret is unset (no silent DB fallback)", () => {
++    vi.stubEnv("EMAIL_UNSUBSCRIBE_SECRET", "");
++    vi.stubEnv("NODE_ENV", "production");
++    vi.stubEnv("DATABASE_URL", "postgres://should-not-be-used");
++    expect(() => unsubscribeKey()).toThrow(/required in production/i);
++  });
++
++  it("derives from DATABASE_URL in dev when the dedicated secret is unset", () => {
++    vi.stubEnv("EMAIL_UNSUBSCRIBE_SECRET", "");
++    vi.stubEnv("NODE_ENV", "development");
++    vi.stubEnv("DATABASE_URL", "postgres://dev-key-material");
++    expect(unsubscribeKey()).toBe("postgres://dev-key-material");
++  });
++});
