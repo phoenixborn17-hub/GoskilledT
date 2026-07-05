@@ -8,6 +8,7 @@ export type OtpProviderName = "test" | "live";
 export type VideoProviderName = "mock" | "stream";
 export type AnalyticsProviderName = "console" | "posthog";
 export type EmailProviderName = "console" | "resend";
+export type AiProviderName = "mock" | "live";
 
 export function paymentProviderName(): PaymentProviderName {
   const v = (process.env.PAYMENT_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
@@ -45,6 +46,13 @@ export function emailProviderName(): EmailProviderName {
   const v = (process.env.EMAIL_PROVIDER || "console").toLowerCase(); // empty/unset → dev default
   if (v !== "console" && v !== "resend")
     throw new Error(`Invalid EMAIL_PROVIDER: "${v}" (expected console|resend)`);
+  return v;
+}
+
+export function aiProviderName(): AiProviderName {
+  const v = (process.env.AI_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
+  if (v !== "mock" && v !== "live")
+    throw new Error(`Invalid AI_PROVIDER: "${v}" (expected mock|live)`);
   return v;
 }
 
@@ -112,6 +120,26 @@ export function softWarnProductionEmail(): void {
   );
 }
 
-// Startup guard — importing this module anywhere enforces it. (Analytics and email are
-// intentionally excluded here; see softWarnProductionAnalytics/softWarnProductionEmail above.)
+let warnedAi = false;
+
+/**
+ * Guru's AI provider mirrors the analytics/email exception (GPS-M5 §2.0). `mock` in production is
+ * DEGRADED (Guru returns deterministic canned answers instead of real Hinglish tutoring) but NOT
+ * unsafe — no money moves through Guru, D-29 + cost caps hold in both modes, and DR-029 lets the
+ * flagship ship on mock until the Anthropic key lands (LC #35). So we WARN instead of throwing, and
+ * AI is intentionally kept OUT of assertProductionProviderSafety(). Called by getAiProvider(); warns once.
+ */
+export function softWarnProductionAi(): void {
+  if (process.env.NODE_ENV !== "production") return;
+  if (aiProviderName() !== "mock") return;
+  if (warnedAi) return;
+  warnedAi = true;
+  console.warn(
+    "[ai] WARNING: AI_PROVIDER=mock in production — Guru returns canned answers, not real tutoring. " +
+      "Set AI_PROVIDER=live with ANTHROPIC_API_KEY to enable the flagship (LC #35).",
+  );
+}
+
+// Startup guard — importing this module anywhere enforces it. (Analytics, email and AI are
+// intentionally excluded here; see softWarnProductionAnalytics/softWarnProductionEmail/softWarnProductionAi.)
 assertProductionProviderSafety();

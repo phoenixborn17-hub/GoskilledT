@@ -1,10 +1,13 @@
 // Progress tab (Blueprint §3): per-course progress with a Resume action. Never blank.
 import Link from "next/link";
+import { Sparkles } from "lucide-react";
 import { getCurrentUser } from "../../../lib/auth/session";
 import {
   getEnrolledCourses,
   getCertificatesByCourse,
 } from "../../../lib/lms/queries";
+import { getGamification } from "../../../lib/dashboard/gamification";
+import { Milestones } from "../../../components/dashboard/gamification/milestones";
 import { ProgressRing } from "../../../components/dashboard/progress-ring";
 import { CertificateCard } from "../../../components/dashboard/certificate-card";
 import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
@@ -14,9 +17,10 @@ export const dynamic = "force-dynamic";
 
 export default async function ProgressPage() {
   const user = await getCurrentUser();
-  const [courses, certs] = await Promise.all([
+  const [courses, certs, game] = await Promise.all([
     getEnrolledCourses(user!.id),
     getCertificatesByCourse(user!.id),
+    getGamification(user!.id),
   ]);
 
   return (
@@ -24,6 +28,15 @@ export default async function ProgressPage() {
       <h1 id="progress-heading" className="font-heading text-2xl font-bold">
         Progress
       </h1>
+
+      {/* Milestones (GPS-M5 §2.3) — real learning achievements, warm next-goal (never pressure). */}
+      {courses.length > 0 && (
+        <Milestones
+          milestones={game.milestones}
+          next={game.next}
+          earnedCount={game.earnedCount}
+        />
+      )}
 
       {courses.length === 0 ? (
         <Card className="text-center">
@@ -66,10 +79,25 @@ export default async function ProgressPage() {
                 </div>
               </div>
             </div>
-            {/* Certificate slot (§2.4). Guru "explain-my-gap" entry (§1E, GPS-M5) reserved here. */}
+            {/* Guru "explain-my-gap" entry (§1E, GPS-M5): opens Guru on the resume lesson with a
+                ready doubt. Shown while there's still something to learn. */}
+            {c.progress.percent < 100 && (
+              <Link
+                href={`/dashboard/learn/${c.slug}?guru=1&q=${encodeURIComponent(
+                  "Jo lesson main abhi padh raha hoon, uska main concept simple words me samjhao.",
+                )}`}
+                className="press mt-4 inline-flex items-center gap-2 rounded-xl bg-brand/5 px-3 py-2 text-sm font-semibold text-brand"
+              >
+                <Sparkles className="h-4 w-4" aria-hidden />
+                Guru se samjho — stuck kahan ho?
+              </Link>
+            )}
+
+            {/* Certificate slot (§2.4) + share (§2.7). */}
             <CertificateCard
               percent={c.progress.percent}
               certificate={certs.get(c.courseId) ?? null}
+              courseTitle={c.title}
             />
           </Card>
         ))

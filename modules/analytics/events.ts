@@ -33,6 +33,11 @@ export const ANALYTICS_EVENTS = [
   "contact_submitted",
   "user_onboarded",
   "referral_share",
+  // GPS-M5 Guru (§1D). Verdict + whether it cited — never the question/answer text (that's course
+  // Q&A, logged only in GuruMessage, excluded from the analytics corpus).
+  "guru_asked",
+  // GPS-M5 quiz (§1D). Fires on a passing attempt — scorePercent only, no answer content.
+  "quiz_passed",
 ] as const;
 
 export type AnalyticsEventName = (typeof ANALYTICS_EVENTS)[number];

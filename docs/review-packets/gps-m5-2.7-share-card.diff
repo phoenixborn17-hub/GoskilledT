@@ -1,0 +1,323 @@
+diff --git a/app/dashboard/progress/page.tsx b/app/dashboard/progress/page.tsx
+index 52bb154..a1115a6 100644
+--- a/app/dashboard/progress/page.tsx
++++ b/app/dashboard/progress/page.tsx
+@@ -93,10 +93,11 @@ export default async function ProgressPage() {
+               </Link>
+             )}
+ 
+-            {/* Certificate slot (§2.4). */}
++            {/* Certificate slot (§2.4) + share (§2.7). */}
+             <CertificateCard
+               percent={c.progress.percent}
+               certificate={certs.get(c.courseId) ?? null}
++              courseTitle={c.title}
+             />
+           </Card>
+         ))
+diff --git a/app/verify/[serial]/opengraph-image.tsx b/app/verify/[serial]/opengraph-image.tsx
+new file mode 100644
+index 0000000..f30925f
+--- /dev/null
++++ b/app/verify/[serial]/opengraph-image.tsx
+@@ -0,0 +1,166 @@
++// GPS-M5 §2.7 — dynamic OG share image for a verified certificate. When a learner shares their
++// /verify/<serial> link, social platforms render THIS card (name · course · serial · date) — compliant
++// social proof (D-29: no earnings, just a real learning credential). Invalid serial → neutral brand
++// fallback (never renders fabricated data).
++import { ImageResponse } from "next/og";
++import { getCertificateBySerial } from "../../../lib/lms/certificate";
++
++export const runtime = "nodejs"; // certificate lookup uses Prisma
++export const size = { width: 1200, height: 630 };
++export const contentType = "image/png";
++export const alt = "GoSkilled certificate";
++
++function formatDate(d: Date): string {
++  return new Intl.DateTimeFormat("en-IN", {
++    dateStyle: "long",
++    timeZone: "Asia/Kolkata",
++  }).format(d);
++}
++
++export default async function Image({
++  params,
++}: {
++  params: { serial: string };
++}) {
++  const cert = await getCertificateBySerial(params.serial).catch(() => null);
++
++  const GREEN = "#137E49";
++  const GOLD = "#EDC825";
++  const CHARCOAL = "#2A302A";
++
++  // Satori (next/og) requires display:flex on any element with >1 child, and only Latin glyphs render
++  // without a dynamic font fetch — so no special unicode marks here.
++  const body = cert?.valid ? (
++    <div
++      style={{
++        display: "flex",
++        flexDirection: "column",
++        width: "100%",
++        height: "100%",
++        padding: 72,
++        background: "#FEFEFE",
++        justifyContent: "space-between",
++      }}
++    >
++      <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
++        <div
++          style={{
++            display: "flex",
++            alignItems: "center",
++            justifyContent: "center",
++            width: 56,
++            height: 56,
++            borderRadius: 16,
++            background: GREEN,
++            color: "#fff",
++            fontSize: 34,
++            fontWeight: 800,
++          }}
++        >
++          G
++        </div>
++        <div
++          style={{
++            display: "flex",
++            fontSize: 30,
++            fontWeight: 800,
++            color: GREEN,
++          }}
++        >
++          GoSkilled
++        </div>
++      </div>
++      <div style={{ display: "flex", flexDirection: "column" }}>
++        <div
++          style={{
++            display: "flex",
++            fontSize: 24,
++            letterSpacing: 3,
++            color: "#8a8f88",
++          }}
++        >
++          CERTIFICATE OF COMPLETION
++        </div>
++        <div
++          style={{
++            display: "flex",
++            fontSize: 68,
++            fontWeight: 800,
++            color: CHARCOAL,
++            marginTop: 10,
++          }}
++        >
++          {cert.learnerName || "GoSkilled Learner"}
++        </div>
++        <div
++          style={{
++            display: "flex",
++            fontSize: 34,
++            color: CHARCOAL,
++            marginTop: 6,
++          }}
++        >
++          {cert.courseTitle}
++        </div>
++      </div>
++      <div
++        style={{
++          display: "flex",
++          justifyContent: "space-between",
++          alignItems: "flex-end",
++        }}
++      >
++        <div
++          style={{
++            display: "flex",
++            flexDirection: "column",
++            color: "#8a8f88",
++            fontSize: 22,
++          }}
++        >
++          <div style={{ display: "flex" }}>Serial {params.serial}</div>
++          <div style={{ display: "flex" }}>
++            {cert.issuedAt ? `Issued ${formatDate(cert.issuedAt)}` : ""}
++          </div>
++        </div>
++        <div
++          style={{
++            display: "flex",
++            alignItems: "center",
++            background: GOLD,
++            color: CHARCOAL,
++            padding: "10px 22px",
++            borderRadius: 999,
++            fontSize: 22,
++            fontWeight: 700,
++          }}
++        >
++          Verified credential
++        </div>
++      </div>
++    </div>
++  ) : (
++    <div
++      style={{
++        display: "flex",
++        flexDirection: "column",
++        width: "100%",
++        height: "100%",
++        padding: 72,
++        background: GREEN,
++        color: "#fff",
++        justifyContent: "center",
++        gap: 16,
++      }}
++    >
++      <div style={{ display: "flex", fontSize: 40, fontWeight: 800 }}>
++        GoSkilled
++      </div>
++      <div style={{ display: "flex", fontSize: 30 }}>
++        Verify a GoSkilled certificate
++      </div>
++    </div>
++  );
++
++  return new ImageResponse(body, { ...size });
++}
+diff --git a/app/verify/[serial]/page.tsx b/app/verify/[serial]/page.tsx
+index 6cc9ca4..a309c94 100644
+--- a/app/verify/[serial]/page.tsx
++++ b/app/verify/[serial]/page.tsx
+@@ -11,6 +11,7 @@ import { SiteHeader } from "../../../components/marketing/site-header";
+ import { SiteFooter } from "../../../components/marketing/site-footer";
+ import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
+ import { Button } from "../../../components/ui/button";
++import { ShareCertButton } from "../../../components/dashboard/share-cert-button";
+ 
+ export const metadata: Metadata = {
+   title: "Verify certificate",
+@@ -138,6 +139,14 @@ export default async function VerifyPage({
+             <dd className="font-mono text-charcoal">{serial}</dd>
+           </div>
+         </dl>
++
++        {/* Share this credential (GPS-M5 §2.7) — compliant social proof. */}
++        <div className="mt-6 flex justify-center">
++          <ShareCertButton
++            serial={serial}
++            courseTitle={result.courseTitle ?? "GoSkilled course"}
++          />
++        </div>
+       </Card>
+ 
+       <p className="mt-6 text-center text-sm text-muted">
+diff --git a/components/dashboard/certificate-card.tsx b/components/dashboard/certificate-card.tsx
+index e7f0614..f1f2831 100644
+--- a/components/dashboard/certificate-card.tsx
++++ b/components/dashboard/certificate-card.tsx
+@@ -5,19 +5,22 @@
+ //   • below 100%     → honest requirement text
+ import Link from "next/link";
+ import { Award, CircleDashed } from "lucide-react";
++import { ShareCertButton } from "./share-cert-button";
+ 
+ export function CertificateCard({
+   percent,
+   certificate,
++  courseTitle,
+ }: {
+   percent: number;
+   certificate: { serial: string; issuedAt: Date } | null;
++  courseTitle: string;
+ }) {
+   if (certificate) {
+     return (
+-      <div className="mt-4 flex items-start gap-3 rounded-xl bg-brand/5 p-3">
+-        <Award className="mt-0.5 h-5 w-5 shrink-0 text-brand" aria-hidden />
+-        <div className="min-w-0">
++      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-brand/5 p-3">
++        <Award className="h-5 w-5 shrink-0 text-brand" aria-hidden />
++        <div className="min-w-0 flex-1">
+           <p className="text-sm font-semibold text-charcoal">
+             Certificate earned
+           </p>
+@@ -28,6 +31,11 @@ export function CertificateCard({
+             View &amp; verify →
+           </Link>
+         </div>
++        <ShareCertButton
++          serial={certificate.serial}
++          courseTitle={courseTitle}
++          variant="ghost"
++        />
+       </div>
+     );
+   }
+diff --git a/components/dashboard/share-cert-button.tsx b/components/dashboard/share-cert-button.tsx
+new file mode 100644
+index 0000000..38a9876
+--- /dev/null
++++ b/components/dashboard/share-cert-button.tsx
+@@ -0,0 +1,59 @@
++"use client";
++// GPS-M5 §2.7 — share a verified certificate. Web Share API where available (native sheet), else a
++// WhatsApp deep-link (India's default channel). Compliant social proof — D-29: pride, never earnings.
++import { useState } from "react";
++import { Share2, Check } from "lucide-react";
++
++export function ShareCertButton({
++  serial,
++  courseTitle,
++  variant = "brand",
++}: {
++  serial: string;
++  courseTitle: string;
++  variant?: "brand" | "ghost";
++}) {
++  const [done, setDone] = useState(false);
++  const text = `Maine "${courseTitle}" complete kiya — dekho mera GoSkilled certificate:`;
++
++  async function share() {
++    const url =
++      typeof window !== "undefined"
++        ? `${window.location.origin}/verify/${serial}`
++        : `/verify/${serial}`;
++    const nav = typeof navigator !== "undefined" ? navigator : undefined;
++    if (nav?.share) {
++      try {
++        await nav.share({ title: "GoSkilled certificate", text, url });
++        return;
++      } catch {
++        /* user cancelled or unsupported — fall through to WhatsApp */
++      }
++    }
++    window.open(
++      `https://wa.me/?text=${encodeURIComponent(`${text} ${url}`)}`,
++      "_blank",
++      "noopener,noreferrer",
++    );
++    setDone(true);
++    setTimeout(() => setDone(false), 2000);
++  }
++
++  const base =
++    "press inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold";
++  const cls =
++    variant === "ghost"
++      ? `${base} border border-brand/30 text-brand hover:bg-brand/5`
++      : `${base} bg-brand text-brand-fg`;
++
++  return (
++    <button type="button" onClick={share} className={cls}>
++      {done ? (
++        <Check className="h-4 w-4" aria-hidden />
++      ) : (
++        <Share2 className="h-4 w-4" aria-hidden />
++      )}
++      {done ? "Shared" : "Share certificate"}
++    </button>
++  );
++}

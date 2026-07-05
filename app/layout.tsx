@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Sora, Inter, Noto_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
 import { siteUrl, SITE_NAME } from "../lib/seo";
+import { PwaRegister } from "../components/pwa/pwa-register";
 
 // Brand fonts (DR-012), self-hosted via next/font: zero layout-shift setup, `swap` so text
 // is never invisible, and subset to latin + devanagari only (data-light for Tier-2/3 users).
@@ -30,6 +31,9 @@ export const metadata: Metadata = {
   },
   description:
     "Practical, job-ready skills in Hinglish — learn at your own pace.", // D-29: no income claims/guarantees
+  // PWA (GPS-M5 §2.5). The manifest link is auto-injected from app/manifest.ts.
+  icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: SITE_NAME },
 };
 
 // Mobile-first: design from 320px up (DESIGN_DIRECTION.md).
@@ -51,6 +55,7 @@ export default function RootLayout({
     >
       <body className="min-h-dvh bg-offwhite font-body text-charcoal antialiased">
         {children}
+        <PwaRegister />
       </body>
     </html>
   );

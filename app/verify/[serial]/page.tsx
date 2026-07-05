@@ -11,6 +11,7 @@ import { SiteHeader } from "../../../components/marketing/site-header";
 import { SiteFooter } from "../../../components/marketing/site-footer";
 import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
+import { ShareCertButton } from "../../../components/dashboard/share-cert-button";
 
 export const metadata: Metadata = {
   title: "Verify certificate",
@@ -138,6 +139,14 @@ export default async function VerifyPage({
             <dd className="font-mono text-charcoal">{serial}</dd>
           </div>
         </dl>
+
+        {/* Share this credential (GPS-M5 §2.7) — compliant social proof. */}
+        <div className="mt-6 flex justify-center">
+          <ShareCertButton
+            serial={serial}
+            courseTitle={result.courseTitle ?? "GoSkilled course"}
+          />
+        </div>
       </Card>
 
       <p className="mt-6 text-center text-sm text-muted">

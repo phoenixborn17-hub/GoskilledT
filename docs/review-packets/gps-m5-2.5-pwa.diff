@@ -1,0 +1,370 @@
+diff --git a/app/dashboard/layout.tsx b/app/dashboard/layout.tsx
+index df82a0c..869a950 100644
+--- a/app/dashboard/layout.tsx
++++ b/app/dashboard/layout.tsx
+@@ -2,7 +2,9 @@
+ // Desktop = left sidebar; mobile = bottom nav. Content is padded to clear both.
+ import { redirect } from "next/navigation";
+ import { getCurrentUser } from "../../lib/auth/session";
++import { prisma } from "../../lib/prisma";
+ import { DashboardNav } from "../../components/dashboard/dashboard-nav";
++import { InstallPrompt } from "../../components/pwa/install-prompt";
+ 
+ export default async function DashboardLayout({
+   children,
+@@ -12,12 +14,18 @@ export default async function DashboardLayout({
+   const user = await getCurrentUser();
+   if (!user) redirect("/login?next=/dashboard");
+ 
++  // PWA install prompt (GPS-M5 §2.5) shows AFTER the first lesson — never on landing/marketing.
++  const completed = await prisma.lessonProgress.count({
++    where: { userId: user.id },
++  });
++
+   return (
+     <div className="min-h-dvh bg-offwhite">
+       <DashboardNav />
+       <main className="mx-auto w-full max-w-3xl px-4 pb-24 pt-6 md:pb-8 md:pl-60">
+         {children}
+       </main>
++      <InstallPrompt eligible={completed > 0} />
+     </div>
+   );
+ }
+diff --git a/app/layout.tsx b/app/layout.tsx
+index d97cd55..2c0b604 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
+ import { Sora, Inter, Noto_Sans_Devanagari } from "next/font/google";
+ import "./globals.css";
+ import { siteUrl, SITE_NAME } from "../lib/seo";
++import { PwaRegister } from "../components/pwa/pwa-register";
+ 
+ // Brand fonts (DR-012), self-hosted via next/font: zero layout-shift setup, `swap` so text
+ // is never invisible, and subset to latin + devanagari only (data-light for Tier-2/3 users).
+@@ -30,6 +31,9 @@ export const metadata: Metadata = {
+   },
+   description:
+     "Practical, job-ready skills in Hinglish — learn at your own pace.", // D-29: no income claims/guarantees
++  // PWA (GPS-M5 §2.5). The manifest link is auto-injected from app/manifest.ts.
++  icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" },
++  appleWebApp: { capable: true, statusBarStyle: "default", title: SITE_NAME },
+ };
+ 
+ // Mobile-first: design from 320px up (DESIGN_DIRECTION.md).
+@@ -51,6 +55,7 @@ export default function RootLayout({
+     >
+       <body className="min-h-dvh bg-offwhite font-body text-charcoal antialiased">
+         {children}
++        <PwaRegister />
+       </body>
+     </html>
+   );
+diff --git a/app/manifest.ts b/app/manifest.ts
+new file mode 100644
+index 0000000..9c4da29
+--- /dev/null
++++ b/app/manifest.ts
+@@ -0,0 +1,30 @@
++// GPS-M5 §2.5 — PWA manifest (Next auto-injects <link rel="manifest">). Installable app shell.
++// Icons are a placeholder brand mark (LC — final = founder logo asset).
++import type { MetadataRoute } from "next";
++import { SITE_NAME } from "../lib/seo";
++
++export default function manifest(): MetadataRoute.Manifest {
++  return {
++    name: `${SITE_NAME} — Seekho. Badho.`,
++    short_name: SITE_NAME,
++    description:
++      "Practical, job-ready skills in Hinglish — learn at your own pace.",
++    start_url: "/dashboard",
++    scope: "/",
++    display: "standalone",
++    orientation: "portrait",
++    background_color: "#FEFEFE",
++    theme_color: "#137E49",
++    lang: "en-IN",
++    icons: [
++      { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
++      { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
++      {
++        src: "/icons/icon-maskable-512.png",
++        sizes: "512x512",
++        type: "image/png",
++        purpose: "maskable",
++      },
++    ],
++  };
++}
+diff --git a/components/pwa/install-prompt.tsx b/components/pwa/install-prompt.tsx
+new file mode 100644
+index 0000000..057f0e6
+--- /dev/null
++++ b/components/pwa/install-prompt.tsx
+@@ -0,0 +1,87 @@
++"use client";
++// GPS-M5 §2.5 — custom install prompt (Register 1). Shows AFTER the first lesson (eligible), never on
++// landing. Premium dismissible banner; respects a one-time dismissal. Reduced-motion safe (CSS entrance
++// is gated in globals.css via .enter). Only appears when the browser offers install (beforeinstallprompt).
++import { useEffect, useState } from "react";
++import { Download, X } from "lucide-react";
++
++interface BeforeInstallPromptEvent extends Event {
++  prompt: () => Promise<void>;
++  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
++}
++
++const DISMISS_KEY = "gs-install-dismissed";
++
++export function InstallPrompt({ eligible }: { eligible: boolean }) {
++  const [deferred, setDeferred] = useState<BeforeInstallPromptEvent | null>(
++    null,
++  );
++  const [show, setShow] = useState(false);
++
++  useEffect(() => {
++    if (!eligible) return;
++    if (typeof window !== "undefined" && localStorage.getItem(DISMISS_KEY))
++      return;
++    const onPrompt = (e: Event) => {
++      e.preventDefault(); // suppress the mini-infobar; we show our own
++      setDeferred(e as BeforeInstallPromptEvent);
++      setShow(true);
++    };
++    window.addEventListener("beforeinstallprompt", onPrompt);
++    return () => window.removeEventListener("beforeinstallprompt", onPrompt);
++  }, [eligible]);
++
++  function dismiss() {
++    setShow(false);
++    try {
++      localStorage.setItem(DISMISS_KEY, "1");
++    } catch {
++      /* ignore */
++    }
++  }
++
++  async function install() {
++    if (!deferred) return;
++    await deferred.prompt();
++    await deferred.userChoice.catch(() => undefined);
++    dismiss();
++  }
++
++  if (!show || !deferred) return null;
++
++  return (
++    <div
++      role="dialog"
++      aria-label="Install GoSkilled"
++      className="enter fixed inset-x-3 bottom-24 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-brand/20 bg-white p-4 shadow-lg md:bottom-6 md:left-64 md:right-6 md:mx-0"
++    >
++      <span
++        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"
++        aria-hidden
++      >
++        <Download className="h-5 w-5" />
++      </span>
++      <div className="min-w-0 flex-1">
++        <p className="text-sm font-bold text-charcoal">Install GoSkilled</p>
++        <p className="text-xs text-muted">
++          Home screen par add karo — ek tap me wapas seekhna shuru.
++        </p>
++      </div>
++      <button
++        type="button"
++        onClick={install}
++        className="press shrink-0 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-brand-fg"
++      >
++        Install
++      </button>
++      <button
++        type="button"
++        onClick={dismiss}
++        aria-label="Dismiss"
++        className="press flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted hover:bg-charcoal/5"
++      >
++        <X className="h-4 w-4" aria-hidden />
++      </button>
++    </div>
++  );
++}
+diff --git a/components/pwa/pwa-register.tsx b/components/pwa/pwa-register.tsx
+new file mode 100644
+index 0000000..5beaa60
+--- /dev/null
++++ b/components/pwa/pwa-register.tsx
+@@ -0,0 +1,19 @@
++"use client";
++// GPS-M5 §2.5 — service-worker registration. Production only: a SW in dev fights Next HMR and can
++// serve stale chunks. Registers after load so it never competes with first paint (LCP-safe).
++import { useEffect } from "react";
++
++export function PwaRegister() {
++  useEffect(() => {
++    if (process.env.NODE_ENV !== "production") return;
++    if (!("serviceWorker" in navigator)) return;
++    const register = () => {
++      navigator.serviceWorker.register("/sw.js").catch(() => {
++        /* best-effort — the app works fine without the SW */
++      });
++    };
++    if (document.readyState === "complete") register();
++    else window.addEventListener("load", register, { once: true });
++  }, []);
++  return null;
++}
+diff --git a/docs/LAUNCH_CONFIG.md b/docs/LAUNCH_CONFIG.md
+index 6eaa665..a2ecbf5 100644
+--- a/docs/LAUNCH_CONFIG.md
++++ b/docs/LAUNCH_CONFIG.md
+@@ -60,6 +60,7 @@
+ | 37 | Guru Hinglish system prompt + state copy | ai (guru) — GPS-M5 §2.0 | Content | PENDING | Founder | Placeholder Hinglish copy in `modules/ai/guru/prompt.ts` + `guardrail.ts`/`caps.ts` (system prompt, income redirect, out-of-scope, empty, capped, error states) — D-29-safe, no income language | Founder-approved Hinglish voice set | LAUNCH | Pre-launch | Warm "mera apna teacher" tone; D-29 floor absolute in every string. |
+ | 38 | Quiz pass threshold + which quizzes are mandatory | lms (quiz) — GPS-M5 §2.2 | Configuration | PENDING | Founder | Per-quiz `passPercent` (default 70) + `isMandatory` (default off) set by admin in `/admin/catalog`; no quiz is mandatory until the founder marks + publishes one | Founder's per-course mandatory-checkpoint policy | LAUNCH | Pre-launch | Certificate gate = all lessons complete + all PUBLISHED mandatory quizzes passed. Existing courses (no mandatory quizzes) unaffected — no retroactive revocation. |
+ | 39 | Welcome + certificate-ready email copy | email (notifications) — GPS-M5 §2.4 | Content | PENDING | Founder | Placeholder Hinglish copy in `lib/email/notifications.ts` (welcome + cert-ready) via the shared premium template (`lib/email/template.ts`) — D-29-safe, unsubscribe on every email | Founder-approved email voice | LAUNCH | Pre-launch | Warm belonging/pride tone; zero income framing. |
++| 40 | PWA app icon | pwa (GPS-M5 §2.5) | Content | PENDING | Founder | Placeholder green "G" mark generated at `public/icons/icon-{192,512,maskable-512}.png`; manifest installable | Founder logo/icon asset (192 + 512 + maskable) | OPTIONAL | Pre/post-launch | Swap the PNGs; manifest + install already wired. |
+ 
+ ---
+ 
+diff --git a/public/offline.html b/public/offline.html
+new file mode 100644
+index 0000000..882255b
+--- /dev/null
++++ b/public/offline.html
+@@ -0,0 +1,60 @@
++<!doctype html>
++<html lang="en">
++  <head>
++    <meta charset="utf-8" />
++    <meta name="viewport" content="width=device-width, initial-scale=1" />
++    <meta name="theme-color" content="#137E49" />
++    <title>Offline · GoSkilled</title>
++    <style>
++      * { box-sizing: border-box; }
++      body {
++        margin: 0;
++        min-height: 100dvh;
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        padding: 24px;
++        background: #fefefe;
++        color: #2a302a;
++        font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
++      }
++      .card {
++        max-width: 360px;
++        text-align: center;
++      }
++      .mark {
++        width: 56px;
++        height: 56px;
++        margin: 0 auto 16px;
++        border-radius: 16px;
++        background: #137e49;
++        color: #fff;
++        font-weight: 800;
++        font-size: 30px;
++        display: flex;
++        align-items: center;
++        justify-content: center;
++      }
++      h1 { font-size: 20px; margin: 0 0 8px; }
++      p { color: #6b716a; line-height: 1.6; margin: 0 0 20px; font-size: 15px; }
++      button {
++        border: 0;
++        background: #137e49;
++        color: #fff;
++        font-weight: 700;
++        font-size: 15px;
++        padding: 12px 22px;
++        border-radius: 12px;
++        cursor: pointer;
++      }
++    </style>
++  </head>
++  <body>
++    <div class="card">
++      <div class="mark" aria-hidden="true">G</div>
++      <h1>You're offline</h1>
++      <p>Internet connection nahi mila. Wapas online hote hi aap yahin se seekhna continue kar sakte ho.</p>
++      <button onclick="location.reload()">Try again</button>
++    </div>
++  </body>
++</html>
+diff --git a/public/sw.js b/public/sw.js
+new file mode 100644
+index 0000000..0db505f
+--- /dev/null
++++ b/public/sw.js
+@@ -0,0 +1,69 @@
++/*
++ * GoSkilled service worker (GPS-M5 §2.5). SECURITY-FIRST caching:
++ *   • Caches ONLY immutable static assets (/_next/static/*, /icons/*) + a static offline fallback.
++ *   • NEVER caches authenticated pages, API responses, or anything user-specific / PII / money / auth.
++ *   • Navigations are network-first and are NEVER written to the cache (a page could be authed).
++ * If in doubt, it does NOT cache. This keeps a shared device from ever serving one user's page to another.
++ */
++const VERSION = "gs-v1";
++const STATIC_CACHE = `${VERSION}-static`;
++const PRECACHE = ["/offline.html", "/icons/icon-192.png", "/icons/icon-512.png", "/manifest.webmanifest"];
++
++self.addEventListener("install", (event) => {
++  event.waitUntil(
++    caches.open(STATIC_CACHE).then((c) => c.addAll(PRECACHE)).then(() => self.skipWaiting()),
++  );
++});
++
++self.addEventListener("activate", (event) => {
++  event.waitUntil(
++    caches
++      .keys()
++      .then((keys) => Promise.all(keys.filter((k) => !k.startsWith(VERSION)).map((k) => caches.delete(k))))
++      .then(() => self.clients.claim()),
++  );
++});
++
++// Only these are safe to cache: content-hashed immutable static assets, same-origin.
++function isCacheableStatic(url) {
++  return (
++    url.origin === self.location.origin &&
++    (url.pathname.startsWith("/_next/static/") ||
++      url.pathname.startsWith("/icons/") ||
++      url.pathname === "/favicon.ico")
++  );
++}
++
++self.addEventListener("fetch", (event) => {
++  const req = event.request;
++  if (req.method !== "GET") return; // never touch mutations
++
++  const url = new URL(req.url);
++
++  // Navigations: network-first, NEVER cached (could be an authed page). Offline → static fallback.
++  if (req.mode === "navigate") {
++    event.respondWith(fetch(req).catch(() => caches.match("/offline.html")));
++    return;
++  }
++
++  // Immutable static assets: cache-first (safe — same for every user, no PII).
++  if (isCacheableStatic(url)) {
++    event.respondWith(
++      caches.match(req).then(
++        (hit) =>
++          hit ||
++          fetch(req).then((res) => {
++            if (res.ok) {
++              const copy = res.clone();
++              caches.open(STATIC_CACHE).then((c) => c.put(req, copy));
++            }
++            return res;
++          }),
++      ),
++    );
++    return;
++  }
++
++  // EVERYTHING ELSE (API, authed data, cross-origin) → straight to network, never cached.
++  // (No respondWith → the browser handles it normally, with zero caching.)
++});

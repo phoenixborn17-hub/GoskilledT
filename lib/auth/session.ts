@@ -32,6 +32,7 @@ export interface CurrentUserRecord {
   goal: "SKILL" | "INCOME" | "BOTH" | null;
   referralCode: string;
   onboardedAt: Date | null;
+  emailOptOut: boolean | null;
 }
 
 /** Full profile fields for the current user (Profile tab). */
@@ -49,6 +50,7 @@ export const getCurrentUserRecord = cache(
         goal: true,
         referralCode: true,
         onboardedAt: true,
+        emailOptOut: true,
       },
     });
   },

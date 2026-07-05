@@ -46,12 +46,16 @@ model User {
   // Derivable items (Lesson 0, preview, invites) are computed from real data — NEVER stored here.
   // Shape: { dismissedAt?: string(ISO); doneSeen?: string[] }. Zod-validated on read/write.
   checklistState Json?
+  // GPS-M5 §2.4 notifications: hard email opt-out. Null/false = subscribed; true = opted out of ALL
+  // product emails (even welcome / certificate-ready). Additive + nullable → non-breaking.
+  emailOptOut   Boolean?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
   enrollments   Enrollment[]
   lessonProgress LessonProgress[]
   certificates  Certificate[]
+  quizAttempts  QuizAttempt[]
   orders        Order[]
   affiliate     Affiliate?
   ledgerAccount LedgerAccount?
@@ -59,6 +63,8 @@ model User {
   kyc           Kyc?
   uplineEdges   Referral[] @relation("Downline")
   downlineEdges Referral[] @relation("Upline")
+  guruMessages  GuruMessage[]
+  emailLogs     EmailLog[]
 }
 
 // ─────────────── Catalog / LMS ───────────────
@@ -121,6 +127,8 @@ model Lesson {
   order         Int     @default(0)
   isFreePreview Boolean @default(false)
   progress      LessonProgress[]
+  knowledge     LessonKnowledge[]
+  quiz          Quiz?
 }
 
 enum EnrollmentSource {
@@ -370,4 +378,120 @@ model AdminAction {
   meta           Json?
   createdAt      DateTime @default(now())
   @@index([actorSupabaseId])
+}
+
+// ─────────────── AI / Guru (GPS-M5 §2.0) ───────────────
+// Course Knowledge Base: corpus Guru answers FROM (never general LLM knowledge). Transcript is the
+// primary source; NOTES/GLOSSARY enrich when a founder provides them. One row per (lesson, kind);
+// chunking + retrieval happen in code (modules/ai/guru/retrieval.ts) — simplest-that-works.
+enum KnowledgeKind {
+  TRANSCRIPT
+  NOTES
+  GLOSSARY
+}
+
+model LessonKnowledge {
+  id        String        @id @default(cuid())
+  lessonId  String
+  lesson    Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  kind      KnowledgeKind @default(TRANSCRIPT)
+  content   String                              // raw text; placeholder-labeled until real recordings (LC #7/8)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  @@unique([lessonId, kind])
+}
+
+// Every Guru turn's usage/cost log (cost caps are architecture). Content is course Q&A, not PII —
+// still excluded from the analytics corpus. Indexed for the per-user daily cap + global daily budget.
+enum GuruVerdict {
+  ANSWERED    // cited answer from corpus
+  REDIRECTED  // out-of-scope → warm redirect to course content
+  BLOCKED     // D-29 guardrail (income/earnings) → warm refusal
+  CAPPED      // per-user or global cap hit → honest "thak gaya" state
+  EMPTY       // lesson has no knowledge yet → honest "abhi sikhaya nahi" state
+  ERROR       // provider failure → warm retry state
+}
+
+model GuruMessage {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id])
+  courseId         String?                              // derived from lesson; used for scoping/accounting
+  lessonId         String?
+  question         String
+  answer           String
+  verdict          GuruVerdict
+  citations        Json?                                // [{ lessonId, title }]
+  promptTokens     Int         @default(0)
+  completionTokens Int         @default(0)
+  costPaise        Int         @default(0)              // money in paise (Golden Rule 1)
+  createdAt        DateTime    @default(now())
+  @@index([userId, createdAt])
+  @@index([createdAt])
+}
+
+// ─────────────── Quizzes (GPS-M5 §2.2) ───────────────
+// Admin-drafted → published (Art 6: agents draft, humans decide). One checkpoint per lesson. A quiz
+// marked isMandatory + PUBLISHED extends the course certificate gate (isEligibleForCertificate) —
+// existing courses (no mandatory quizzes) keep their exact prior eligibility outcome.
+enum QuizStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Quiz {
+  id          String         @id @default(cuid())
+  lessonId    String         @unique                    // one checkpoint per lesson
+  lesson      Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  title       String
+  status      QuizStatus     @default(DRAFT)
+  isMandatory Boolean        @default(false)            // counts toward the course certificate gate
+  passPercent Int            @default(70)               // pass threshold (LC #38)
+  // GPS-M5 §2.2 grandfather rule: a mandatory quiz gates ONLY course-completions at/after this moment.
+  // Set when published, cleared when unpublished. Learners who finished before it existed are exempt.
+  publishedAt DateTime?
+  questions   QuizQuestion[]
+  attempts    QuizAttempt[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+}
+
+model QuizQuestion {
+  id           String  @id @default(cuid())
+  quizId       String
+  quiz         Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  prompt       String
+  options      Json                                     // string[] (2–6 options)
+  correctIndex Int                                      // index into options
+  explanation  String?                                  // warm "Sahi! Kyunki…" feedback
+  order        Int     @default(0)
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  score     Int                                         // correct count
+  total     Int
+  passed    Boolean
+  answers   Json                                        // number[] selected indices
+  createdAt DateTime @default(now())
+  @@index([userId, quizId])
+  @@index([quizId])
+}
+
+// ─────────────── Notifications (GPS-M5 §2.4) ───────────────
+// Idempotent email send-log: a unique dedupeKey (e.g. "welcome:{userId}", "cert-ready:{serial}")
+// makes every send at-most-once — the row is CLAIMED before the send, so a double-send is impossible.
+// No PII stored (dedupeKey + internal userId + kind only).
+model EmailLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  dedupeKey String   @unique
+  kind      String                                       // "welcome" | "certificate_ready"
+  sentAt    DateTime @default(now())
+  @@index([userId])
 }

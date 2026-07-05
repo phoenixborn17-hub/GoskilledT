@@ -1,0 +1,1997 @@
+diff --git a/app/admin/catalog/[courseId]/page.tsx b/app/admin/catalog/[courseId]/page.tsx
+index 1594f39..124e5d3 100644
+--- a/app/admin/catalog/[courseId]/page.tsx
++++ b/app/admin/catalog/[courseId]/page.tsx
+@@ -3,10 +3,12 @@
+ import { notFound } from "next/navigation";
+ import Link from "next/link";
+ import { getAdminCourse } from "../../../../lib/admin/catalog";
++import { getCourseQuizzes } from "../../../../lib/admin/quiz";
+ import {
+   CatalogCourseEditor,
+   type CourseData,
+ } from "../../../../components/admin/catalog-editor";
++import { AdminQuizManager } from "../../../../components/admin/quiz-manager";
+ import { PageHeading } from "../../../../components/admin/primitives";
+ import { Badge } from "../../../../components/ui/badge";
+ 
+@@ -26,6 +28,7 @@ export default async function CatalogCoursePage({
+   const { courseId } = await params;
+   const course = await getAdminCourse(courseId);
+   if (!course) notFound();
++  const lessonQuizzes = await getCourseQuizzes(courseId);
+ 
+   return (
+     <section className="space-y-5">
+@@ -44,6 +47,9 @@ export default async function CatalogCoursePage({
+         }
+       />
+       <CatalogCourseEditor course={course as CourseData} />
++      {lessonQuizzes.length > 0 && (
++        <AdminQuizManager courseId={courseId} lessons={lessonQuizzes} />
++      )}
+     </section>
+   );
+ }
+diff --git a/app/admin/catalog/quiz-actions.ts b/app/admin/catalog/quiz-actions.ts
+new file mode 100644
+index 0000000..af2eb55
+--- /dev/null
++++ b/app/admin/catalog/quiz-actions.ts
+@@ -0,0 +1,62 @@
++// GPS-M5 §2.2 — admin quiz server actions (Register 3). Each: getAdminUser → audited adapter →
++// revalidate. Art 6: generate DRAFTS only; publish is an explicit human decision.
++"use server";
++import { revalidatePath } from "next/cache";
++import { getAdminUser } from "../../../lib/auth/admin";
++import {
++  saveQuizDraft,
++  generateQuizDraft,
++  publishQuiz,
++  unpublishQuiz,
++  type QuizDraftInput,
++} from "../../../lib/admin/quiz";
++import type { QuizQuestionSpec } from "../../../modules/lms/quiz";
++
++type Res = { ok: true } | { ok: false; error: string };
++
++export async function saveQuizDraftAction(
++  courseId: string,
++  lessonId: string,
++  input: QuizDraftInput,
++): Promise<Res> {
++  const a = await getAdminUser();
++  if (!a) return { ok: false, error: "Not authorized" };
++  const res = await saveQuizDraft(a, lessonId, input);
++  if (res.ok) revalidatePath(`/admin/catalog/${courseId}`);
++  return res.ok ? { ok: true } : res;
++}
++
++export async function generateQuizDraftAction(
++  courseId: string,
++  lessonId: string,
++): Promise<
++  { ok: true; questions: QuizQuestionSpec[] } | { ok: false; error: string }
++> {
++  const a = await getAdminUser();
++  if (!a) return { ok: false, error: "Not authorized" };
++  const res = await generateQuizDraft(a, lessonId);
++  if (res.ok) revalidatePath(`/admin/catalog/${courseId}`);
++  return res;
++}
++
++export async function publishQuizAction(
++  courseId: string,
++  lessonId: string,
++): Promise<Res> {
++  const a = await getAdminUser();
++  if (!a) return { ok: false, error: "Not authorized" };
++  const res = await publishQuiz(a, lessonId);
++  if (res.ok) revalidatePath(`/admin/catalog/${courseId}`);
++  return res.ok ? { ok: true } : res;
++}
++
++export async function unpublishQuizAction(
++  courseId: string,
++  lessonId: string,
++): Promise<Res> {
++  const a = await getAdminUser();
++  if (!a) return { ok: false, error: "Not authorized" };
++  const res = await unpublishQuiz(a, lessonId);
++  if (res.ok) revalidatePath(`/admin/catalog/${courseId}`);
++  return res.ok ? { ok: true } : res;
++}
+diff --git a/app/dashboard/learn/[courseSlug]/page.tsx b/app/dashboard/learn/[courseSlug]/page.tsx
+index f5a02ef..ac58a5e 100644
+--- a/app/dashboard/learn/[courseSlug]/page.tsx
++++ b/app/dashboard/learn/[courseSlug]/page.tsx
+@@ -13,6 +13,8 @@ import { getVideoProvider } from "../../../../lib/video/provider";
+ import { nextLessonId } from "../../../../modules/lms/progress";
+ import { LessonPlayer } from "../../../../components/dashboard/lesson-player";
+ import { GuruPanel } from "../../../../components/dashboard/guru/guru-panel";
++import { QuizCheckpoint } from "../../../../components/dashboard/quiz/quiz-checkpoint";
++import { getPublishedQuizForLearner } from "../../../../lib/lms/quiz";
+ import {
+   Card,
+   CardTitle,
+@@ -54,6 +56,11 @@ export default async function CoursePlayerPage({
+   // Only resolve a playback URL if the lesson is actually accessible (server-side gate).
+   const playback = resolvePlayback(selected, getVideoProvider());
+ 
++  // Quiz checkpoint (GPS-M5 §2.2): only when the lesson is accessible + a PUBLISHED quiz exists.
++  const quiz = playback
++    ? await getPublishedQuizForLearner(user!.id, selected.id)
++    : null;
++
+   return (
+     <div className="space-y-6">
+       <div>
+@@ -98,6 +105,17 @@ export default async function CoursePlayerPage({
+               </div>
+             </Card>
+           )}
++
++          {/* Quiz checkpoint after the lesson (GPS-M5 §2.2) — practice → real skill + cert gate. */}
++          {quiz && (
++            <div className="mt-6">
++              <QuizCheckpoint
++                quiz={quiz}
++                courseSlug={courseSlug}
++                lessonId={selected.id}
++              />
++            </div>
++          )}
+         </div>
+ 
+         <aside aria-label="Lessons" className="space-y-4">
+diff --git a/app/dashboard/quiz-actions.ts b/app/dashboard/quiz-actions.ts
+new file mode 100644
+index 0000000..22897e4
+--- /dev/null
++++ b/app/dashboard/quiz-actions.ts
+@@ -0,0 +1,41 @@
++// GPS-M5 §2.2 — learner quiz server action. Thin boundary: auth + Zod → submitQuizAttempt (which
++// grades server-side, records the attempt, and may open the certificate gate). The answer key is
++// only ever returned AFTER grading.
++"use server";
++import { z } from "zod";
++import { revalidatePath } from "next/cache";
++import { getCurrentUser } from "../../lib/auth/session";
++import { submitQuizAttempt } from "../../lib/lms/quiz";
++import type { GradedAttempt } from "../../modules/lms/quiz";
++
++const schema = z.object({
++  lessonId: z.string().trim().min(1),
++  courseSlug: z.string().trim().min(1),
++  answers: z.array(z.number().int().min(-1).max(5)).min(1).max(50),
++});
++
++export type SubmitQuizActionResult =
++  { ok: true; graded: GradedAttempt } | { ok: false; error: string };
++
++export async function submitQuizAttemptAction(
++  input: z.input<typeof schema>,
++): Promise<SubmitQuizActionResult> {
++  const user = await getCurrentUser();
++  if (!user) return { ok: false, error: "Please sign in." };
++  const parsed = schema.safeParse(input);
++  if (!parsed.success) return { ok: false, error: "Invalid submission." };
++
++  const res = await submitQuizAttempt(
++    user.id,
++    parsed.data.lessonId,
++    parsed.data.answers,
++  );
++  if (!res.ok) return res;
++
++  if (res.graded.passed) {
++    // A pass can open the certificate gate + advance progress surfaces.
++    revalidatePath(`/dashboard/learn/${parsed.data.courseSlug}`);
++    revalidatePath("/dashboard/progress");
++  }
++  return { ok: true, graded: res.graded };
++}
+diff --git a/components/admin/quiz-manager.tsx b/components/admin/quiz-manager.tsx
+new file mode 100644
+index 0000000..9e2f4db
+--- /dev/null
++++ b/components/admin/quiz-manager.tsx
+@@ -0,0 +1,370 @@
++"use client";
++// GPS-M5 §2.2 — admin quiz manager (Register 3: efficient, dense, clear). Per lesson: Guru-draft →
++// edit → publish. Art 6: generation only DRAFTS; publish is an explicit action. One editor open at a time.
++import { useState } from "react";
++import { Sparkles, Plus, Trash2, CheckCircle2 } from "lucide-react";
++import { Card } from "../ui/card";
++import { Button } from "../ui/button";
++import { Badge } from "../ui/badge";
++import { cn } from "../../lib/utils";
++import type { CourseLessonQuiz, AdminQuestion } from "../../lib/admin/quiz";
++import {
++  saveQuizDraftAction,
++  generateQuizDraftAction,
++  publishQuizAction,
++  unpublishQuizAction,
++} from "../../app/admin/catalog/quiz-actions";
++
++interface Draft {
++  title: string;
++  isMandatory: boolean;
++  passPercent: number;
++  questions: AdminQuestion[];
++}
++const blankQ = (): AdminQuestion => ({
++  prompt: "",
++  options: ["", ""],
++  correctIndex: 0,
++  explanation: "",
++});
++const inputCls =
++  "w-full rounded-lg border border-charcoal/15 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
++
++export function AdminQuizManager({
++  courseId,
++  lessons,
++}: {
++  courseId: string;
++  lessons: CourseLessonQuiz[];
++}) {
++  const [open, setOpen] = useState<string | null>(null);
++  const [draft, setDraft] = useState<Draft | null>(null);
++  const [busy, setBusy] = useState<string | null>(null);
++  const [error, setError] = useState<string | null>(null);
++
++  function edit(l: CourseLessonQuiz) {
++    setError(null);
++    setOpen(l.lessonId);
++    setDraft(
++      l.quiz
++        ? {
++            title: l.quiz.title,
++            isMandatory: l.quiz.isMandatory,
++            passPercent: l.quiz.passPercent,
++            questions: l.quiz.questions.map((q) => ({ ...q })),
++          }
++        : {
++            title: `${l.lessonTitle} — checkpoint`,
++            isMandatory: false,
++            passPercent: 70,
++            questions: [blankQ()],
++          },
++    );
++  }
++
++  async function run(
++    key: string,
++    fn: () => Promise<{ ok: boolean; error?: string }>,
++  ) {
++    setBusy(key);
++    setError(null);
++    const res = await fn();
++    setBusy(null);
++    if (!res.ok) setError(res.error ?? "Something went wrong.");
++    return res.ok;
++  }
++
++  async function generate(lessonId: string) {
++    const ok = await run("gen-" + lessonId, async () => {
++      const res = await generateQuizDraftAction(courseId, lessonId);
++      if (res.ok && draft)
++        setDraft({ ...draft, questions: res.questions.map((q) => ({ ...q })) });
++      return res;
++    });
++    return ok;
++  }
++
++  function patchQ(i: number, patch: Partial<AdminQuestion>) {
++    if (!draft) return;
++    setDraft({
++      ...draft,
++      questions: draft.questions.map((q, qi) =>
++        qi === i ? { ...q, ...patch } : q,
++      ),
++    });
++  }
++
++  return (
++    <Card className="space-y-4">
++      <div>
++        <h2 className="font-heading text-lg font-bold text-charcoal">
++          Quizzes
++        </h2>
++        <p className="text-sm text-muted">
++          Per-lesson checkpoints. Guru drafts; you edit and publish. Mandatory
++          quizzes are required for the course certificate.
++        </p>
++      </div>
++      {error && (
++        <p role="alert" className="text-sm text-red-600">
++          {error}
++        </p>
++      )}
++
++      <ul className="divide-y divide-charcoal/10">
++        {lessons.map((l) => {
++          const isOpen = open === l.lessonId;
++          return (
++            <li key={l.lessonId} className="py-3">
++              <div className="flex flex-wrap items-center gap-2">
++                <span className="min-w-0 flex-1 truncate text-sm font-medium text-charcoal">
++                  {l.lessonTitle}
++                  <span className="ml-2 text-xs text-muted">
++                    {l.moduleTitle}
++                  </span>
++                </span>
++                {l.quiz ? (
++                  <Badge
++                    variant={l.quiz.status === "PUBLISHED" ? "brand" : "muted"}
++                  >
++                    {l.quiz.status === "PUBLISHED" ? "Published" : "Draft"}
++                    {l.quiz.isMandatory ? " · required" : ""}
++                  </Badge>
++                ) : (
++                  <Badge variant="outline">No quiz</Badge>
++                )}
++                <Button
++                  variant="ghost"
++                  className="w-auto px-3"
++                  onClick={() => (isOpen ? setOpen(null) : edit(l))}
++                >
++                  {isOpen ? "Close" : l.quiz ? "Edit" : "Add quiz"}
++                </Button>
++              </div>
++
++              {isOpen && draft && (
++                <div className="mt-3 space-y-4 rounded-xl border border-charcoal/10 bg-charcoal/[0.02] p-4">
++                  <div className="flex flex-wrap items-center gap-3">
++                    <input
++                      aria-label="Quiz title"
++                      className={cn(inputCls, "flex-1")}
++                      value={draft.title}
++                      onChange={(e) =>
++                        setDraft({ ...draft, title: e.target.value })
++                      }
++                    />
++                    <label className="flex items-center gap-1.5 text-sm text-charcoal">
++                      <input
++                        type="checkbox"
++                        checked={draft.isMandatory}
++                        onChange={(e) =>
++                          setDraft({ ...draft, isMandatory: e.target.checked })
++                        }
++                      />
++                      Required for certificate
++                    </label>
++                    <label className="flex items-center gap-1.5 text-sm text-charcoal">
++                      Pass %
++                      <input
++                        type="number"
++                        min={1}
++                        max={100}
++                        className={cn(inputCls, "w-20")}
++                        value={draft.passPercent}
++                        onChange={(e) =>
++                          setDraft({
++                            ...draft,
++                            passPercent: Number(e.target.value),
++                          })
++                        }
++                      />
++                    </label>
++                    <Button
++                      variant="outline"
++                      className="w-auto px-3"
++                      disabled={busy === "gen-" + l.lessonId}
++                      onClick={() => generate(l.lessonId)}
++                    >
++                      <Sparkles className="mr-1.5 h-4 w-4" aria-hidden />
++                      {busy === "gen-" + l.lessonId
++                        ? "Guru drafting…"
++                        : "Draft with Guru"}
++                    </Button>
++                  </div>
++
++                  <ol className="space-y-4">
++                    {draft.questions.map((q, qi) => (
++                      <li
++                        key={qi}
++                        className="rounded-lg border border-charcoal/10 p-3"
++                      >
++                        <div className="flex items-start gap-2">
++                          <span className="mt-2 text-xs text-muted">
++                            {qi + 1}.
++                          </span>
++                          <input
++                            aria-label={`Question ${qi + 1} prompt`}
++                            placeholder="Question prompt"
++                            className={cn(inputCls, "flex-1")}
++                            value={q.prompt}
++                            onChange={(e) =>
++                              patchQ(qi, { prompt: e.target.value })
++                            }
++                          />
++                          <button
++                            type="button"
++                            aria-label="Remove question"
++                            className="press mt-1 text-muted hover:text-red-600"
++                            onClick={() =>
++                              setDraft({
++                                ...draft,
++                                questions: draft.questions.filter(
++                                  (_, i) => i !== qi,
++                                ),
++                              })
++                            }
++                          >
++                            <Trash2 className="h-4 w-4" />
++                          </button>
++                        </div>
++                        <div className="mt-2 space-y-1.5 pl-5">
++                          {q.options.map((opt, oi) => (
++                            <div key={oi} className="flex items-center gap-2">
++                              <input
++                                type="radio"
++                                name={`correct-${qi}`}
++                                aria-label={`Mark option ${oi + 1} correct`}
++                                checked={q.correctIndex === oi}
++                                onChange={() =>
++                                  patchQ(qi, { correctIndex: oi })
++                                }
++                              />
++                              <input
++                                aria-label={`Option ${oi + 1}`}
++                                placeholder={`Option ${oi + 1}`}
++                                className={cn(inputCls, "flex-1")}
++                                value={opt}
++                                onChange={(e) =>
++                                  patchQ(qi, {
++                                    options: q.options.map((o, i) =>
++                                      i === oi ? e.target.value : o,
++                                    ),
++                                  })
++                                }
++                              />
++                              {q.options.length > 2 && (
++                                <button
++                                  type="button"
++                                  aria-label="Remove option"
++                                  className="press text-muted hover:text-red-600"
++                                  onClick={() =>
++                                    patchQ(qi, {
++                                      options: q.options.filter(
++                                        (_, i) => i !== oi,
++                                      ),
++                                      correctIndex:
++                                        q.correctIndex >= oi &&
++                                        q.correctIndex > 0
++                                          ? q.correctIndex - 1
++                                          : q.correctIndex,
++                                    })
++                                  }
++                                >
++                                  <Trash2 className="h-3.5 w-3.5" />
++                                </button>
++                              )}
++                            </div>
++                          ))}
++                          {q.options.length < 6 && (
++                            <button
++                              type="button"
++                              className="press inline-flex items-center gap-1 text-xs font-semibold text-brand"
++                              onClick={() =>
++                                patchQ(qi, { options: [...q.options, ""] })
++                              }
++                            >
++                              <Plus className="h-3.5 w-3.5" /> Add option
++                            </button>
++                          )}
++                          <input
++                            aria-label="Explanation"
++                            placeholder="Warm explanation (Sahi! Kyunki…)"
++                            className={cn(inputCls, "mt-1")}
++                            value={q.explanation ?? ""}
++                            onChange={(e) =>
++                              patchQ(qi, { explanation: e.target.value })
++                            }
++                          />
++                        </div>
++                      </li>
++                    ))}
++                  </ol>
++
++                  <button
++                    type="button"
++                    className="press inline-flex items-center gap-1 text-sm font-semibold text-brand"
++                    onClick={() =>
++                      setDraft({
++                        ...draft,
++                        questions: [...draft.questions, blankQ()],
++                      })
++                    }
++                  >
++                    <Plus className="h-4 w-4" /> Add question
++                  </button>
++
++                  <div className="flex flex-wrap gap-2 border-t border-charcoal/10 pt-3">
++                    <Button
++                      className="w-auto px-4"
++                      disabled={busy === "save-" + l.lessonId}
++                      onClick={() =>
++                        run("save-" + l.lessonId, () =>
++                          saveQuizDraftAction(courseId, l.lessonId, draft),
++                        )
++                      }
++                    >
++                      {busy === "save-" + l.lessonId ? "Saving…" : "Save draft"}
++                    </Button>
++                    {l.quiz?.status === "PUBLISHED" ? (
++                      <Button
++                        variant="outline"
++                        className="w-auto px-4"
++                        disabled={busy === "unpub-" + l.lessonId}
++                        onClick={() =>
++                          run("unpub-" + l.lessonId, () =>
++                            unpublishQuizAction(courseId, l.lessonId),
++                          )
++                        }
++                      >
++                        Unpublish
++                      </Button>
++                    ) : (
++                      <Button
++                        variant="gold"
++                        className="w-auto px-4"
++                        disabled={busy === "pub-" + l.lessonId}
++                        onClick={async () => {
++                          // Save first so the published version matches what's on screen.
++                          const saved = await run("pub-" + l.lessonId, () =>
++                            saveQuizDraftAction(courseId, l.lessonId, draft),
++                          );
++                          if (saved)
++                            await run("pub-" + l.lessonId, () =>
++                              publishQuizAction(courseId, l.lessonId),
++                            );
++                        }}
++                      >
++                        <CheckCircle2 className="mr-1.5 h-4 w-4" aria-hidden />{" "}
++                        Publish
++                      </Button>
++                    )}
++                  </div>
++                </div>
++              )}
++            </li>
++          );
++        })}
++      </ul>
++    </Card>
++  );
++}
+diff --git a/components/dashboard/quiz/quiz-checkpoint.tsx b/components/dashboard/quiz/quiz-checkpoint.tsx
+new file mode 100644
+index 0000000..1599e73
+--- /dev/null
++++ b/components/dashboard/quiz/quiz-checkpoint.tsx
+@@ -0,0 +1,227 @@
++"use client";
++// GPS-M5 §2.2 — learner quiz checkpoint (Register 1). Practice-first: MCQ, instant warm per-question
++// feedback ("Sahi! Kyunki…"), unlimited retries, a small pass-delight moment. Passive video ≠ skill.
++import { useState } from "react";
++import { CheckCircle2, XCircle, Award, RotateCcw } from "lucide-react";
++import { Card } from "../../ui/card";
++import { Button } from "../../ui/button";
++import { Badge } from "../../ui/badge";
++import { Confetti } from "../../ui/confetti";
++import { cn } from "../../../lib/utils";
++import { submitQuizAttemptAction } from "../../../app/dashboard/quiz-actions";
++import type { LearnerQuizView } from "../../../lib/lms/quiz";
++import type { GradedAttempt } from "../../../modules/lms/quiz";
++
++export function QuizCheckpoint({
++  quiz,
++  courseSlug,
++  lessonId,
++}: {
++  quiz: LearnerQuizView;
++  courseSlug: string;
++  lessonId: string;
++}) {
++  const [answers, setAnswers] = useState<number[]>(() =>
++    quiz.questions.map(() => -1),
++  );
++  const [result, setResult] = useState<GradedAttempt | null>(null);
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const [celebrate, setCelebrate] = useState(false);
++
++  const allAnswered = answers.every((a) => a >= 0);
++
++  async function submit() {
++    setBusy(true);
++    setError(null);
++    const res = await submitQuizAttemptAction({
++      lessonId,
++      courseSlug,
++      answers,
++    });
++    setBusy(false);
++    if (!res.ok) return setError(res.error);
++    setResult(res.graded);
++    if (res.graded.passed) setCelebrate(true);
++  }
++
++  function retry() {
++    setResult(null);
++    setCelebrate(false);
++    setAnswers(quiz.questions.map(() => -1));
++  }
++
++  // Already-cleared, not currently retrying → calm cleared state.
++  if (quiz.alreadyPassed && !result) {
++    return (
++      <Card className="border-brand/20 bg-brand/5">
++        <div className="flex items-center gap-3">
++          <CheckCircle2 className="h-6 w-6 shrink-0 text-brand" aria-hidden />
++          <div className="min-w-0 flex-1">
++            <p className="font-heading font-bold text-charcoal">
++              Checkpoint clear ✓
++            </p>
++            <p className="text-sm text-muted">
++              Aapne ye quiz pass kar liya hai. Dobara try karna ho to —
++            </p>
++          </div>
++          <div className="w-auto">
++            <Button variant="ghost" onClick={retry} className="w-auto px-3">
++              <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden /> Retry
++            </Button>
++          </div>
++        </div>
++      </Card>
++    );
++  }
++
++  return (
++    <Card className="space-y-5">
++      <Confetti fire={celebrate} />
++      <div className="flex items-center justify-between gap-2">
++        <div className="flex items-center gap-2">
++          <h2 className="font-heading text-lg font-bold text-charcoal">
++            {quiz.title}
++          </h2>
++          <Badge variant="brand">Checkpoint</Badge>
++        </div>
++        {quiz.isMandatory && (
++          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted">
++            <Award className="h-3.5 w-3.5" aria-hidden /> Certificate ke liye
++            zaroori
++          </span>
++        )}
++      </div>
++
++      <ol className="space-y-6">
++        {quiz.questions.map((q, qi) => {
++          const fb = result?.feedback[qi];
++          return (
++            <li key={q.id}>
++              <fieldset disabled={busy || !!result}>
++                <legend className="mb-2 flex gap-2 text-sm font-semibold text-charcoal">
++                  <span className="text-muted">{qi + 1}.</span>
++                  <span>{q.prompt}</span>
++                </legend>
++                <div
++                  className="space-y-2"
++                  role="radiogroup"
++                  aria-label={`Question ${qi + 1}`}
++                >
++                  {q.options.map((opt, oi) => {
++                    const selected = answers[qi] === oi;
++                    const isAnswer = fb && fb.correctIndex === oi;
++                    const isWrongPick =
++                      fb && fb.selected === oi && !fb.isCorrect;
++                    return (
++                      <button
++                        key={oi}
++                        type="button"
++                        role="radio"
++                        aria-checked={selected}
++                        onClick={() =>
++                          setAnswers((a) =>
++                            a.map((v, i) => (i === qi ? oi : v)),
++                          )
++                        }
++                        className={cn(
++                          "press flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
++                          isAnswer
++                            ? "border-brand bg-brand/10 text-charcoal"
++                            : isWrongPick
++                              ? "border-red-300 bg-red-50 text-charcoal"
++                              : selected
++                                ? "border-brand bg-brand/5 text-charcoal"
++                                : "border-charcoal/15 text-charcoal hover:bg-charcoal/5",
++                        )}
++                      >
++                        <span
++                          className={cn(
++                            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
++                            selected || isAnswer
++                              ? "border-brand"
++                              : "border-charcoal/30",
++                          )}
++                          aria-hidden
++                        >
++                          {isAnswer ? (
++                            <CheckCircle2 className="h-5 w-5 text-brand" />
++                          ) : isWrongPick ? (
++                            <XCircle className="h-5 w-5 text-red-500" />
++                          ) : selected ? (
++                            <span className="h-2.5 w-2.5 rounded-full bg-brand" />
++                          ) : null}
++                        </span>
++                        <span className="min-w-0 flex-1">{opt}</span>
++                      </button>
++                    );
++                  })}
++                </div>
++                {fb && fb.explanation && (
++                  <p
++                    className={cn(
++                      "mt-2 rounded-lg px-3 py-2 text-xs",
++                      fb.isCorrect
++                        ? "bg-brand/5 text-charcoal"
++                        : "bg-charcoal/5 text-muted",
++                    )}
++                  >
++                    {fb.isCorrect ? "Sahi! " : ""}
++                    {fb.explanation}
++                  </p>
++                )}
++              </fieldset>
++            </li>
++          );
++        })}
++      </ol>
++
++      {error && (
++        <p role="alert" className="text-sm text-red-600">
++          {error}
++        </p>
++      )}
++
++      {/* Result banner + actions */}
++      {result ? (
++        <div
++          className={cn(
++            "flex flex-wrap items-center gap-3 rounded-xl p-4",
++            result.passed ? "bg-brand/10" : "bg-charcoal/5",
++          )}
++        >
++          {result.passed ? (
++            <>
++              <CheckCircle2 className="h-6 w-6 text-brand" aria-hidden />
++              <p className="flex-1 text-sm font-semibold text-charcoal">
++                Shabaash! {result.scorePercent}% — checkpoint clear 🎉
++              </p>
++            </>
++          ) : (
++            <>
++              <p className="flex-1 text-sm font-medium text-charcoal">
++                {result.scorePercent}% — thodi aur practice. Upar sahi jawab
++                dekho, phir se try karo.
++              </p>
++              <div className="w-auto">
++                <Button onClick={retry} className="w-auto px-4">
++                  <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden /> Try again
++                </Button>
++              </div>
++            </>
++          )}
++        </div>
++      ) : (
++        <div className="max-w-[12rem]">
++          <Button onClick={submit} disabled={busy || !allAnswered}>
++            {busy
++              ? "Checking…"
++              : allAnswered
++                ? "Submit"
++                : "Answer all to submit"}
++          </Button>
++        </div>
++      )}
++    </Card>
++  );
++}
+diff --git a/docs/LAUNCH_CONFIG.md b/docs/LAUNCH_CONFIG.md
+index dbd621e..f3166fe 100644
+--- a/docs/LAUNCH_CONFIG.md
++++ b/docs/LAUNCH_CONFIG.md
+@@ -58,6 +58,7 @@
+ | 35 | Anthropic API key (Guru) | ai (guru) — GPS-M5 §2.0 | External Service | PENDING | Founder | `AI_PROVIDER=mock` (deterministic canned answers, dev/tests); prod soft-warns only | `ANTHROPIC_API_KEY` + `AI_PROVIDER=live` | LAUNCH (for real tutoring) | Pre-launch | Guru ships on mock until the key lands (DR-029). D-29 guardrail + cost caps hold in both modes. |
+ | 36 | Guru model + cost caps | ai (guru) — GPS-M5 §2.0 | Configuration | PENDING | Founder | `GURU_MODEL=claude-haiku-4-5` (cost-appropriate tutor tier), per-user `GURU_DAILY_MSG_CAP=30`, global `GURU_DAILY_TOKEN_BUDGET=2,000,000` — safe defaults in `modules/ai/guru/caps.ts` | Founder-confirmed model + budget for launch scale | LAUNCH (activation cost) | Pre-launch | Model is the founder's cost decision (env-configurable, not baked in) — confirm tier + budget before `AI_PROVIDER=live`. Caps are server-enforced regardless. |
+ | 37 | Guru Hinglish system prompt + state copy | ai (guru) — GPS-M5 §2.0 | Content | PENDING | Founder | Placeholder Hinglish copy in `modules/ai/guru/prompt.ts` + `guardrail.ts`/`caps.ts` (system prompt, income redirect, out-of-scope, empty, capped, error states) — D-29-safe, no income language | Founder-approved Hinglish voice set | LAUNCH | Pre-launch | Warm "mera apna teacher" tone; D-29 floor absolute in every string. |
++| 38 | Quiz pass threshold + which quizzes are mandatory | lms (quiz) — GPS-M5 §2.2 | Configuration | PENDING | Founder | Per-quiz `passPercent` (default 70) + `isMandatory` (default off) set by admin in `/admin/catalog`; no quiz is mandatory until the founder marks + publishes one | Founder's per-course mandatory-checkpoint policy | LAUNCH | Pre-launch | Certificate gate = all lessons complete + all PUBLISHED mandatory quizzes passed. Existing courses (no mandatory quizzes) unaffected — no retroactive revocation. |
+ 
+ ---
+ 
+diff --git a/docs/PRODUCT_DEBT.md b/docs/PRODUCT_DEBT.md
+index 7452436..623729e 100644
+--- a/docs/PRODUCT_DEBT.md
++++ b/docs/PRODUCT_DEBT.md
+@@ -16,6 +16,7 @@
+ | 6 | Certificates | Functional serial page; no visual template/PDF yet — proof exists, pride doesn't | S2 | FR (M2) | OPEN | LC #14 (founder asset) + render ticket |
+ | 7 | All dashboards | Motion/delight budget largely unspent outside Lesson-0 confetti — "one small moment of delight" per screen unmet | S3 | DESIGN_DIRECTION audit | OPEN | Post-QA-01 pass |
+ | 8 | /courses detail | Generic outcomes copy marked draft | S2 | FR (M1) | OPEN | LC #13 |
++| 9 | Guru panel (player) | Modal has `aria-modal` + focus-on-open + Esc, but no full Tab-wrap focus trap — keyboard focus can reach the dimmed backdrop | S3 | FR (§2.1 Tier-B review) | OPEN | a11y; close **before GPS-M5 module close-out** (in-flight module, not launch-gated) |
+ 
+ 
+ ### QA-01 auto-filed (mechanical) rows
+diff --git a/lib/admin/quiz.ts b/lib/admin/quiz.ts
+new file mode 100644
+index 0000000..55dd68e
+--- /dev/null
++++ b/lib/admin/quiz.ts
+@@ -0,0 +1,356 @@
++// GPS-M5 §2.2 — admin quiz adapter (Register 3). Art 6: agents draft, humans decide — Guru only
++// DRAFTS; an admin edits + explicitly PUBLISHES. Every mutation is audited in the same transaction.
++import { Prisma } from "../generated/prisma";
++import { prisma } from "../prisma";
++import type { AdminIdentity } from "../auth/admin";
++import { recordAdminAction } from "./audit";
++import { getAiProvider } from "../ai/provider";
++import { resolveLessonContext, loadCourseKnowledge } from "../ai/knowledge";
++import {
++  validateQuizForPublish,
++  type QuizQuestionSpec,
++} from "../../modules/lms/quiz";
++
++export interface AdminQuestion {
++  prompt: string;
++  options: string[];
++  correctIndex: number;
++  explanation?: string | null;
++}
++export interface QuizDraftInput {
++  title: string;
++  isMandatory: boolean;
++  passPercent: number;
++  questions: AdminQuestion[];
++}
++
++export interface AdminQuizView {
++  quizId: string;
++  lessonId: string;
++  title: string;
++  status: "DRAFT" | "PUBLISHED";
++  isMandatory: boolean;
++  passPercent: number;
++  questions: (AdminQuestion & { order: number })[];
++}
++
++export type QuizAdminResult =
++  { ok: true; quizId: string } | { ok: false; error: string };
++
++export interface CourseLessonQuiz {
++  lessonId: string;
++  lessonTitle: string;
++  moduleTitle: string;
++  quiz: AdminQuizView | null;
++}
++
++/** Every lesson in the course (ordered) with its quiz state — powers the admin quiz manager. */
++export async function getCourseQuizzes(
++  courseId: string,
++): Promise<CourseLessonQuiz[]> {
++  const modules = await prisma.module.findMany({
++    where: { courseId },
++    orderBy: { order: "asc" },
++    select: {
++      title: true,
++      lessons: {
++        orderBy: { order: "asc" },
++        select: {
++          id: true,
++          title: true,
++          quiz: {
++            select: {
++              id: true,
++              status: true,
++              title: true,
++              isMandatory: true,
++              passPercent: true,
++              questions: {
++                orderBy: { order: "asc" },
++                select: {
++                  prompt: true,
++                  options: true,
++                  correctIndex: true,
++                  explanation: true,
++                  order: true,
++                },
++              },
++            },
++          },
++        },
++      },
++    },
++  });
++  const out: CourseLessonQuiz[] = [];
++  for (const m of modules) {
++    for (const l of m.lessons) {
++      out.push({
++        lessonId: l.id,
++        lessonTitle: l.title,
++        moduleTitle: m.title,
++        quiz: l.quiz
++          ? {
++              quizId: l.quiz.id,
++              lessonId: l.id,
++              title: l.quiz.title,
++              status: l.quiz.status,
++              isMandatory: l.quiz.isMandatory,
++              passPercent: l.quiz.passPercent,
++              questions: l.quiz.questions.map((q) => ({
++                prompt: q.prompt,
++                options: q.options as string[],
++                correctIndex: q.correctIndex,
++                explanation: q.explanation,
++                order: q.order,
++              })),
++            }
++          : null,
++      });
++    }
++  }
++  return out;
++}
++
++/** Full quiz (with answer key) for the admin editor, or null if none exists for the lesson. */
++export async function getLessonQuizForAdmin(
++  lessonId: string,
++): Promise<AdminQuizView | null> {
++  const quiz = await prisma.quiz.findUnique({
++    where: { lessonId },
++    select: {
++      id: true,
++      status: true,
++      title: true,
++      isMandatory: true,
++      passPercent: true,
++      questions: {
++        orderBy: { order: "asc" },
++        select: {
++          prompt: true,
++          options: true,
++          correctIndex: true,
++          explanation: true,
++          order: true,
++        },
++      },
++    },
++  });
++  if (!quiz) return null;
++  return {
++    quizId: quiz.id,
++    lessonId,
++    title: quiz.title,
++    status: quiz.status,
++    isMandatory: quiz.isMandatory,
++    passPercent: quiz.passPercent,
++    questions: quiz.questions.map((q) => ({
++      prompt: q.prompt,
++      options: q.options as string[],
++      correctIndex: q.correctIndex,
++      explanation: q.explanation,
++      order: q.order,
++    })),
++  };
++}
++
++function questionRows(quizId: string, questions: AdminQuestion[]) {
++  return questions.map((q, i) => ({
++    quizId,
++    prompt: q.prompt.trim(),
++    options: q.options as unknown as Prisma.InputJsonValue,
++    correctIndex: q.correctIndex,
++    explanation: q.explanation?.trim() || null,
++    order: i,
++  }));
++}
++
++/** Create/replace the lesson's DRAFT questions from a save. Does NOT publish. Audited. */
++export async function saveQuizDraft(
++  actor: AdminIdentity,
++  lessonId: string,
++  input: QuizDraftInput,
++): Promise<QuizAdminResult> {
++  if (!input.title.trim())
++    return { ok: false, error: "Give the quiz a title." };
++  if (input.passPercent < 1 || input.passPercent > 100)
++    return { ok: false, error: "Pass % must be between 1 and 100." };
++  try {
++    const quizId = await prisma.$transaction(async (tx) => {
++      const quiz = await tx.quiz.upsert({
++        where: { lessonId },
++        update: {
++          title: input.title.trim(),
++          isMandatory: input.isMandatory,
++          passPercent: input.passPercent,
++        },
++        create: {
++          lessonId,
++          title: input.title.trim(),
++          isMandatory: input.isMandatory,
++          passPercent: input.passPercent,
++        },
++        select: { id: true },
++      });
++      await tx.quizQuestion.deleteMany({ where: { quizId: quiz.id } });
++      if (input.questions.length > 0)
++        await tx.quizQuestion.createMany({
++          data: questionRows(quiz.id, input.questions),
++        });
++      await recordAdminAction(tx, {
++        actor,
++        action: "QUIZ_SAVED",
++        entity: "Quiz",
++        entityId: quiz.id,
++        meta: {
++          lessonId,
++          questionCount: input.questions.length,
++          mandatory: input.isMandatory,
++        },
++      });
++      return quiz.id;
++    });
++    return { ok: true, quizId };
++  } catch {
++    return { ok: false, error: "Could not save the quiz." };
++  }
++}
++
++/** Guru-assisted DRAFT (agents draft, humans decide) — corpus-grounded, replaces existing questions,
++ *  leaves status DRAFT. Audited. Returns the draft questions for the editor to load + edit. */
++export async function generateQuizDraft(
++  actor: AdminIdentity,
++  lessonId: string,
++  count = 3,
++): Promise<
++  { ok: true; questions: QuizQuestionSpec[] } | { ok: false; error: string }
++> {
++  const ctx = await resolveLessonContext(lessonId);
++  if (!ctx) return { ok: false, error: "Lesson not found." };
++  const chunks = (await loadCourseKnowledge(ctx.courseId)).filter(
++    (c) => c.lessonId === lessonId,
++  );
++  if (chunks.length === 0)
++    return {
++      ok: false,
++      error: "This lesson has no transcript yet — add notes before generating.",
++    };
++
++  let draft: QuizQuestionSpec[];
++  try {
++    draft = await getAiProvider().draftQuizQuestions({
++      lessonTitle: ctx.lessonTitle,
++      context: chunks,
++      count,
++    });
++  } catch (e) {
++    console.warn(
++      "[quiz] draft generation failed:",
++      e instanceof Error ? e.message : e,
++    );
++    return {
++      ok: false,
++      error: "Guru could not draft this quiz — try again or author manually.",
++    };
++  }
++
++  try {
++    await prisma.$transaction(async (tx) => {
++      const quiz = await tx.quiz.upsert({
++        where: { lessonId },
++        update: { status: "DRAFT" },
++        create: {
++          lessonId,
++          title: `${ctx.lessonTitle} — checkpoint`,
++          status: "DRAFT",
++        },
++        select: { id: true },
++      });
++      await tx.quizQuestion.deleteMany({ where: { quizId: quiz.id } });
++      await tx.quizQuestion.createMany({
++        data: draft.map((q, i) => ({
++          quizId: quiz.id,
++          prompt: q.prompt,
++          options: q.options as unknown as Prisma.InputJsonValue,
++          correctIndex: q.correctIndex,
++          explanation: q.explanation ?? null,
++          order: i,
++        })),
++      });
++      await recordAdminAction(tx, {
++        actor,
++        action: "QUIZ_GENERATED",
++        entity: "Quiz",
++        entityId: quiz.id,
++        meta: { lessonId, count: draft.length, provider: getAiProvider().name },
++      });
++    });
++  } catch {
++    return { ok: false, error: "Could not save the generated draft." };
++  }
++  return { ok: true, questions: draft };
++}
++
++/** Validate + PUBLISH the lesson's quiz (human decision). Audited. */
++export async function publishQuiz(
++  actor: AdminIdentity,
++  lessonId: string,
++): Promise<QuizAdminResult> {
++  const quiz = await prisma.quiz.findUnique({
++    where: { lessonId },
++    select: {
++      id: true,
++      questions: {
++        orderBy: { order: "asc" },
++        select: { prompt: true, options: true, correctIndex: true },
++      },
++    },
++  });
++  if (!quiz)
++    return { ok: false, error: "No quiz to publish — save a draft first." };
++
++  const specs: QuizQuestionSpec[] = quiz.questions.map((q) => ({
++    prompt: q.prompt,
++    options: q.options as string[],
++    correctIndex: q.correctIndex,
++  }));
++  const valid = validateQuizForPublish(specs);
++  if (!valid.ok) return { ok: false, error: valid.error };
++
++  await prisma.$transaction(async (tx) => {
++    await tx.quiz.update({
++      where: { id: quiz.id },
++      data: { status: "PUBLISHED" },
++    });
++    await recordAdminAction(tx, {
++      actor,
++      action: "QUIZ_PUBLISHED",
++      entity: "Quiz",
++      entityId: quiz.id,
++      meta: { lessonId, questionCount: specs.length },
++    });
++  });
++  return { ok: true, quizId: quiz.id };
++}
++
++/** Revert a quiz to DRAFT (removes it from the certificate gate + learner checkpoints). Audited. */
++export async function unpublishQuiz(
++  actor: AdminIdentity,
++  lessonId: string,
++): Promise<QuizAdminResult> {
++  const quiz = await prisma.quiz.findUnique({
++    where: { lessonId },
++    select: { id: true },
++  });
++  if (!quiz) return { ok: false, error: "No quiz found." };
++  await prisma.$transaction(async (tx) => {
++    await tx.quiz.update({ where: { id: quiz.id }, data: { status: "DRAFT" } });
++    await recordAdminAction(tx, {
++      actor,
++      action: "QUIZ_UNPUBLISHED",
++      entity: "Quiz",
++      entityId: quiz.id,
++      meta: { lessonId },
++    });
++  });
++  return { ok: true, quizId: quiz.id };
++}
+diff --git a/lib/ai/provider.ts b/lib/ai/provider.ts
+index ec91e18..7c9fc82 100644
+--- a/lib/ai/provider.ts
++++ b/lib/ai/provider.ts
+@@ -14,10 +14,22 @@ import type {
+   GuruGeneration,
+   GuruGenerationInput,
+ } from "../../modules/ai/guru/types";
++import type { QuizQuestionSpec } from "../../modules/lms/quiz";
++
++export interface QuizDraftInput {
++  lessonTitle: string;
++  context: import("../../modules/ai/guru/types").KnowledgeChunk[];
++  count: number;
++}
+ 
+ export interface AiProvider {
+   readonly name: AiProviderName;
+   generateAnswer(input: GuruGenerationInput): Promise<GuruGeneration>;
++  /**
++   * Guru-assisted quiz DRAFT (Art 6: agents draft, humans decide). Output is always a starting point
++   * an admin edits + approves before publish — never auto-published. Corpus-grounded.
++   */
++  draftQuizQuestions(input: QuizDraftInput): Promise<QuizQuestionSpec[]>;
+ }
+ 
+ /**
+@@ -77,6 +89,21 @@ export const mockAiProvider: AiProvider = {
+     const completionTokens = deterministicTokens(answer);
+     return { answer, promptTokens, completionTokens, costPaise: 0 };
+   },
++  async draftQuizQuestions({ lessonTitle, context, count }) {
++    // Deterministic, clearly-[DRAFT] questions — the admin replaces them before publish. In prod the
++    // live provider drafts real ones; in dev these are honest placeholders (never auto-published).
++    const n = Math.max(1, Math.min(count, 5));
++    return Array.from({ length: n }, (_, i) => {
++      const topic =
++        context[i % Math.max(1, context.length)]?.lessonTitle ?? lessonTitle;
++      return {
++        prompt: `[DRAFT] ${lessonTitle} — question ${i + 1}: is lesson ka ek concept. (Admin: edit karein.)`,
++        options: ["Option A [edit]", "Option B [edit]", "Option C [edit]"],
++        correctIndex: 0,
++        explanation: `[DRAFT] Sahi jawab yahan samjhayein (${topic}).`,
++      };
++    });
++  },
+ };
+ 
+ // ── Live provider (Anthropic Messages API via the official SDK) ──────────────────────────────────
+@@ -120,6 +147,39 @@ export const liveAiProvider: AiProvider = {
+       costPaise: estimateCostPaise(model, promptTokens, completionTokens),
+     };
+   },
++  async draftQuizQuestions({ lessonTitle, context, count }) {
++    const res = await anthropic().messages.create({
++      model: guruModel(),
++      max_tokens: 1500,
++      system:
++        "You draft multiple-choice quiz questions ONLY from the given course notes — never from outside knowledge. " +
++        "Reply with STRICT JSON only: an array of {prompt, options (2-4 strings), correctIndex (0-based), explanation}. " +
++        "Prompts + explanations in warm Hinglish. No income/earnings content.",
++      messages: [
++        {
++          role: "user",
++          content: `Lesson: ${lessonTitle}\n\nNOTES:\n${renderContext(context)}\n\nDraft ${count} MCQs as a JSON array. JSON only, no prose.`,
++        },
++      ],
++    });
++    const text = res.content
++      .filter((b): b is Anthropic.TextBlock => b.type === "text")
++      .map((b) => b.text)
++      .join("");
++    const match = text.match(/\[[\s\S]*\]/);
++    if (!match) throw new Error("guru: quiz draft was not valid JSON");
++    const raw = JSON.parse(match[0]) as Array<Partial<QuizQuestionSpec>>;
++    return raw.slice(0, count).map((q) => ({
++      prompt: String(q.prompt ?? "").trim(),
++      options: (Array.isArray(q.options) ? q.options : []).map((o) =>
++        String(o),
++      ),
++      correctIndex: Number.isInteger(q.correctIndex)
++        ? (q.correctIndex as number)
++        : 0,
++      explanation: q.explanation ? String(q.explanation) : null,
++    }));
++  },
+ };
+ 
+ export function getAiProvider(): AiProvider {
+diff --git a/lib/lms/certificate.ts b/lib/lms/certificate.ts
+index d3148c2..f217e0f 100644
+--- a/lib/lms/certificate.ts
++++ b/lib/lms/certificate.ts
+@@ -29,7 +29,44 @@ export function generateSerial(
+   return `GS-${s.slice(0, 5)}-${s.slice(5)}`;
+ }
+ 
+-/** Eligible iff every lesson in the course is complete. (Mandatory-assignments gate = GPS-M5.) */
++/**
++ * Have all PUBLISHED mandatory quizzes in the course been passed by this user? (GPS-M5 §2.2.)
++ * NON-REGRESSION GUARANTEE: a course with no published mandatory quizzes (i.e. every existing course
++ * today) returns true — so `isEligibleForCertificate` keeps its exact prior outcome. The gate can only
++ * ADD a requirement, never relax one, and it never touches already-issued certificates.
++ */
++export async function passedAllMandatoryQuizzes(
++  userId: string,
++  courseId: string,
++): Promise<boolean> {
++  const mandatory = await prisma.quiz.findMany({
++    where: {
++      status: "PUBLISHED",
++      isMandatory: true,
++      lesson: { module: { courseId } },
++    },
++    select: { id: true },
++  });
++  if (mandatory.length === 0) return true; // no-op for existing courses (non-regression)
++
++  const passed = await prisma.quizAttempt.findMany({
++    where: {
++      userId,
++      passed: true,
++      quizId: { in: mandatory.map((q) => q.id) },
++    },
++    select: { quizId: true },
++    distinct: ["quizId"],
++  });
++  const passedIds = new Set(passed.map((a) => a.quizId));
++  return mandatory.every((q) => passedIds.has(q.id));
++}
++
++/**
++ * Eligible iff every lesson is complete AND every PUBLISHED mandatory quiz is passed (GPS-M5 §2.2
++ * makes the "mandatory assignments" gate M2 promised real). Existing courses (no mandatory quizzes)
++ * are unaffected. Issuance stays idempotent + immutable — the gate never revokes an issued cert.
++ */
+ export async function isEligibleForCertificate(
+   userId: string,
+   courseId: string,
+@@ -42,7 +79,8 @@ export async function isEligibleForCertificate(
+   const ordered = course.modules.flatMap((m) => m.lessons.map((l) => l.id));
+   if (ordered.length === 0) return false;
+   const done = await completedLessonIds(userId, courseId);
+-  return courseProgress(ordered, done).percent === 100;
++  if (courseProgress(ordered, done).percent !== 100) return false;
++  return passedAllMandatoryQuizzes(userId, courseId);
+ }
+ 
+ export interface IssuedCertificate {
+diff --git a/lib/lms/quiz.ts b/lib/lms/quiz.ts
+new file mode 100644
+index 0000000..278b9a7
+--- /dev/null
++++ b/lib/lms/quiz.ts
+@@ -0,0 +1,140 @@
++// GPS-M5 §2.2 — learner quiz adapter (checkpoint). Thin over the pure grader (modules/lms/quiz).
++// Access is server-enforced (enrolled + PUBLISHED only); the answer key never reaches the client
++// until an attempt is graded. Passing a mandatory quiz may complete the certificate gate → best-effort
++// issuance (idempotent + immutable — never revokes, mirrors the lesson-completion path).
++import { prisma } from "../prisma";
++import { isEnrolled } from "./queries";
++import { issueCertificateIfEligible } from "./certificate";
++import { track } from "../analytics/track";
++import {
++  gradeAttempt,
++  type GradedAttempt,
++  type QuizQuestionSpec,
++} from "../../modules/lms/quiz";
++
++export interface LearnerQuizView {
++  quizId: string;
++  title: string;
++  passPercent: number;
++  isMandatory: boolean;
++  alreadyPassed: boolean;
++  // Answer key intentionally omitted — the learner never receives correctIndex before grading.
++  questions: { id: string; prompt: string; options: string[]; order: number }[];
++}
++
++/** The PUBLISHED checkpoint for a lesson (or null). Answer-key stripped; includes prior-pass state. */
++export async function getPublishedQuizForLearner(
++  userId: string,
++  lessonId: string,
++): Promise<LearnerQuizView | null> {
++  const quiz = await prisma.quiz.findUnique({
++    where: { lessonId },
++    select: {
++      id: true,
++      status: true,
++      title: true,
++      passPercent: true,
++      isMandatory: true,
++      questions: {
++        orderBy: { order: "asc" },
++        select: { id: true, prompt: true, options: true, order: true },
++      },
++    },
++  });
++  if (!quiz || quiz.status !== "PUBLISHED") return null;
++
++  const priorPass = await prisma.quizAttempt.findFirst({
++    where: { userId, quizId: quiz.id, passed: true },
++    select: { id: true },
++  });
++
++  return {
++    quizId: quiz.id,
++    title: quiz.title,
++    passPercent: quiz.passPercent,
++    isMandatory: quiz.isMandatory,
++    alreadyPassed: !!priorPass,
++    questions: quiz.questions.map((q) => ({
++      id: q.id,
++      prompt: q.prompt,
++      options: q.options as string[],
++      order: q.order,
++    })),
++  };
++}
++
++export type SubmitQuizResult =
++  { ok: true; graded: GradedAttempt } | { ok: false; error: string };
++
++/**
++ * Grade + record one attempt for the lesson's PUBLISHED quiz. Unlimited retries. Returns the full
++ * graded result (answer key + explanations revealed AFTER submission). On a pass, emits the event and
++ * tries certificate issuance (the mandatory gate may now be satisfied).
++ */
++export async function submitQuizAttempt(
++  userId: string,
++  lessonId: string,
++  answers: number[],
++): Promise<SubmitQuizResult> {
++  const quiz = await prisma.quiz.findUnique({
++    where: { lessonId },
++    select: {
++      id: true,
++      status: true,
++      passPercent: true,
++      lesson: { select: { module: { select: { courseId: true } } } },
++      questions: {
++        orderBy: { order: "asc" },
++        select: {
++          prompt: true,
++          options: true,
++          correctIndex: true,
++          explanation: true,
++        },
++      },
++    },
++  });
++  if (!quiz || quiz.status !== "PUBLISHED")
++    return { ok: false, error: "This quiz isn't available." };
++
++  const courseId = quiz.lesson.module.courseId;
++  if (!(await isEnrolled(userId, courseId)))
++    return { ok: false, error: "Enroll in this course to take the quiz." };
++
++  const specs: QuizQuestionSpec[] = quiz.questions.map((q) => ({
++    prompt: q.prompt,
++    options: q.options as string[],
++    correctIndex: q.correctIndex,
++    explanation: q.explanation,
++  }));
++  const graded = gradeAttempt(specs, answers, quiz.passPercent);
++
++  await prisma.quizAttempt.create({
++    data: {
++      quizId: quiz.id,
++      userId,
++      score: graded.score,
++      total: graded.total,
++      passed: graded.passed,
++      answers: answers as unknown as number[],
++    },
++  });
++
++  if (graded.passed) {
++    await track("quiz_passed", userId, {
++      score_percent: graded.scorePercent,
++      mandatory_gate: true,
++    });
++    // A passing mandatory quiz may complete the certificate gate. Best-effort + idempotent.
++    try {
++      await issueCertificateIfEligible(userId, courseId);
++    } catch (e) {
++      console.warn(
++        "[quiz] cert issuance after pass failed:",
++        e instanceof Error ? e.message : e,
++      );
++    }
++  }
++
++  return { ok: true, graded };
++}
+diff --git a/modules/analytics/events.ts b/modules/analytics/events.ts
+index 9e15c05..18da785 100644
+--- a/modules/analytics/events.ts
++++ b/modules/analytics/events.ts
+@@ -36,6 +36,8 @@ export const ANALYTICS_EVENTS = [
+   // GPS-M5 Guru (§1D). Verdict + whether it cited — never the question/answer text (that's course
+   // Q&A, logged only in GuruMessage, excluded from the analytics corpus).
+   "guru_asked",
++  // GPS-M5 quiz (§1D). Fires on a passing attempt — scorePercent only, no answer content.
++  "quiz_passed",
+ ] as const;
+ 
+ export type AnalyticsEventName = (typeof ANALYTICS_EVENTS)[number];
+diff --git a/modules/lms/quiz.ts b/modules/lms/quiz.ts
+new file mode 100644
+index 0000000..aa551cc
+--- /dev/null
++++ b/modules/lms/quiz.ts
+@@ -0,0 +1,80 @@
++// GPS-M5 §2.2 — quiz grading + validation. PURE (no I/O). The learner adapter records the result;
++// the admin adapter validates before publish. Practice-first: unlimited retries, warm per-question
++// feedback ("Sahi! Kyunki…"), pass = a threshold, not perfection.
++
++export interface QuizQuestionSpec {
++  prompt: string;
++  options: string[];
++  correctIndex: number;
++  explanation?: string | null;
++}
++
++export interface QuestionFeedback {
++  selected: number; // -1 if unanswered
++  correctIndex: number;
++  isCorrect: boolean;
++  explanation: string | null;
++}
++
++export interface GradedAttempt {
++  score: number; // correct count
++  total: number;
++  passPercent: number;
++  scorePercent: number;
++  passed: boolean;
++  feedback: QuestionFeedback[];
++}
++
++/** PURE: grade selected answers against the questions. `answers[i]` = chosen option index (or -1). */
++export function gradeAttempt(
++  questions: QuizQuestionSpec[],
++  answers: number[],
++  passPercent: number,
++): GradedAttempt {
++  const total = questions.length;
++  const feedback: QuestionFeedback[] = questions.map((q, i) => {
++    const selected = Number.isInteger(answers[i]) ? answers[i] : -1;
++    const isCorrect = selected === q.correctIndex;
++    return {
++      selected,
++      correctIndex: q.correctIndex,
++      isCorrect,
++      explanation: q.explanation ?? null,
++    };
++  });
++  const score = feedback.filter((f) => f.isCorrect).length;
++  const scorePercent = total === 0 ? 0 : Math.round((score / total) * 100);
++  const passed = total > 0 && scorePercent >= passPercent;
++  return { score, total, passPercent, scorePercent, passed, feedback };
++}
++
++export type ValidateResult = { ok: true } | { ok: false; error: string };
++
++/** PURE: a quiz must be well-formed before it can be PUBLISHED (admin gate). */
++export function validateQuizForPublish(
++  questions: QuizQuestionSpec[],
++): ValidateResult {
++  if (questions.length === 0)
++    return { ok: false, error: "Add at least one question before publishing." };
++  for (let i = 0; i < questions.length; i++) {
++    const q = questions[i];
++    const n = i + 1;
++    if (!q.prompt.trim())
++      return { ok: false, error: `Question ${n} needs a prompt.` };
++    const opts = q.options.map((o) => o.trim()).filter(Boolean);
++    if (opts.length < 2)
++      return { ok: false, error: `Question ${n} needs at least 2 options.` };
++    if (opts.length > 6)
++      return { ok: false, error: `Question ${n} can have at most 6 options.` };
++    if (
++      !Number.isInteger(q.correctIndex) ||
++      q.correctIndex < 0 ||
++      q.correctIndex >= q.options.length
++    )
++      return {
++        ok: false,
++        error: `Question ${n} has no valid correct answer marked.`,
++      };
++  }
++  return { ok: true };
++}
+diff --git a/prisma/migrations/20260705030000_quiz_engine/migration.sql b/prisma/migrations/20260705030000_quiz_engine/migration.sql
+new file mode 100644
+index 0000000..531e062
+--- /dev/null
++++ b/prisma/migrations/20260705030000_quiz_engine/migration.sql
+@@ -0,0 +1,66 @@
++-- GPS-M5 §2.2 Quiz engine: Quiz / QuizQuestion / QuizAttempt. Admin-drafted → published; a PUBLISHED
++-- + mandatory quiz extends the course certificate gate. Golden Rule 15: ALL THREE new tables ship
++-- RLS-ENABLED (deny-all; owner/Prisma bypasses, PostgREST anon/authenticated denied). Idempotent.
++
++DO $$ BEGIN
++  CREATE TYPE "QuizStatus" AS ENUM ('DRAFT', 'PUBLISHED');
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++
++CREATE TABLE IF NOT EXISTS "Quiz" (
++  "id"          TEXT NOT NULL,
++  "lessonId"    TEXT NOT NULL,
++  "title"       TEXT NOT NULL,
++  "status"      "QuizStatus" NOT NULL DEFAULT 'DRAFT',
++  "isMandatory" BOOLEAN NOT NULL DEFAULT false,
++  "passPercent" INTEGER NOT NULL DEFAULT 70,
++  "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt"   TIMESTAMP(3) NOT NULL,
++  CONSTRAINT "Quiz_pkey" PRIMARY KEY ("id")
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "Quiz_lessonId_key" ON "Quiz" ("lessonId");
++DO $$ BEGIN
++  ALTER TABLE "Quiz" ADD CONSTRAINT "Quiz_lessonId_fkey"
++    FOREIGN KEY ("lessonId") REFERENCES "Lesson" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++
++CREATE TABLE IF NOT EXISTS "QuizQuestion" (
++  "id"           TEXT NOT NULL,
++  "quizId"       TEXT NOT NULL,
++  "prompt"       TEXT NOT NULL,
++  "options"      JSONB NOT NULL,
++  "correctIndex" INTEGER NOT NULL,
++  "explanation"  TEXT,
++  "order"        INTEGER NOT NULL DEFAULT 0,
++  CONSTRAINT "QuizQuestion_pkey" PRIMARY KEY ("id")
++);
++DO $$ BEGIN
++  ALTER TABLE "QuizQuestion" ADD CONSTRAINT "QuizQuestion_quizId_fkey"
++    FOREIGN KEY ("quizId") REFERENCES "Quiz" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++
++CREATE TABLE IF NOT EXISTS "QuizAttempt" (
++  "id"        TEXT NOT NULL,
++  "quizId"    TEXT NOT NULL,
++  "userId"    TEXT NOT NULL,
++  "score"     INTEGER NOT NULL,
++  "total"     INTEGER NOT NULL,
++  "passed"    BOOLEAN NOT NULL,
++  "answers"   JSONB NOT NULL,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT "QuizAttempt_pkey" PRIMARY KEY ("id")
++);
++CREATE INDEX IF NOT EXISTS "QuizAttempt_userId_quizId_idx" ON "QuizAttempt" ("userId", "quizId");
++CREATE INDEX IF NOT EXISTS "QuizAttempt_quizId_idx" ON "QuizAttempt" ("quizId");
++DO $$ BEGIN
++  ALTER TABLE "QuizAttempt" ADD CONSTRAINT "QuizAttempt_quizId_fkey"
++    FOREIGN KEY ("quizId") REFERENCES "Quiz" ("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++DO $$ BEGIN
++  ALTER TABLE "QuizAttempt" ADD CONSTRAINT "QuizAttempt_userId_fkey"
++    FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++
++-- Golden Rule 15: RLS ENABLED (deny-all) on all three new tables.
++ALTER TABLE "Quiz" ENABLE ROW LEVEL SECURITY;
++ALTER TABLE "QuizQuestion" ENABLE ROW LEVEL SECURITY;
++ALTER TABLE "QuizAttempt" ENABLE ROW LEVEL SECURITY;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 3e8ef75..01d8f84 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -52,6 +52,7 @@ model User {
+   enrollments   Enrollment[]
+   lessonProgress LessonProgress[]
+   certificates  Certificate[]
++  quizAttempts  QuizAttempt[]
+   orders        Order[]
+   affiliate     Affiliate?
+   ledgerAccount LedgerAccount?
+@@ -123,6 +124,7 @@ model Lesson {
+   isFreePreview Boolean @default(false)
+   progress      LessonProgress[]
+   knowledge     LessonKnowledge[]
++  quiz          Quiz?
+ }
+ 
+ enum EnrollmentSource {
+@@ -423,3 +425,52 @@ model GuruMessage {
+   @@index([userId, createdAt])
+   @@index([createdAt])
+ }
++
++// ─────────────── Quizzes (GPS-M5 §2.2) ───────────────
++// Admin-drafted → published (Art 6: agents draft, humans decide). One checkpoint per lesson. A quiz
++// marked isMandatory + PUBLISHED extends the course certificate gate (isEligibleForCertificate) —
++// existing courses (no mandatory quizzes) keep their exact prior eligibility outcome.
++enum QuizStatus {
++  DRAFT
++  PUBLISHED
++}
++
++model Quiz {
++  id          String         @id @default(cuid())
++  lessonId    String         @unique                    // one checkpoint per lesson
++  lesson      Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
++  title       String
++  status      QuizStatus     @default(DRAFT)
++  isMandatory Boolean        @default(false)            // counts toward the course certificate gate
++  passPercent Int            @default(70)               // pass threshold (LC #38)
++  questions   QuizQuestion[]
++  attempts    QuizAttempt[]
++  createdAt   DateTime       @default(now())
++  updatedAt   DateTime       @updatedAt
++}
++
++model QuizQuestion {
++  id           String  @id @default(cuid())
++  quizId       String
++  quiz         Quiz    @relation(fields: [quizId], references: [id], onDelete: Cascade)
++  prompt       String
++  options      Json                                     // string[] (2–6 options)
++  correctIndex Int                                      // index into options
++  explanation  String?                                  // warm "Sahi! Kyunki…" feedback
++  order        Int     @default(0)
++}
++
++model QuizAttempt {
++  id        String   @id @default(cuid())
++  quizId    String
++  quiz      Quiz     @relation(fields: [quizId], references: [id])
++  userId    String
++  user      User     @relation(fields: [userId], references: [id])
++  score     Int                                         // correct count
++  total     Int
++  passed    Boolean
++  answers   Json                                        // number[] selected indices
++  createdAt DateTime @default(now())
++  @@index([userId, quizId])
++  @@index([quizId])
++}
+diff --git a/tests/quiz-cert-gate.integration.test.ts b/tests/quiz-cert-gate.integration.test.ts
+new file mode 100644
+index 0000000..ab0d829
+--- /dev/null
++++ b/tests/quiz-cert-gate.integration.test.ts
+@@ -0,0 +1,188 @@
++// GPS-M5 §2.2 — certificate-gate NON-REGRESSION suite. The M2 certificate engine is sacred; this
++// proves the mandatory-quiz gate only ADDS a requirement and never regresses the existing path:
++//   • a course with NO quizzes still issues on 100% completion (unchanged);
++//   • issuance stays idempotent + immutable, serial unchanged;
++//   • a PUBLISHED + mandatory quiz gates issuance until passed; DRAFT / non-mandatory do NOT gate;
++//   • adding a mandatory quiz AFTER a cert is issued NEVER revokes it (no retroactive revocation);
++//   • unknown serials still verify as invalid (anti-enumeration behaviour intact).
++import { describe, it, expect } from "vitest";
++import { prisma } from "@/lib/prisma";
++import {
++  isEligibleForCertificate,
++  issueCertificateIfEligible,
++  getCertificateBySerial,
++} from "@/lib/lms/certificate";
++import { submitQuizAttempt } from "@/lib/lms/quiz";
++import { completeLesson } from "@/lib/lms/queries";
++
++const HAS_DB = !!process.env.DATABASE_URL;
++const runId = `lmsquiz${Date.now()}`;
++
++async function makeCourse(tag: string) {
++  const course = await prisma.course.create({
++    data: {
++      slug: `quizgate-${tag}-${runId}`,
++      title: `Quiz Gate ${tag}`,
++      status: "PUBLISHED",
++    },
++    select: { id: true },
++  });
++  const mod = await prisma.module.create({
++    data: { courseId: course.id, title: "M1", order: 1 },
++    select: { id: true },
++  });
++  const lesson = await prisma.lesson.create({
++    data: {
++      moduleId: mod.id,
++      title: "L1",
++      order: 1,
++      videoAssetId: `${runId}-${tag}`,
++      durationSec: 60,
++    },
++    select: { id: true },
++  });
++  return { courseId: course.id, lessonId: lesson.id };
++}
++async function makeUser(tag: string) {
++  const u = await prisma.user.create({
++    data: {
++      phone: `+919${String(Date.now()).slice(-8)}${tag.length}`.slice(0, 13),
++      referralCode: `${runId}${tag}`.toUpperCase(),
++      name: "Quiz Learner",
++    },
++    select: { id: true },
++  });
++  return u.id;
++}
++
++describe.skipIf(!HAS_DB)(
++  "certificate mandatory-quiz gate (non-regression)",
++  () => {
++    it("NO quizzes: still eligible + issues on 100% completion; idempotent + immutable", async () => {
++      const { courseId, lessonId } = await makeCourse("noquiz");
++      const userId = await makeUser("A");
++      await prisma.enrollment.create({ data: { userId, courseId } });
++      await completeLesson(userId, lessonId);
++
++      expect(await isEligibleForCertificate(userId, courseId)).toBe(true);
++      const first = await issueCertificateIfEligible(userId, courseId);
++      expect(first?.serial).toMatch(/^GS-/);
++      const second = await issueCertificateIfEligible(userId, courseId);
++      expect(second?.serial).toBe(first?.serial); // idempotent + immutable serial
++      expect(
++        await prisma.certificate.count({ where: { userId, courseId } }),
++      ).toBe(1);
++    });
++
++    it("PUBLISHED mandatory quiz gates issuance until passed", async () => {
++      const { courseId, lessonId } = await makeCourse("mand");
++      const userId = await makeUser("B");
++      await prisma.enrollment.create({ data: { userId, courseId } });
++      await completeLesson(userId, lessonId);
++
++      const quiz = await prisma.quiz.create({
++        data: {
++          lessonId,
++          title: "Checkpoint",
++          status: "PUBLISHED",
++          isMandatory: true,
++          passPercent: 100,
++          questions: {
++            create: [
++              {
++                prompt: "2+2?",
++                options: ["3", "4"],
++                correctIndex: 1,
++                order: 0,
++              },
++            ],
++          },
++        },
++        select: { id: true },
++      });
++
++      // Lessons done but quiz not passed → gated.
++      expect(await isEligibleForCertificate(userId, courseId)).toBe(false);
++      expect(await issueCertificateIfEligible(userId, courseId)).toBeNull();
++
++      // A FAILING attempt does not open the gate.
++      await submitQuizAttempt(userId, lessonId, [0]);
++      expect(await isEligibleForCertificate(userId, courseId)).toBe(false);
++
++      // Passing attempt → gate opens → cert issues (unlimited retries).
++      const res = await submitQuizAttempt(userId, lessonId, [1]);
++      expect(res.ok && res.graded.passed).toBe(true);
++      expect(await isEligibleForCertificate(userId, courseId)).toBe(true);
++      expect(
++        (await issueCertificateIfEligible(userId, courseId))?.serial,
++      ).toMatch(/^GS-/);
++      // Both attempts recorded (retries allowed).
++      expect(
++        await prisma.quizAttempt.count({ where: { userId, quizId: quiz.id } }),
++      ).toBe(2);
++    });
++
++    it("DRAFT or non-mandatory quizzes do NOT gate (only PUBLISHED + mandatory)", async () => {
++      const { courseId, lessonId } = await makeCourse("draft");
++      const userId = await makeUser("C");
++      await prisma.enrollment.create({ data: { userId, courseId } });
++      await completeLesson(userId, lessonId);
++      // DRAFT mandatory → ignored.
++      await prisma.quiz.create({
++        data: {
++          lessonId,
++          title: "Draft",
++          status: "DRAFT",
++          isMandatory: true,
++          questions: {
++            create: [
++              { prompt: "q", options: ["a", "b"], correctIndex: 0, order: 0 },
++            ],
++          },
++        },
++      });
++      expect(await isEligibleForCertificate(userId, courseId)).toBe(true);
++      // Flip to PUBLISHED but non-mandatory → still ignored.
++      await prisma.quiz.update({
++        where: { lessonId },
++        data: { status: "PUBLISHED", isMandatory: false },
++      });
++      expect(await isEligibleForCertificate(userId, courseId)).toBe(true);
++    });
++
++    it("NO retroactive revocation: a cert issued before a mandatory quiz exists stays valid", async () => {
++      const { courseId, lessonId } = await makeCourse("retro");
++      const userId = await makeUser("D");
++      await prisma.enrollment.create({ data: { userId, courseId } });
++      await completeLesson(userId, lessonId);
++      const issued = await issueCertificateIfEligible(userId, courseId);
++      expect(issued?.serial).toMatch(/^GS-/);
++
++      // Now add a PUBLISHED mandatory quiz the learner has NOT passed.
++      await prisma.quiz.create({
++        data: {
++          lessonId,
++          title: "Late",
++          status: "PUBLISHED",
++          isMandatory: true,
++          questions: {
++            create: [
++              { prompt: "q", options: ["a", "b"], correctIndex: 1, order: 0 },
++            ],
++          },
++        },
++      });
++      // The already-issued cert is immutable — re-issue returns the SAME serial, never revoked.
++      const again = await issueCertificateIfEligible(userId, courseId);
++      expect(again?.serial).toBe(issued?.serial);
++      const v = await getCertificateBySerial(issued!.serial);
++      expect(v.valid).toBe(true);
++    });
++
++    it("unknown serial verifies as invalid (anti-enumeration behaviour intact)", async () => {
++      const v = await getCertificateBySerial("GS-ZZZZZ-ZZZZZ");
++      expect(v.valid).toBe(false);
++      expect(v.learnerName).toBeNull();
++    });
++  },
++);
+diff --git a/tests/quiz-domain.test.ts b/tests/quiz-domain.test.ts
+new file mode 100644
+index 0000000..97b67f8
+--- /dev/null
++++ b/tests/quiz-domain.test.ts
+@@ -0,0 +1,70 @@
++// GPS-M5 §2.2 — pure quiz grading + publish-validation tests (no DB).
++import { describe, it, expect } from "vitest";
++import { gradeAttempt, validateQuizForPublish } from "../modules/lms/quiz";
++
++const Q = [
++  { prompt: "1", options: ["a", "b"], correctIndex: 0 },
++  { prompt: "2", options: ["a", "b"], correctIndex: 1 },
++  { prompt: "3", options: ["a", "b"], correctIndex: 0 },
++  { prompt: "4", options: ["a", "b"], correctIndex: 1 },
++];
++
++describe("gradeAttempt", () => {
++  it("scores all-correct as 100% pass", () => {
++    const g = gradeAttempt(Q, [0, 1, 0, 1], 70);
++    expect(g).toMatchObject({
++      score: 4,
++      total: 4,
++      scorePercent: 100,
++      passed: true,
++    });
++    expect(g.feedback.every((f) => f.isCorrect)).toBe(true);
++  });
++
++  it("applies the pass threshold (75% passes at 70, fails at 80)", () => {
++    expect(gradeAttempt(Q, [0, 1, 0, 0], 70).passed).toBe(true); // 3/4 = 75%
++    expect(gradeAttempt(Q, [0, 1, 0, 0], 80).passed).toBe(false);
++  });
++
++  it("treats unanswered (-1) as wrong and reveals the correct index", () => {
++    const g = gradeAttempt(Q, [0, -1, 0, 1], 100);
++    expect(g.score).toBe(3);
++    expect(g.passed).toBe(false);
++    expect(g.feedback[1]).toMatchObject({
++      selected: -1,
++      correctIndex: 1,
++      isCorrect: false,
++    });
++  });
++
++  it("never passes an empty quiz", () => {
++    expect(gradeAttempt([], [], 0).passed).toBe(false);
++  });
++});
++
++describe("validateQuizForPublish", () => {
++  it("rejects empty, thin-option, and out-of-range-answer quizzes", () => {
++    expect(validateQuizForPublish([]).ok).toBe(false);
++    expect(
++      validateQuizForPublish([{ prompt: "p", options: ["a"], correctIndex: 0 }])
++        .ok,
++    ).toBe(false);
++    expect(
++      validateQuizForPublish([
++        { prompt: "", options: ["a", "b"], correctIndex: 0 },
++      ]).ok,
++    ).toBe(false);
++    expect(
++      validateQuizForPublish([
++        { prompt: "p", options: ["a", "b"], correctIndex: 5 },
++      ]).ok,
++    ).toBe(false);
++  });
++  it("accepts a well-formed quiz", () => {
++    expect(
++      validateQuizForPublish([
++        { prompt: "p", options: ["a", "b", "c"], correctIndex: 2 },
++      ]).ok,
++    ).toBe(true);
++  });
++});

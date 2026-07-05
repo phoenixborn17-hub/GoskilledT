@@ -6,7 +6,7 @@ import { format } from "date-fns";
 import {
   Users,
   CalendarDays,
-  Bot,
+  Sparkles,
   Lock,
   PlayCircle,
   CheckCircle2,
@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { getCurrentUser } from "../../lib/auth/session";
 import { getHubData } from "../../lib/dashboard/hub";
+import { getGamification } from "../../lib/dashboard/gamification";
+import { StreakChip } from "../../components/dashboard/gamification/streak-chip";
 import { AFFILIATE_COPY } from "../../lib/affiliate/copy";
 import { Card, CardTitle, CardDescription } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
@@ -34,7 +36,10 @@ const GOAL_CHIP: Record<string, string> = {
 
 export default async function DashboardHubPage() {
   const user = await getCurrentUser();
-  const hub = await getHubData(user!.id);
+  const [hub, game] = await Promise.all([
+    getHubData(user!.id),
+    getGamification(user!.id),
+  ]);
 
   return (
     <section aria-labelledby="hub-heading" className="space-y-6">
@@ -50,6 +55,9 @@ export default async function DashboardHubPage() {
         </div>
         <Badge variant="gold">Founding Batch</Badge>
       </header>
+
+      {/* 1b · Streak chip (GPS-M5 §2.3) — ethical: celebrates progress, rests without guilt. */}
+      <StreakChip streak={game.streak} />
 
       {/* 2 · Get-Started checklist */}
       {!hub.checklist.dismissed && (
@@ -98,8 +106,8 @@ export default async function DashboardHubPage() {
           title={hub.webinar.title}
         />
 
-        {/* 7 · AI Mentor — coming soon, non-interactive */}
-        <AiMentorCard />
+        {/* 7 · Guru — the AI Hinglish tutor (GPS-M5 §2.1). Opens on your continue-lesson. */}
+        <GuruCard continueHref={hub.continue.href} />
       </div>
     </section>
   );
@@ -297,20 +305,22 @@ function WebinarCard({
   );
 }
 
-function AiMentorCard() {
+function GuruCard({ continueHref }: { continueHref: string }) {
+  // Open Guru on the learner's continue-lesson (its context). Preserve any existing query.
+  const guruHref = `${continueHref}${continueHref.includes("?") ? "&" : "?"}guru=1`;
   return (
     <Card className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Bot className="h-5 w-5 text-brand" aria-hidden />
-          <CardTitle className="text-lg">AI Mentor</CardTitle>
-        </div>
-        <Badge variant="muted">Coming soon</Badge>
+      <div className="flex items-center gap-2">
+        <Sparkles className="h-5 w-5 text-brand" aria-hidden />
+        <CardTitle className="text-lg">Ask Guru</CardTitle>
       </div>
       <CardDescription>
-        Your Hinglish study buddy — ask doubts and get unstuck, any time.
-        Launching soon.
+        Your Hinglish study buddy — ask a doubt about your lesson and get
+        unstuck, any time.
       </CardDescription>
+      <Link href={guruHref} className="inline-block">
+        <Button variant="outline">Ask Guru →</Button>
+      </Link>
     </Card>
   );
 }

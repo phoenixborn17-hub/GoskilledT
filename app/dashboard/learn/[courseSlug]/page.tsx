@@ -12,6 +12,9 @@ import {
 import { getVideoProvider } from "../../../../lib/video/provider";
 import { nextLessonId } from "../../../../modules/lms/progress";
 import { LessonPlayer } from "../../../../components/dashboard/lesson-player";
+import { GuruPanel } from "../../../../components/dashboard/guru/guru-panel";
+import { QuizCheckpoint } from "../../../../components/dashboard/quiz/quiz-checkpoint";
+import { getPublishedQuizForLearner } from "../../../../lib/lms/quiz";
 import {
   Card,
   CardTitle,
@@ -27,10 +30,10 @@ export default async function CoursePlayerPage({
   searchParams,
 }: {
   params: Promise<{ courseSlug: string }>;
-  searchParams: Promise<{ lesson?: string }>;
+  searchParams: Promise<{ lesson?: string; guru?: string; q?: string }>;
 }) {
   const { courseSlug } = await params;
-  const { lesson: lessonParam } = await searchParams;
+  const { lesson: lessonParam, guru, q } = await searchParams;
 
   const user = await getCurrentUser();
   const view = await getCoursePlayerView(user!.id, courseSlug);
@@ -53,6 +56,11 @@ export default async function CoursePlayerPage({
   // Only resolve a playback URL if the lesson is actually accessible (server-side gate).
   const playback = resolvePlayback(selected, getVideoProvider());
 
+  // Quiz checkpoint (GPS-M5 §2.2): only when the lesson is accessible + a PUBLISHED quiz exists.
+  const quiz = playback
+    ? await getPublishedQuizForLearner(user!.id, selected.id)
+    : null;
+
   return (
     <div className="space-y-6">
       <div>
@@ -70,6 +78,7 @@ export default async function CoursePlayerPage({
           {playback ? (
             <LessonPlayer
               courseSlug={courseSlug}
+              courseTitle={view.course.title}
               lessonId={selected.id}
               title={selected.title}
               src={playback.url}
@@ -96,6 +105,17 @@ export default async function CoursePlayerPage({
                 </Link>
               </div>
             </Card>
+          )}
+
+          {/* Quiz checkpoint after the lesson (GPS-M5 §2.2) — practice → real skill + cert gate. */}
+          {quiz && (
+            <div className="mt-6">
+              <QuizCheckpoint
+                quiz={quiz}
+                courseSlug={courseSlug}
+                lessonId={selected.id}
+              />
+            </div>
           )}
         </div>
 
@@ -149,6 +169,16 @@ export default async function CoursePlayerPage({
           ))}
         </aside>
       </div>
+
+      {/* Guru companion panel (GPS-M5 §2.1) — context = the currently-viewed lesson. Deep-linkable
+          via ?guru=1 (auto-open) and ?q= (auto-ask, e.g. progress "explain my gap"). */}
+      <GuruPanel
+        lessonId={selected.id}
+        courseSlug={courseSlug}
+        enrolled={view.isEnrolled}
+        initialOpen={guru === "1"}
+        initialQuestion={q}
+      />
     </div>
   );
 }

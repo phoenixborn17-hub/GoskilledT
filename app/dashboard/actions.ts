@@ -9,6 +9,10 @@ import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { getCurrentUser } from "../../lib/auth/session";
 import { completeLesson } from "../../lib/lms/queries";
 import { issueCertificateIfEligible } from "../../lib/lms/certificate";
+import {
+  maybeSendWelcomeEmail,
+  maybeSendCertificateEmail,
+} from "../../lib/email/notify";
 import type { ProgressSummary } from "../../modules/lms/progress";
 import { track } from "../../lib/analytics/track";
 
@@ -63,6 +67,9 @@ export async function updateProfile(
         goal: parsed.data.goal,
       },
     });
+    // Welcome email (GPS-M5 §2.4) — fires once the learner's email is on file (onboarding). Idempotent
+    // + opt-out-aware + best-effort; never blocks the profile save.
+    await maybeSendWelcomeEmail(user.id);
     revalidatePath("/dashboard/profile");
     revalidatePath("/dashboard");
     return { ok: true };
@@ -74,8 +81,28 @@ export async function updateProfile(
   }
 }
 
+// Email preference toggle (GPS-M5 §2.4, Tier-B). optOut=true suppresses all product emails.
+export async function setEmailOptOutAction(
+  optOut: boolean,
+): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { emailOptOut: optOut },
+  });
+  revalidatePath("/dashboard/profile");
+  return { ok: true };
+}
+
 export type CompleteLessonResult =
-  { ok: true; progress: ProgressSummary } | { ok: false; error: string };
+  | {
+      ok: true;
+      progress: ProgressSummary;
+      // Set only on the completion that hits 100% → powers the Certificate-earned moment (§2.6).
+      certificateSerial?: string | null;
+    }
+  | { ok: false; error: string };
 
 export async function completeLessonAction(input: {
   courseSlug: string;
@@ -96,9 +123,13 @@ export async function completeLessonAction(input: {
     });
     // Certificate issuance (§2.6): fires once when the course hits 100%. Best-effort + idempotent —
     // an issuance hiccup must never fail the learner's lesson completion.
+    let certificateSerial: string | null = null;
     if (progress.percent === 100) {
       try {
-        await issueCertificateIfEligible(user.id, courseId);
+        const cert = await issueCertificateIfEligible(user.id, courseId);
+        certificateSerial = cert?.serial ?? null; // powers the Certificate-earned moment
+        // Certificate-ready email (GPS-M5 §2.4) — idempotent + opt-out-aware, best-effort.
+        await maybeSendCertificateEmail(user.id, courseId);
       } catch (e) {
         console.warn(
           "[certificate] issuance failed:",
@@ -110,7 +141,7 @@ export async function completeLessonAction(input: {
     revalidatePath("/dashboard"); // Hub: checklist + continue card reflect new progress
     revalidatePath("/dashboard/learn");
     revalidatePath("/dashboard/progress");
-    return { ok: true, progress };
+    return { ok: true, progress, certificateSerial };
   } catch (e) {
     return {
       ok: false,

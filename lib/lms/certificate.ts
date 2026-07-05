@@ -29,7 +29,54 @@ export function generateSerial(
   return `GS-${s.slice(0, 5)}-${s.slice(5)}`;
 }
 
-/** Eligible iff every lesson in the course is complete. (Mandatory-assignments gate = GPS-M5.) */
+/**
+ * Have all PUBLISHED mandatory quizzes in the course been passed by this user? (GPS-M5 §2.2.)
+ * NON-REGRESSION GUARANTEE: a course with no published mandatory quizzes (i.e. every existing course
+ * today) returns true — so `isEligibleForCertificate` keeps its exact prior outcome. The gate can only
+ * ADD a requirement, never relax one, and it never touches already-issued certificates.
+ */
+export async function passedAllMandatoryQuizzes(
+  userId: string,
+  courseId: string,
+): Promise<boolean> {
+  const mandatory = await prisma.quiz.findMany({
+    where: {
+      status: "PUBLISHED",
+      isMandatory: true,
+      publishedAt: { not: null },
+      lesson: { module: { courseId } },
+    },
+    select: { id: true, publishedAt: true },
+  });
+  if (mandatory.length === 0) return true; // no-op for existing courses (non-regression)
+
+  // GRANDFATHER RULE (Fable Tier-A condition 2): a mandatory quiz gates ONLY a learner whose course
+  // completion happened at/after the quiz was published. Completion time = when they finished the last
+  // lesson (max completedAt across the course's lessons). Learners who finished earlier are exempt.
+  const last = await prisma.lessonProgress.aggregate({
+    _max: { completedAt: true },
+    where: { userId, lesson: { module: { courseId } } },
+  });
+  const completedAt = last._max.completedAt;
+  if (!completedAt) return true; // not actually complete → eligibility already false upstream
+
+  const gating = mandatory.filter((q) => q.publishedAt! <= completedAt);
+  if (gating.length === 0) return true; // every mandatory quiz post-dates this completion → grandfathered
+
+  const passed = await prisma.quizAttempt.findMany({
+    where: { userId, passed: true, quizId: { in: gating.map((q) => q.id) } },
+    select: { quizId: true },
+    distinct: ["quizId"],
+  });
+  const passedIds = new Set(passed.map((a) => a.quizId));
+  return gating.every((q) => passedIds.has(q.id));
+}
+
+/**
+ * Eligible iff every lesson is complete AND every PUBLISHED mandatory quiz is passed (GPS-M5 §2.2
+ * makes the "mandatory assignments" gate M2 promised real). Existing courses (no mandatory quizzes)
+ * are unaffected. Issuance stays idempotent + immutable — the gate never revokes an issued cert.
+ */
 export async function isEligibleForCertificate(
   userId: string,
   courseId: string,
@@ -42,7 +89,8 @@ export async function isEligibleForCertificate(
   const ordered = course.modules.flatMap((m) => m.lessons.map((l) => l.id));
   if (ordered.length === 0) return false;
   const done = await completedLessonIds(userId, courseId);
-  return courseProgress(ordered, done).percent === 100;
+  if (courseProgress(ordered, done).percent !== 100) return false;
+  return passedAllMandatoryQuizzes(userId, courseId);
 }
 
 export interface IssuedCertificate {
