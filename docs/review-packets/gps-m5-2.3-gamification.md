@@ -7,6 +7,7 @@
 ## What was built
 
 Streaks + milestones — **entirely DERIVED, no new tables** (fully Tier-B, per the constraint).
+
 - **Pure logic** (`modules/lms/gamification.ts`): `computeStreak` (IST learning-days), `computeMilestones`,
   `nextMilestone`. Unit-tested (7).
 - **Loader** (`lib/dashboard/gamification.ts`): derives active-days from `LessonProgress.completedAt` +
@@ -17,8 +18,8 @@ Streaks + milestones — **entirely DERIVED, no new tables** (fully Tier-B, per 
 ## Ethical guarantees (the whole point) — enforced in code + tests
 
 - **Zero loss-aversion.** A gap makes a streak **REST**, never "break/lost". `computeStreak` anchors the
-  run at *today* (active) or *yesterday* (resting) — a learner is never punished for not having studied
-  *yet today*. Copy: "Streak resting hai — aaj ek chhota lesson se wapas shuru karo." No "you'll lose
+  run at _today_ (active) or _yesterday_ (resting) — a learner is never punished for not having studied
+  _yet today_. Copy: "Streak resting hai — aaj ek chhota lesson se wapas shuru karo." No "you'll lose
   it", no countdown, no FOMO. (Tested: rests at 2, warm zero after a longer gap, empty → resting zero.)
 - **Real events only.** Every milestone maps to a real achievement (first lesson, first quiz pass,
   halfway, course complete, certificate, streak 3/7). A brand-new account earns **nothing** — no fake

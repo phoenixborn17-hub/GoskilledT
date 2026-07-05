@@ -8,6 +8,7 @@ blocked(D-29) · mobile bottom-sheet + desktop right-drawer.
 ## What was built
 
 The Guru companion UI — "mera apna teacher" (Register 1, warm). Three surfaces, one panel:
+
 - **Player companion panel** (`components/dashboard/guru/guru-panel.tsx`) — CSS-only **bottom-sheet on
   mobile / right-drawer on desktop** (never covers the video). Wired into the course player, context =
   the currently-viewed lesson. Deep-linkable: `?guru=1` auto-opens, `?q=` auto-asks.
@@ -43,7 +44,7 @@ not-enrolled (lock + Unlock CTA).
 
 ## Follow-ups (→ founder / PRODUCT_DEBT, not blocking)
 
-1. **Copy is placeholder (LC #37)** — Hinglish strings incl. a few emoji in Guru's *message text*
+1. **Copy is placeholder (LC #37)** — Hinglish strings incl. a few emoji in Guru's _message text_
    (conversational warmth, not UI-chrome icons); founder finalizes voice pre-launch. Flag if the emoji
    should go (§9 "no emoji-as-icon" targets UI chrome, not chat copy — judgement call).
 2. **Focus-trap polish** — modal has `aria-modal` + focus-on-open + Esc; a full Tab-wrap focus trap is a

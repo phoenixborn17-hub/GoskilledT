@@ -1,20 +1,20 @@
 # GPS-M5 Premium — Module Close-out (§3C)
 
 **Branch:** `gps-m5-premium` (cut from `main` `6c7b5ae`) · **Spec:** `docs/specs/GPS-M5_Premium_v1.0.md` (FROZEN v1.0, mirrored verbatim).
-**Status: BUILD COMPLETE — parked, NOT merged.** Merge to `main` is gated on **Fable's Tier-A PACKET review**.
+**Status: FABLE PASS (3 conditions resolved in-branch) — MERGE AUTHORIZED.** Fable's Tier-A packet review returned PASS WITH 3 CONDITIONS (2026-07-05); all three are resolved and test-proven (see "Fable conditions — resolution"). Fable authorized the `--no-ff` merge without re-review; Opus verified the prescribed tests.
 
 ## Contracts (spec §2) — all eight addressed
 
-| § | Contract | Tier | Commit | State |
-|---|---|---|---|---|
-| 2.0 | Guru engine — Course-KB RAG (corpus-only), D-29 guardrail, cost caps, `AI_PROVIDER=mock\|live` | A | `8eba004` | ✅ COMPLETE (parked) |
-| 2.1 | Guru UI — companion panel + dashboard card + progress explain-gap | B | `196ff20` | ✅ COMPLETE |
-| 2.2 | Quiz engine + certificate gate (makes M2 "mandatory assignments" real) | A | `77e09d0` | ✅ COMPLETE (parked) |
-| 2.3 | Ethical gamification — derived streaks + milestones | B | `4de0fb5` | ✅ COMPLETE |
-| 2.4 | Notifications — welcome + cert-ready, idempotent + opt-out | A | `26bbde6` | ✅ COMPLETE (parked) |
-| 2.5 | PWA shell — installable, security-first SW, offline, install prompt | B | `b4d2c41` | ✅ COMPLETE |
-| 2.7 | Shareable certificate card — OG image + Web Share/wa.me | B | `62c162b` | ✅ COMPLETE |
-| 2.6 | Signature Moments — **Certificate Earned** (new) + 5 elevations itemized | B | `5f40aa5` | ◑ PARTIAL (1 new moment shipped; 5 existing-surface elevations → PRODUCT_DEBT #10–14 per DR-031) |
+| §   | Contract                                                                                       | Tier | Commit    | State                                                                                            |
+| --- | ---------------------------------------------------------------------------------------------- | ---- | --------- | ------------------------------------------------------------------------------------------------ |
+| 2.0 | Guru engine — Course-KB RAG (corpus-only), D-29 guardrail, cost caps, `AI_PROVIDER=mock\|live` | A    | `8eba004` | ✅ COMPLETE (parked)                                                                             |
+| 2.1 | Guru UI — companion panel + dashboard card + progress explain-gap                              | B    | `196ff20` | ✅ COMPLETE                                                                                      |
+| 2.2 | Quiz engine + certificate gate (makes M2 "mandatory assignments" real)                         | A    | `77e09d0` | ✅ COMPLETE (parked)                                                                             |
+| 2.3 | Ethical gamification — derived streaks + milestones                                            | B    | `4de0fb5` | ✅ COMPLETE                                                                                      |
+| 2.4 | Notifications — welcome + cert-ready, idempotent + opt-out                                     | A    | `26bbde6` | ✅ COMPLETE (parked)                                                                             |
+| 2.5 | PWA shell — installable, security-first SW, offline, install prompt                            | B    | `b4d2c41` | ✅ COMPLETE                                                                                      |
+| 2.7 | Shareable certificate card — OG image + Web Share/wa.me                                        | B    | `62c162b` | ✅ COMPLETE                                                                                      |
+| 2.6 | Signature Moments — **Certificate Earned** (new) + 5 elevations itemized                       | B    | `5f40aa5` | ◑ PARTIAL (1 new moment shipped; 5 existing-surface elevations → PRODUCT_DEBT #10–14 per DR-031) |
 
 ## §3C Definition-of-Done
 
@@ -27,14 +27,22 @@
 - [x] LAUNCH_CONFIG rows current (#35 Anthropic key · #36 Guru model/caps · #37 Guru copy · #38 quiz thresholds · #39 email copy · #40 PWA icon).
 - [x] Review Packet per ticket (`docs/review-packets/gps-m5-2.*`).
 - [ ] **Founder review** — pending (you).
-- [ ] **Fable Tier-A PACKET review** — PENDING. Packets to review: 2.0 engine · 2.2 quiz/cert-gate · 2.4 notifications (engine/quiz-gate/notifications/schema). **This gates merge.**
-- [ ] `merge --no-ff` into main — BLOCKED on Fable PASS.
+- [x] **Fable Tier-A PACKET review** — **PASS WITH 3 CONDITIONS** (2026-07-05). All three resolved in-branch (see "Fable conditions — resolution" below); Fable authorized merge without re-review, Opus verifies the prescribed tests.
+- [x] `merge --no-ff` into main — AUTHORIZED (Opus, on the three conditions' tests passing).
 - [ ] GPS Master §5.6/§19 + EXECUTION_QUEUE sync — Genesis docs (outside this repo) — founder to sync on merge.
+
+## Fable conditions — resolution (2026-07-05)
+
+1. **Guardrail numeric + period hardening** — `modules/ai/guru/guardrail.ts` now catches amount+period and scaled-amount income intent (₹/k/hazaar/lakh/crore × per-month/mahine/etc.) even without an earn-verb. **4 prescribed tests** added in `tests/guru-domain.test.ts` ("₹50000 per month possible hai kya?", "50k monthly income ho sakta hai?", "har mahine kitna paisa banega" → all BLOCKED; "is stock ki price ₹500 hai…" → NOT a false positive). ✅ 23/23 guru-domain green.
+2. **Cert-gate grandfather rule** — `Quiz.publishedAt` added (migration `20260705050000_quiz_publishedat`, additive; publish/unpublish set/clear it). `passedAllMandatoryQuizzes` now gates **only** learners whose completion (max lesson `completedAt`) is at/after a mandatory quiz's `publishedAt` — earlier finishers are grandfathered. **Test** added: a quiz published after a learner finished does NOT gate them; a later learner IS gated (control). ✅ 6/6 cert-gate integration green.
+3. **HMAC-signed unsubscribe token** — new `lib/email/unsubscribe-token.ts` (HMAC-SHA256, constant-time verify, key from `EMAIL_UNSUBSCRIBE_SECRET` → `DATABASE_URL`, no hardcoded fallback). Email links now carry `&sig=`; `/unsubscribe` verifies before mutating and shows an invalid-link state otherwise. **Tamper test** added: valid sig opts out; tampered / cross-user / missing / wrong-secret / no-secret all rejected. ✅ 6/6 token unit green. (Closes Open flag #4 below.)
+
+**LC notes added** (rows #35, #22): live smoke test MANDATORY at the `AI_PROVIDER=live` / `EMAIL_PROVIDER=resend` flip; **EmailLog SENT/FAILED status + retry sweep = follow-up nit** (not launch-blocking).
 
 ## Quality signals
 
-- **Tests:** full suite **256 passed / 35 files** (was 211/29 at branch cut → +45 tests). tsc clean, prettier clean.
-- **Migrations (4):** `20260705020000_guru_engine` · `_030000_quiz_engine` · `_040000_notifications` — all additive/non-breaking, RLS-on.
+- **Tests:** full suite **267 passed / 36 files** (was 211/29 at branch cut → +56 tests; +11 from the Fable conditions). tsc clean, prettier clean.
+- **Migrations (5):** `20260705020000_guru_engine` · `_030000_quiz_engine` · `_040000_notifications` · `_050000_quiz_publishedat` (grandfather rule) — all additive/non-breaking, RLS-on.
 - **New deps:** `@anthropic-ai/sdk` (Guru live provider). Providers reused where they existed (email console|resend).
 
 ## Open flags for Fable (carried in the packets)
@@ -42,7 +50,7 @@
 1. **Guru model default** = `claude-haiku-4-5` treated as a founder cost decision (LC #36, env-configurable) rather than hard-defaulting to opus — confirm.
 2. **`AI_PROVIDER=mock` soft-warns in prod** (DR-029 precedent) rather than a hard guard — confirm the reading of "prod guard extends".
 3. **Live paths untested without keys** (Guru live, live quiz-gen, Resend) — LC #35/#22; mock/console fully tested. Documented BLOCKED-for-test.
-4. **Unsubscribe token** = the user's cuid — a dedicated signed token is a noted hardening follow-up.
+4. ~~**Unsubscribe token** = the user's cuid — a dedicated signed token is a noted hardening follow-up.~~ **CLOSED** by Fable condition 3 — links are now HMAC-signed (`lib/email/unsubscribe-token.ts`).
 
 ## Technical debt filed this module
 

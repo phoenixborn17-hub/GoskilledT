@@ -317,9 +317,10 @@ export async function publishQuiz(
   if (!valid.ok) return { ok: false, error: valid.error };
 
   await prisma.$transaction(async (tx) => {
+    // publishedAt anchors the grandfather rule — gates only completions at/after this moment.
     await tx.quiz.update({
       where: { id: quiz.id },
-      data: { status: "PUBLISHED" },
+      data: { status: "PUBLISHED", publishedAt: new Date() },
     });
     await recordAdminAction(tx, {
       actor,
@@ -343,7 +344,10 @@ export async function unpublishQuiz(
   });
   if (!quiz) return { ok: false, error: "No quiz found." };
   await prisma.$transaction(async (tx) => {
-    await tx.quiz.update({ where: { id: quiz.id }, data: { status: "DRAFT" } });
+    await tx.quiz.update({
+      where: { id: quiz.id },
+      data: { status: "DRAFT", publishedAt: null },
+    });
     await recordAdminAction(tx, {
       actor,
       action: "QUIZ_UNPUBLISHED",

@@ -447,6 +447,9 @@ model Quiz {
   status      QuizStatus     @default(DRAFT)
   isMandatory Boolean        @default(false)            // counts toward the course certificate gate
   passPercent Int            @default(70)               // pass threshold (LC #38)
+  // GPS-M5 §2.2 grandfather rule: a mandatory quiz gates ONLY course-completions at/after this moment.
+  // Set when published, cleared when unpublished. Learners who finished before it existed are exempt.
+  publishedAt DateTime?
   questions   QuizQuestion[]
   attempts    QuizAttempt[]
   createdAt   DateTime       @default(now())

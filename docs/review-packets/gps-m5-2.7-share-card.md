@@ -7,6 +7,7 @@
 ## What was built
 
 Compliant social-proof sharing for a verified certificate (D-29: pride, never earnings).
+
 - **Dynamic OG image** (`app/verify/[serial]/opengraph-image.tsx`, `next/og`): when a `/verify/<serial>`
   link is shared, platforms render a branded card — GoSkilled mark · CERTIFICATE OF COMPLETION · learner
   name · course · serial + issue date · gold "Verified credential" badge. **Invalid serial → neutral
@@ -38,6 +39,7 @@ explicit `display:flex` on every multi-child node — the two `next/og` gotchas 
 5. Reused the verify serial as the shareable token (public by design — the page is already public).
 
 ## Tier-B checklist
+
 - [x] `tsc` clean · prettier clean · full suite green (nothing broke)
 - [x] OG image + share button verified in-browser
 - [x] D-29-safe · gold-contrast rule · invalid-serial fallback (no fabricated data)

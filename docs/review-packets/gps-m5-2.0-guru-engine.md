@@ -11,6 +11,7 @@ it answers only from the Course Knowledge Base (corpus-only RAG), refuses all in
 (D-29), and is bounded by server-enforced cost caps. Provider pattern `AI_PROVIDER=mock|live`.
 
 **Architecture (M1 principle — pure decision + thin adapter):**
+
 - `modules/ai/guru/` — PURE, unit-tested, no I/O: `guardrail.ts` (D-29), `retrieval.ts` (corpus-only
   BM25-lite), `caps.ts` (cap decision), `prompt.ts` (Hinglish copy slots), `engine.ts` (the §1B state
   machine, dependency-injected), `schemas.ts` (Zod), `types.ts`.
@@ -63,6 +64,7 @@ REDIRECTED-scope, EMPTY, CAPPED-without-calling-model, REDIRECTED-not-enrolled, 
 Test Files  1 passed (1)
      Tests  19 passed (19)
 ```
+
 Full suite: **230 passed / 30 files** (was 211/29). `tsc --noEmit` clean · prettier clean.
 
 ## Self-assessment (5 lines)

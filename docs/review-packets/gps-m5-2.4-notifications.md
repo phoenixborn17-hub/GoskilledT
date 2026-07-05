@@ -28,8 +28,8 @@ Welcome + certificate-ready emails, on a shared premium template, idempotent + o
 2. Hard **opt-out suppresses** the send (no claim).
 3. **No email → no send.**
 4. Certificate-ready **dedupes by serial**; opt-out respected.
-Plus pure builder tests (`email-notifications`): D-29-safe copy (no income words in html/text),
-unsubscribe present, correct CTA hrefs + dedupe keys.
+   Plus pure builder tests (`email-notifications`): D-29-safe copy (no income words in html/text),
+   unsubscribe present, correct CTA hrefs + dedupe keys.
 
 ```
 email-notifications (4) + notifications.integration (4) + email (9) → 17 passed

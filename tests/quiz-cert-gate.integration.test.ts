@@ -87,6 +87,7 @@ describe.skipIf(!HAS_DB)(
           status: "PUBLISHED",
           isMandatory: true,
           passPercent: 100,
+          publishedAt: new Date(Date.now() - 3600_000), // published BEFORE completion → gates
           questions: {
             create: [
               {
@@ -158,13 +159,14 @@ describe.skipIf(!HAS_DB)(
       const issued = await issueCertificateIfEligible(userId, courseId);
       expect(issued?.serial).toMatch(/^GS-/);
 
-      // Now add a PUBLISHED mandatory quiz the learner has NOT passed.
+      // Now add a PUBLISHED mandatory quiz published AFTER the learner already finished.
       await prisma.quiz.create({
         data: {
           lessonId,
           title: "Late",
           status: "PUBLISHED",
           isMandatory: true,
+          publishedAt: new Date(), // AFTER completion
           questions: {
             create: [
               { prompt: "q", options: ["a", "b"], correctIndex: 1, order: 0 },
@@ -177,6 +179,43 @@ describe.skipIf(!HAS_DB)(
       expect(again?.serial).toBe(issued?.serial);
       const v = await getCertificateBySerial(issued!.serial);
       expect(v.valid).toBe(true);
+    });
+
+    it("GRANDFATHER: a quiz published AFTER a learner finished does NOT gate them (Fable cond. 2)", async () => {
+      const { courseId, lessonId } = await makeCourse("grandfather");
+      const userId = await makeUser("E");
+      await prisma.enrollment.create({ data: { userId, courseId } });
+      await completeLesson(userId, lessonId); // finished NOW
+
+      // A mandatory quiz is published LATER (publishedAt in the future relative to the completion).
+      await prisma.quiz.create({
+        data: {
+          lessonId,
+          title: "Added later",
+          status: "PUBLISHED",
+          isMandatory: true,
+          publishedAt: new Date(Date.now() + 3600_000), // after this learner's completion
+          questions: {
+            create: [
+              { prompt: "q", options: ["a", "b"], correctIndex: 1, order: 0 },
+            ],
+          },
+        },
+      });
+
+      // Grandfathered: eligible WITHOUT ever taking the quiz (they finished before it existed).
+      expect(await isEligibleForCertificate(userId, courseId)).toBe(true);
+
+      // A learner who finishes AFTER the publish moment IS gated (control).
+      const laterUser = await makeUser("F");
+      await prisma.enrollment.create({ data: { userId: laterUser, courseId } });
+      // Backdate the quiz's publish to the past so this learner's fresh completion is after it.
+      await prisma.quiz.update({
+        where: { lessonId },
+        data: { publishedAt: new Date(Date.now() - 3600_000) },
+      });
+      await completeLesson(laterUser, lessonId);
+      expect(await isEligibleForCertificate(laterUser, courseId)).toBe(false);
     });
 
     it("unknown serial verifies as invalid (anti-enumeration behaviour intact)", async () => {

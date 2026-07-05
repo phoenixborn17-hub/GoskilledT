@@ -7,6 +7,7 @@
 ## What was built
 
 Installable app shell + offline fallback, with a **security-first** service worker.
+
 - **Manifest** (`app/manifest.ts`, Next auto-injects the link): standalone, `start_url:/dashboard`,
   theme `#137E49`, icons 192/512/**maskable**.
 - **Icons** (`public/icons/*.png`, generated via sharp): placeholder green "G" mark (LC #40 — final =

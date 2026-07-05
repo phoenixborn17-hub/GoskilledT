@@ -42,6 +42,25 @@ describe("guardrail: hasIncomeIntent (D-29)", () => {
   });
 });
 
+// Fable Tier-A condition 1 — numeric + period hardening.
+describe("guardrail: numeric + period hardening (Fable condition 1)", () => {
+  it("blocks a currency amount asked as a per-period rate", () => {
+    expect(hasIncomeIntent("₹50000 per month possible hai kya?")).toBe(true);
+  });
+  it("blocks a scaled amount + period + income term", () => {
+    expect(hasIncomeIntent("50k monthly income ho sakta hai?")).toBe(true);
+  });
+  it("blocks a period + how-much + money phrasing (Hinglish)", () => {
+    expect(hasIncomeIntent("har mahine kitna paisa banega")).toBe(true);
+  });
+  it("does NOT false-positive on a currency amount used as course content", () => {
+    // A finance/stock lesson legitimately references a price — no earn verb, period, or how-much.
+    expect(
+      hasIncomeIntent("is stock ki price ₹500 hai, ye kaise change hoti hai?"),
+    ).toBe(false);
+  });
+});
+
 // ── Retrieval (corpus-only, out-of-scope detection) ─────────────────────────────────────────────
 const chunkOf = (
   lessonOrder: number,

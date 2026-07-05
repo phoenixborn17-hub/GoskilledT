@@ -8,6 +8,7 @@
 
 A course hitting 100% now fires a full **Certificate Earned** signature moment (Register 1, earned
 celebration):
+
 - `completeLessonAction` surfaces the freshly-issued `certificateSerial` on the completion that hits 100%.
 - `CertificateMoment` (client) — a centred celebration overlay: confetti (**reduced-motion-safe** inside
   `<Confetti>`), gold Award badge, "Certificate earned! 🎉", course name, **Share certificate** (§2.7
@@ -41,6 +42,7 @@ the moment framework + the flagship new moment are in; the five elevations are i
 5. Deliberately scoped per DR-031 rather than churning finished M1/M2/M3 surfaces in a marathon turn.
 
 ## Tier-B checklist
+
 - [x] `tsc` clean · prettier clean · full suite green
 - [x] New moment verified in-browser (100% → cert → moment); reduced-motion safe
 - [x] D-29 · gold-contrast · dismissible

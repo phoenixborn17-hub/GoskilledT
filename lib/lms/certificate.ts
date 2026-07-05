@@ -43,23 +43,33 @@ export async function passedAllMandatoryQuizzes(
     where: {
       status: "PUBLISHED",
       isMandatory: true,
+      publishedAt: { not: null },
       lesson: { module: { courseId } },
     },
-    select: { id: true },
+    select: { id: true, publishedAt: true },
   });
   if (mandatory.length === 0) return true; // no-op for existing courses (non-regression)
 
+  // GRANDFATHER RULE (Fable Tier-A condition 2): a mandatory quiz gates ONLY a learner whose course
+  // completion happened at/after the quiz was published. Completion time = when they finished the last
+  // lesson (max completedAt across the course's lessons). Learners who finished earlier are exempt.
+  const last = await prisma.lessonProgress.aggregate({
+    _max: { completedAt: true },
+    where: { userId, lesson: { module: { courseId } } },
+  });
+  const completedAt = last._max.completedAt;
+  if (!completedAt) return true; // not actually complete → eligibility already false upstream
+
+  const gating = mandatory.filter((q) => q.publishedAt! <= completedAt);
+  if (gating.length === 0) return true; // every mandatory quiz post-dates this completion → grandfathered
+
   const passed = await prisma.quizAttempt.findMany({
-    where: {
-      userId,
-      passed: true,
-      quizId: { in: mandatory.map((q) => q.id) },
-    },
+    where: { userId, passed: true, quizId: { in: gating.map((q) => q.id) } },
     select: { quizId: true },
     distinct: ["quizId"],
   });
   const passedIds = new Set(passed.map((a) => a.quizId));
-  return mandatory.every((q) => passedIds.has(q.id));
+  return gating.every((q) => passedIds.has(q.id));
 }
 
 /**

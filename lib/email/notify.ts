@@ -5,14 +5,16 @@ import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma";
 import { sendEmail } from "./send";
 import { buildWelcomeEmail, buildCertificateReadyEmail } from "./notifications";
+import { signUnsubscribe, unsubscribeKey } from "./unsubscribe-token";
 
 function appUrl(): string {
   return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
 }
-// Unsubscribe token = the user's unguessable cuid (25 random chars). A dedicated signed token is a
-// noted hardening follow-up; the cuid is non-enumerable, so this is safe for v1.
+// HMAC-signed unsubscribe link (Fable cond. 3) — `sig` proves the link was issued by us, so it can't
+// be forged/tampered to opt out another learner.
 function unsubscribeUrl(userId: string): string {
-  return `${appUrl()}/unsubscribe?u=${encodeURIComponent(userId)}`;
+  const sig = signUnsubscribe(userId, unsubscribeKey());
+  return `${appUrl()}/unsubscribe?u=${encodeURIComponent(userId)}&sig=${encodeURIComponent(sig)}`;
 }
 
 /** Claim a dedupe key by INSERTing the send-log row FIRST. Returns false if already claimed (P2002) or

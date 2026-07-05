@@ -28,6 +28,7 @@ The quiz engine that makes M2's promised "mandatory assignments" certificate gat
 ## Mandatory NON-REGRESSION suite (the sacred requirement) — `tests/quiz-cert-gate.integration.test.ts`
 
 All green (5 tests), alongside the untouched M2 `certificate.test.ts` (5, still green):
+
 1. **No quizzes** → still eligible on 100% completion; **issuance idempotent + serial immutable** (count=1).
 2. **PUBLISHED mandatory quiz gates** issuance until passed; a **failing** attempt doesn't open it; retries allowed.
 3. **DRAFT or non-mandatory** quizzes do **NOT** gate (only PUBLISHED + mandatory).
