@@ -1,0 +1,1570 @@
+diff --git a/.env.example b/.env.example
+index 27789ea..18eff7e 100644
+--- a/.env.example
++++ b/.env.example
+@@ -13,8 +13,15 @@ OTP_PROVIDER="test"               # test | live       (test = Supabase test numb
+ VIDEO_PROVIDER="mock"             # mock | stream     (mock = sample MP4s; FORBIDDEN in production)
+ ANALYTICS_PROVIDER="console"      # console | posthog (console = JSON logs; ALLOWED in prod but soft-warns — off ≠ unsafe)
+ EMAIL_PROVIDER="console"          # console | resend  (console = logged, not sent; ALLOWED in prod but soft-warns)
++AI_PROVIDER="mock"                # mock | live       (mock = canned Guru answers, dev/tests; ALLOWED in prod but soft-warns — GPS-M5)
+ DEV_TEST_PHONES=""                # optional: comma-separated 10-digit Supabase test numbers (dev allowlist)
+ 
++# --- Guru AI tutor (GPS-M5 §2.0) — only ANTHROPIC_API_KEY needed when AI_PROVIDER=live ---
++ANTHROPIC_API_KEY=""              # server only (LC #35)
++GURU_MODEL=""                     # optional override; default claude-haiku-4-5 (founder cost decision, LC #36)
++GURU_DAILY_MSG_CAP=""             # optional; default 30 per user/day  (cost cap, LC #36)
++GURU_DAILY_TOKEN_BUDGET=""        # optional; default 2000000 tokens/day global  (cost cap, LC #36)
++
+ # --- Email (Resend) — only needed when EMAIL_PROVIDER=resend ---
+ RESEND_API_KEY=""                 # server only
+ EMAIL_FROM="GoSkilled <noreply@goskilled.in>"   # verified sender for Resend
+diff --git a/docs/LAUNCH_CONFIG.md b/docs/LAUNCH_CONFIG.md
+index c040dd0..dbd621e 100644
+--- a/docs/LAUNCH_CONFIG.md
++++ b/docs/LAUNCH_CONFIG.md
+@@ -55,6 +55,9 @@
+ | 32 | KYC `accountHolderEnc` column | `Kyc` model | Configuration | FINAL | Engineering | — | Dedicated `accountHolderEnc` column (migration `20260705010000_kyc_account_holder_enc`, data-preserving) | OPTIONAL | Done 2026-07-05 | GPS-M4: `bankNameEnc` retired; all readers/writers migrated. |
+ | 33 | Razorpay TEST-MODE keys for staging | payments (staging) | External Service | PENDING | Founder | `PAYMENT_PROVIDER=mock` + `npm run verify:loop` (no Razorpay account) | Razorpay **test-mode** `RAZORPAY_KEY_ID`/`KEY_SECRET`/`WEBHOOK_SECRET` (signup only — dashboard → Test Mode; NO business activation/KYC) | OPTIONAL (pre-live testing step for #19) | Before #19 go-live | Lets staging run a real Razorpay sandbox checkout before the live account (#19) is activated. Mock loop already proves the pipeline end-to-end. |
+ | 34 | Register + Welcome final copy | `/register`, `/welcome` | Content | PENDING | Founder | Placeholder Hinglish copy live in code, clearly non-final (headings, CTAs, SEO title "Register free — GoSkilled") | Founder-approved copy set | LAUNCH | Pre-launch | DR-030 Day-0 surfaces (GPS-M2 delta). D-29 floor applies to placeholders too — no income language anywhere. |
++| 35 | Anthropic API key (Guru) | ai (guru) — GPS-M5 §2.0 | External Service | PENDING | Founder | `AI_PROVIDER=mock` (deterministic canned answers, dev/tests); prod soft-warns only | `ANTHROPIC_API_KEY` + `AI_PROVIDER=live` | LAUNCH (for real tutoring) | Pre-launch | Guru ships on mock until the key lands (DR-029). D-29 guardrail + cost caps hold in both modes. |
++| 36 | Guru model + cost caps | ai (guru) — GPS-M5 §2.0 | Configuration | PENDING | Founder | `GURU_MODEL=claude-haiku-4-5` (cost-appropriate tutor tier), per-user `GURU_DAILY_MSG_CAP=30`, global `GURU_DAILY_TOKEN_BUDGET=2,000,000` — safe defaults in `modules/ai/guru/caps.ts` | Founder-confirmed model + budget for launch scale | LAUNCH (activation cost) | Pre-launch | Model is the founder's cost decision (env-configurable, not baked in) — confirm tier + budget before `AI_PROVIDER=live`. Caps are server-enforced regardless. |
++| 37 | Guru Hinglish system prompt + state copy | ai (guru) — GPS-M5 §2.0 | Content | PENDING | Founder | Placeholder Hinglish copy in `modules/ai/guru/prompt.ts` + `guardrail.ts`/`caps.ts` (system prompt, income redirect, out-of-scope, empty, capped, error states) — D-29-safe, no income language | Founder-approved Hinglish voice set | LAUNCH | Pre-launch | Warm "mera apna teacher" tone; D-29 floor absolute in every string. |
+ 
+ ---
+ 
+@@ -64,3 +67,4 @@
+ - 2026-07-04 — GPS-M3 merged (Fable Tier-A reviewed): #17/#18/#28 refreshed, #30–32 landed; #29 reconciled to the founder's frozen Day-0 (DR-030).
+ - 2026-07-04 — GPS-M2 Day-0 delta built (DR-030): #10 slot BUILT (Getting-Started course + Lesson 0, mock video), #14 Hub certificate-preview placeholder wired, #34 added (register/welcome copy). #17 pre-D-01 earn copy now also drives the Hub Earn card.
+ - 2026-07-05 — GPS-M4 (Admin) build: #32 FINAL (`accountHolderEnc` migration); #30 review queue + #27 webinar scheduling + #18 flag ceremony + #21 OTP throttle engineering complete (remaining items are founder/legal/creds); #10 Lesson-0 video slot now editable via catalog CRUD; #1 runtime gate `D01_LEGAL_CLEARED` wired. Tier-A surfaces (KYC/withdrawals/settings/schema) parked for Fable review.
++- 2026-07-05 — GPS-M5 §2.0 Guru engine: added #35 (Anthropic API key), #36 (Guru model + cost caps), #37 (Guru Hinglish system-prompt + state copy). Engine ships on `AI_PROVIDER=mock` (DR-029) with D-29 guardrail + server-enforced cost caps in both modes; parked for Fable Tier-A review.
+diff --git a/lib/ai/guru.ts b/lib/ai/guru.ts
+new file mode 100644
+index 0000000..cfba6e4
+--- /dev/null
++++ b/lib/ai/guru.ts
+@@ -0,0 +1,120 @@
++// GPS-M5 §2.0 — Guru adapter. THIN: wires real data loaders + the provider + env limits into the
++// pure engine (modules/ai/guru/engine.ts), persists the usage/cost log, and emits the analytics
++// event. No decision rules live here — they're all in the engine.
++import { Prisma } from "../generated/prisma";
++import { prisma } from "../prisma";
++import { isEnrolled } from "../lms/queries";
++import { track } from "../analytics/track";
++import { getAiProvider } from "./provider";
++import { resolveLessonContext, loadCourseKnowledge } from "./knowledge";
++import {
++  runGuruTurn,
++  type GuruAsk,
++  type GuruDeps,
++} from "../../modules/ai/guru/engine";
++import { GURU_SYSTEM_PROMPT } from "../../modules/ai/guru/prompt";
++import {
++  DEFAULT_DAILY_MSG_CAP,
++  DEFAULT_DAILY_TOKEN_BUDGET,
++} from "../../modules/ai/guru/caps";
++import type { GuruTurn } from "../../modules/ai/guru/types";
++
++/** UTC instant of the most recent IST (Asia/Kolkata) midnight — the "daily" boundary for caps. */
++function startOfIstDay(now = new Date()): Date {
++  const IST_OFFSET_MIN = 330;
++  const ist = new Date(now.getTime() + IST_OFFSET_MIN * 60_000);
++  const istMidnightUtc =
++    Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), ist.getUTCDate()) -
++    IST_OFFSET_MIN * 60_000;
++  return new Date(istMidnightUtc);
++}
++
++function intEnv(name: string, fallback: number): number {
++  const raw = process.env[name];
++  const n = raw ? Number.parseInt(raw, 10) : NaN;
++  return Number.isFinite(n) && n > 0 ? n : fallback;
++}
++
++async function realUsage(
++  userId: string,
++): Promise<{ userMsgsToday: number; globalTokensToday: number }> {
++  const since = startOfIstDay();
++  const [userMsgsToday, agg] = await Promise.all([
++    prisma.guruMessage.count({ where: { userId, createdAt: { gte: since } } }),
++    prisma.guruMessage.aggregate({
++      _sum: { promptTokens: true, completionTokens: true },
++      where: { createdAt: { gte: since } },
++    }),
++  ]);
++  const globalTokensToday =
++    (agg._sum.promptTokens ?? 0) + (agg._sum.completionTokens ?? 0);
++  return { userMsgsToday, globalTokensToday };
++}
++
++/**
++ * Ask Guru one question in a lesson's context. Returns the turn (verdict + answer + citations) and
++ * persists a GuruMessage log row. Input should already be Zod-validated (modules/ai/guru/schemas).
++ */
++export async function askGuru(ask: GuruAsk): Promise<GuruTurn> {
++  const provider = getAiProvider();
++  // Resolve context once so we can log courseId even on early-exit states.
++  const ctx = await resolveLessonContext(ask.lessonId);
++
++  const deps: GuruDeps = {
++    resolveContext: async () =>
++      ctx
++        ? {
++            courseId: ctx.courseId,
++            lessonId: ctx.lessonId,
++            lessonTitle: ctx.lessonTitle,
++            lessonOrder: ctx.lessonOrder,
++          }
++        : null,
++    isEnrolled: (userId, courseId) => isEnrolled(userId, courseId),
++    loadKnowledge: (courseId) => loadCourseKnowledge(courseId),
++    usage: realUsage,
++    limits: {
++      dailyMsgCap: intEnv("GURU_DAILY_MSG_CAP", DEFAULT_DAILY_MSG_CAP),
++      dailyTokenBudget: intEnv(
++        "GURU_DAILY_TOKEN_BUDGET",
++        DEFAULT_DAILY_TOKEN_BUDGET,
++      ),
++    },
++    systemPrompt: GURU_SYSTEM_PROMPT,
++    generate: (input) => provider.generateAnswer(input),
++  };
++
++  const turn = await runGuruTurn(ask, deps);
++
++  // Persist the usage/cost log (best-effort — a log failure must not break the learner's answer).
++  try {
++    await prisma.guruMessage.create({
++      data: {
++        userId: ask.userId,
++        courseId: ctx?.courseId ?? null,
++        lessonId: ask.lessonId,
++        question: ask.question,
++        answer: turn.answer,
++        verdict: turn.verdict,
++        citations: turn.citations as unknown as Prisma.InputJsonValue,
++        promptTokens: turn.promptTokens,
++        completionTokens: turn.completionTokens,
++        costPaise: turn.costPaise,
++      },
++    });
++  } catch (e) {
++    console.warn(
++      "[guru] log write failed:",
++      e instanceof Error ? e.message : e,
++    );
++  }
++
++  // Analytics: verdict + whether it cited — NO question/answer text (§1D).
++  await track("guru_asked", ask.userId, {
++    verdict: turn.verdict,
++    cited: turn.citations.length > 0,
++    provider: provider.name,
++  });
++
++  return turn;
++}
+diff --git a/lib/ai/knowledge.ts b/lib/ai/knowledge.ts
+new file mode 100644
+index 0000000..e9dda58
+--- /dev/null
++++ b/lib/ai/knowledge.ts
+@@ -0,0 +1,96 @@
++// GPS-M5 §2.0 — Course Knowledge Base loader. Reads transcript/notes/glossary rows for a course and
++// turns them into retrieval chunks bound to their lesson (for exact "Lesson N" citations). Pure DB
++// reads only (Guru itself may READ transcripts, never write them — §1C).
++import { prisma } from "../prisma";
++import { chunkText } from "../../modules/ai/guru/retrieval";
++import type { KnowledgeChunk } from "../../modules/ai/guru/types";
++
++export interface LessonContext {
++  courseId: string;
++  courseSlug: string;
++  courseTitle: string;
++  lessonId: string;
++  lessonTitle: string;
++  lessonOrder: number; // 1-based within the course
++}
++
++/** Resolve a lessonId to its course + the lesson's 1-based order within that course. */
++export async function resolveLessonContext(
++  lessonId: string,
++): Promise<LessonContext | null> {
++  const lesson = await prisma.lesson.findUnique({
++    where: { id: lessonId },
++    select: { id: true, title: true, module: { select: { courseId: true } } },
++  });
++  if (!lesson) return null;
++  const courseId = lesson.module.courseId;
++
++  const course = await prisma.course.findUnique({
++    where: { id: courseId },
++    select: {
++      slug: true,
++      title: true,
++      modules: {
++        orderBy: { order: "asc" },
++        select: {
++          lessons: { orderBy: { order: "asc" }, select: { id: true } },
++        },
++      },
++    },
++  });
++  if (!course) return null;
++
++  const orderedIds = course.modules.flatMap((m) => m.lessons.map((l) => l.id));
++  const idx = orderedIds.indexOf(lessonId);
++  return {
++    courseId,
++    courseSlug: course.slug,
++    courseTitle: course.title,
++    lessonId: lesson.id,
++    lessonTitle: lesson.title,
++    lessonOrder: idx >= 0 ? idx + 1 : 1,
++  };
++}
++
++/**
++ * Load the whole course's Knowledge Base as retrieval chunks. Guru answers a lesson-context doubt
++ * from the ENTIRE enrolled course (so a concept taught two lessons earlier is still reachable), then
++ * cites the specific lesson. Returns [] when the course has no knowledge yet (→ honest EMPTY state).
++ */
++export async function loadCourseKnowledge(
++  courseId: string,
++): Promise<KnowledgeChunk[]> {
++  const modules = await prisma.module.findMany({
++    where: { courseId },
++    orderBy: { order: "asc" },
++    select: {
++      lessons: {
++        orderBy: { order: "asc" },
++        select: {
++          id: true,
++          title: true,
++          knowledge: { select: { kind: true, content: true } },
++        },
++      },
++    },
++  });
++
++  const chunks: KnowledgeChunk[] = [];
++  let order = 0;
++  for (const m of modules) {
++    for (const lesson of m.lessons) {
++      order += 1; // 1-based lesson order across the course
++      for (const k of lesson.knowledge) {
++        chunks.push(
++          ...chunkText(k.content, {
++            lessonId: lesson.id,
++            lessonTitle: lesson.title,
++            lessonOrder: order,
++            kind: k.kind,
++          }),
++        );
++      }
++    }
++  }
++  return chunks;
++}
+diff --git a/lib/ai/provider.ts b/lib/ai/provider.ts
+new file mode 100644
+index 0000000..ec91e18
+--- /dev/null
++++ b/lib/ai/provider.ts
+@@ -0,0 +1,128 @@
++// GPS-M5 §2.0 — Guru AI provider adapter. Mock and live expose the SAME interface, so switching is
++// AI_PROVIDER=mock|live + the Anthropic key. Mock = deterministic canned answers (dev/tests); live =
++// Anthropic Messages API. Corpus-only is enforced by the ENGINE (retrieval + guardrail), so this
++// adapter is thin: it only turns {question, systemPrompt, context} into an answer + token/cost usage.
++import Anthropic from "@anthropic-ai/sdk";
++import {
++  aiProviderName,
++  softWarnProductionAi,
++  type AiProviderName,
++} from "../config/providers";
++import { requireEnv } from "../env";
++import { renderContext } from "../../modules/ai/guru/prompt";
++import type {
++  GuruGeneration,
++  GuruGenerationInput,
++} from "../../modules/ai/guru/types";
++
++export interface AiProvider {
++  readonly name: AiProviderName;
++  generateAnswer(input: GuruGenerationInput): Promise<GuruGeneration>;
++}
++
++/**
++ * Guru's model + budget knobs (LC #36) — the founder's cost decision, configurable via env and never
++ * silently baked in. Default is a cost-appropriate tier for a high-volume course tutor answering short
++ * doubts from a small corpus; set GURU_MODEL to override (e.g. a larger model) pre-launch.
++ */
++export function guruModel(): string {
++  return process.env.GURU_MODEL || "claude-haiku-4-5";
++}
++const MAX_ANSWER_TOKENS = 600; // short, focused Hinglish answers — one doubt, one reply
++
++// Rough USD/1M-token pricing for the internal cost log (observability only — NOT money moved, so an
++// approximation is fine). Keyed by model prefix; falls back to Haiku-tier. INR conversion is a coarse
++// constant purely so the admin usage card can show ₹ — never used for billing.
++const PRICING_USD_PER_M: Record<string, { in: number; out: number }> = {
++  "claude-haiku": { in: 1, out: 5 },
++  "claude-sonnet": { in: 3, out: 15 },
++  "claude-opus": { in: 5, out: 25 },
++  "claude-fable": { in: 10, out: 50 },
++};
++const USD_TO_PAISE = 8300; // ~₹83/USD, coarse — internal cost display only
++
++export function estimateCostPaise(
++  model: string,
++  promptTokens: number,
++  completionTokens: number,
++): number {
++  const key = Object.keys(PRICING_USD_PER_M).find((p) => model.startsWith(p));
++  const price =
++    (key && PRICING_USD_PER_M[key]) || PRICING_USD_PER_M["claude-haiku"];
++  const usd =
++    (promptTokens / 1e6) * price.in + (completionTokens / 1e6) * price.out;
++  return Math.round(usd * USD_TO_PAISE);
++}
++
++// ── Mock provider ──────────────────────────────────────────────────────────────────────────────
++// Deterministic canned Hinglish answer that CITES the top retrieved lesson, so tests can assert
++// citation presence + verdict without a network call. Never invents content beyond the corpus.
++function deterministicTokens(text: string): number {
++  // Stable, cheap proxy for token count (word count) — deterministic across runs.
++  return text.trim() ? text.trim().split(/\s+/).length : 0;
++}
++
++export const mockAiProvider: AiProvider = {
++  name: "mock",
++  async generateAnswer(input: GuruGenerationInput): Promise<GuruGeneration> {
++    const top = input.context[0];
++    const cite = top ? `Lesson ${top.lessonOrder} me dekha tha — ` : "";
++    const snippet = top ? top.text.split(/(?<=[.!?।])\s+/)[0] : "";
++    const answer =
++      `${cite}${snippet} ` +
++      `(Ye is course ke notes se hai.) Aur koi doubt ho to pooch lo!`;
++    const promptTokens = deterministicTokens(
++      input.systemPrompt + renderContext(input.context) + input.question,
++    );
++    const completionTokens = deterministicTokens(answer);
++    return { answer, promptTokens, completionTokens, costPaise: 0 };
++  },
++};
++
++// ── Live provider (Anthropic Messages API via the official SDK) ──────────────────────────────────
++let client: Anthropic | null = null;
++function anthropic(): Anthropic {
++  if (!client)
++    client = new Anthropic({ apiKey: requireEnv("ANTHROPIC_API_KEY") });
++  return client;
++}
++
++export const liveAiProvider: AiProvider = {
++  name: "live",
++  async generateAnswer(input: GuruGenerationInput): Promise<GuruGeneration> {
++    const model = guruModel();
++    // Corpus goes in the system prompt (authoritative context); the question is the user turn.
++    // No thinking: a short course-doubt answer isn't a reasoning task — keeps Guru fast + cheap.
++    const res = await anthropic().messages.create({
++      model,
++      max_tokens: MAX_ANSWER_TOKENS,
++      system: `${input.systemPrompt}\n\nCOURSE NOTES (inhi se jawab do):\n${renderContext(input.context)}`,
++      messages: [{ role: "user", content: input.question }],
++    });
++
++    // Guard the refusal path (defence-in-depth; classifiers can decline on some models).
++    if (res.stop_reason === "refusal") {
++      throw new Error("guru: provider refused the request");
++    }
++    const answer = res.content
++      .filter((b): b is Anthropic.TextBlock => b.type === "text")
++      .map((b) => b.text)
++      .join("")
++      .trim();
++    if (!answer) throw new Error("guru: empty answer from provider");
++
++    const promptTokens = res.usage.input_tokens ?? 0;
++    const completionTokens = res.usage.output_tokens ?? 0;
++    return {
++      answer,
++      promptTokens,
++      completionTokens,
++      costPaise: estimateCostPaise(model, promptTokens, completionTokens),
++    };
++  },
++};
++
++export function getAiProvider(): AiProvider {
++  softWarnProductionAi();
++  return aiProviderName() === "live" ? liveAiProvider : mockAiProvider;
++}
+diff --git a/lib/config/providers.ts b/lib/config/providers.ts
+index 10f5226..f8d6232 100644
+--- a/lib/config/providers.ts
++++ b/lib/config/providers.ts
+@@ -8,6 +8,7 @@ export type OtpProviderName = "test" | "live";
+ export type VideoProviderName = "mock" | "stream";
+ export type AnalyticsProviderName = "console" | "posthog";
+ export type EmailProviderName = "console" | "resend";
++export type AiProviderName = "mock" | "live";
+ 
+ export function paymentProviderName(): PaymentProviderName {
+   const v = (process.env.PAYMENT_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
+@@ -48,6 +49,13 @@ export function emailProviderName(): EmailProviderName {
+   return v;
+ }
+ 
++export function aiProviderName(): AiProviderName {
++  const v = (process.env.AI_PROVIDER || "mock").toLowerCase(); // empty/unset → dev default
++  if (v !== "mock" && v !== "live")
++    throw new Error(`Invalid AI_PROVIDER: "${v}" (expected mock|live)`);
++  return v;
++}
++
+ /** True when a development/mock provider is active for any dependency. */
+ export function usingDevProviders(): boolean {
+   return (
+@@ -112,6 +120,26 @@ export function softWarnProductionEmail(): void {
+   );
+ }
+ 
+-// Startup guard — importing this module anywhere enforces it. (Analytics and email are
+-// intentionally excluded here; see softWarnProductionAnalytics/softWarnProductionEmail above.)
++let warnedAi = false;
++
++/**
++ * Guru's AI provider mirrors the analytics/email exception (GPS-M5 §2.0). `mock` in production is
++ * DEGRADED (Guru returns deterministic canned answers instead of real Hinglish tutoring) but NOT
++ * unsafe — no money moves through Guru, D-29 + cost caps hold in both modes, and DR-029 lets the
++ * flagship ship on mock until the Anthropic key lands (LC #35). So we WARN instead of throwing, and
++ * AI is intentionally kept OUT of assertProductionProviderSafety(). Called by getAiProvider(); warns once.
++ */
++export function softWarnProductionAi(): void {
++  if (process.env.NODE_ENV !== "production") return;
++  if (aiProviderName() !== "mock") return;
++  if (warnedAi) return;
++  warnedAi = true;
++  console.warn(
++    "[ai] WARNING: AI_PROVIDER=mock in production — Guru returns canned answers, not real tutoring. " +
++      "Set AI_PROVIDER=live with ANTHROPIC_API_KEY to enable the flagship (LC #35).",
++  );
++}
++
++// Startup guard — importing this module anywhere enforces it. (Analytics, email and AI are
++// intentionally excluded here; see softWarnProductionAnalytics/softWarnProductionEmail/softWarnProductionAi.)
+ assertProductionProviderSafety();
+diff --git a/lib/env.ts b/lib/env.ts
+index c6605fa..77e6ae1 100644
+--- a/lib/env.ts
++++ b/lib/env.ts
+@@ -36,6 +36,7 @@ export const EnvSchema = z
+     VIDEO_PROVIDER: z.enum(["mock", "stream"]).optional(),
+     ANALYTICS_PROVIDER: z.enum(["console", "posthog"]).optional(),
+     EMAIL_PROVIDER: z.enum(["console", "resend"]).optional(),
++    AI_PROVIDER: z.enum(["mock", "live"]).optional(), // Guru (GPS-M5) — default mock
+     // App
+     NEXT_PUBLIC_APP_URL: z.string().trim().url().optional(), // has a localhost default in lib/seo.ts
+     AFFILIATE_PAYOUTS_ENABLED: z.enum(["true", "false"]).optional(),
+@@ -48,7 +49,11 @@ export const EnvSchema = z
+     CLOUDFLARE_STREAM_CUSTOMER_CODE: z.string().optional(),
+     POSTHOG_API_KEY: z.string().optional(),
+     RESEND_API_KEY: z.string().optional(),
++    ANTHROPIC_API_KEY: z.string().optional(), // required when AI_PROVIDER=live (Guru, LC #35)
+     MSG91_AUTH_KEY: z.string().optional(),
++    // Guru cost caps (GPS-M5 §2.0, LC #36) — optional; safe numeric defaults live in modules/ai/guru/caps.ts.
++    GURU_DAILY_MSG_CAP: z.string().optional(),
++    GURU_DAILY_TOKEN_BUDGET: z.string().optional(),
+     PII_ENCRYPTION_KEY: z.string().optional(),
+     NODE_ENV: z.string().optional(),
+   })
+@@ -82,6 +87,9 @@ export const EnvSchema = z
+     if ((env.EMAIL_PROVIDER ?? "console") === "resend") {
+       require("RESEND_API_KEY", "when EMAIL_PROVIDER=resend");
+     }
++    if ((env.AI_PROVIDER ?? "mock") === "live") {
++      require("ANTHROPIC_API_KEY", "when AI_PROVIDER=live");
++    }
+ 
+     // Production-only requirements.
+     if (isProd)
+diff --git a/modules/ai/guru/caps.ts b/modules/ai/guru/caps.ts
+new file mode 100644
+index 0000000..867dc92
+--- /dev/null
++++ b/modules/ai/guru/caps.ts
+@@ -0,0 +1,38 @@
++// GPS-M5 §2.0 — "cost caps are architecture." PURE decision; the adapter (lib/ai/guru.ts) supplies
++// today's counts + the configured limits. A cap hit is an HONEST state ("Guru thak gaya aaj ke liye"),
++// never a silent failure. Two independent limits: per-user daily messages + a global daily token budget.
++
++// Safe defaults (LC #36 — real values set via env pre-launch). Generous enough for a real learner,
++// tight enough that a runaway/abuse loop can't burn the budget.
++export const DEFAULT_DAILY_MSG_CAP = 30;
++export const DEFAULT_DAILY_TOKEN_BUDGET = 2_000_000;
++
++export interface CapInput {
++  userMsgsToday: number; // GuruMessage rows for this user since local midnight
++  globalTokensToday: number; // prompt+completion tokens across ALL users today
++  dailyMsgCap: number;
++  dailyTokenBudget: number;
++}
++
++export type CapReason = "user-daily" | "global-budget";
++
++export interface CapDecision {
++  capped: boolean;
++  reason?: CapReason;
++}
++
++/** PURE: is this turn capped, and by which limit? Per-user checked first (clearer learner message). */
++export function decideCap(input: CapInput): CapDecision {
++  if (input.userMsgsToday >= input.dailyMsgCap)
++    return { capped: true, reason: "user-daily" };
++  if (input.globalTokensToday >= input.dailyTokenBudget)
++    return { capped: true, reason: "global-budget" };
++  return { capped: false };
++}
++
++// Honest Hinglish capped-state copy (LC #37 slot). Never blames the learner.
++export function cappedMessage(reason: CapReason): string {
++  return reason === "user-daily"
++    ? "Guru aaj ke liye thak gaya 😴 — aaj bahut saare doubts solve ho gaye! Kal fresh mind ke saath phir milte hain."
++    : "Guru abhi thoda busy hai — thodi der baad phir try karo, main yahin hoon.";
++}
+diff --git a/modules/ai/guru/engine.ts b/modules/ai/guru/engine.ts
+new file mode 100644
+index 0000000..fff6d84
+--- /dev/null
++++ b/modules/ai/guru/engine.ts
+@@ -0,0 +1,152 @@
++// GPS-M5 §2.0 — Guru turn engine. This holds ALL the decision logic for one Guru turn (§1B state
++// machine) and is DEPENDENCY-INJECTED so it's unit-testable without a DB or network: the adapter
++// (lib/ai/guru.ts) supplies real data loaders + the provider; tests supply fakes. Adapters stay thin,
++// no rule is re-implemented outside this file.
++//
++// Order is deliberate (defence-in-depth):
++//   cost cap (architecture) → D-29 guardrail on the QUESTION → resolve/enroll → corpus retrieval
++//   → provider → D-29 guardrail on the ANSWER → cite. A cap or guardrail trip never calls the model.
++
++import { decideCap, cappedMessage } from "./caps";
++import { hasIncomeIntent, GURU_INCOME_REDIRECT } from "./guardrail";
++import { retrieve } from "./retrieval";
++import {
++  GURU_OUT_OF_SCOPE,
++  GURU_EMPTY_LESSON,
++  GURU_ERROR,
++  GURU_NOT_ENROLLED,
++} from "./prompt";
++import type {
++  Citation,
++  GuruGeneration,
++  GuruGenerationInput,
++  GuruTurn,
++  KnowledgeChunk,
++} from "./types";
++
++export interface LessonRef {
++  courseId: string;
++  lessonId: string;
++  lessonTitle: string;
++  lessonOrder: number;
++}
++
++export interface GuruDeps {
++  /** Resolve the lesson's course + citation metadata, or null if the lesson doesn't exist. */
++  resolveContext(lessonId: string): Promise<LessonRef | null>;
++  /** Guru is enrolled-courses-only (§1C). */
++  isEnrolled(userId: string, courseId: string): Promise<boolean>;
++  /** The whole course's Knowledge Base as retrieval chunks (may be empty → EMPTY state). */
++  loadKnowledge(courseId: string): Promise<KnowledgeChunk[]>;
++  /** Today's per-user message count + today's global token spend (for the two caps). */
++  usage(
++    userId: string,
++  ): Promise<{ userMsgsToday: number; globalTokensToday: number }>;
++  limits: { dailyMsgCap: number; dailyTokenBudget: number };
++  systemPrompt: string;
++  /** Call the model (mock or live). Throws → warm ERROR state. */
++  generate(input: GuruGenerationInput): Promise<GuruGeneration>;
++  /** How many top chunks to retrieve + send as context. */
++  topK?: number;
++}
++
++export interface GuruAsk {
++  userId: string;
++  lessonId: string;
++  question: string;
++}
++
++/** A turn that spent no tokens (cap/guardrail/redirect) — keeps the return shape uniform. */
++function zeroTurn(verdict: GuruTurn["verdict"], answer: string): GuruTurn {
++  return {
++    verdict,
++    answer,
++    citations: [],
++    promptTokens: 0,
++    completionTokens: 0,
++    costPaise: 0,
++  };
++}
++
++function citationsFor(chunks: KnowledgeChunk[]): Citation[] {
++  const seen = new Set<string>();
++  const out: Citation[] = [];
++  for (const c of chunks) {
++    if (seen.has(c.lessonId)) continue;
++    seen.add(c.lessonId);
++    out.push({
++      lessonId: c.lessonId,
++      lessonTitle: c.lessonTitle,
++      lessonOrder: c.lessonOrder,
++    });
++  }
++  return out;
++}
++
++export async function runGuruTurn(
++  ask: GuruAsk,
++  deps: GuruDeps,
++): Promise<GuruTurn> {
++  // 1) Cost caps are architecture — checked first; a cap hit is an honest state, never a failure.
++  const usage = await deps.usage(ask.userId);
++  const cap = decideCap({
++    userMsgsToday: usage.userMsgsToday,
++    globalTokensToday: usage.globalTokensToday,
++    dailyMsgCap: deps.limits.dailyMsgCap,
++    dailyTokenBudget: deps.limits.dailyTokenBudget,
++  });
++  if (cap.capped) return zeroTurn("CAPPED", cappedMessage(cap.reason!));
++
++  // 2) D-29 hard guardrail on the QUESTION — refuse income/earnings talk before the model is called.
++  if (hasIncomeIntent(ask.question))
++    return zeroTurn("BLOCKED", GURU_INCOME_REDIRECT);
++
++  // 3) Resolve lesson → course; enforce enrolled-courses-only (§1C).
++  const ctx = await deps.resolveContext(ask.lessonId);
++  if (!ctx) return zeroTurn("ERROR", GURU_ERROR);
++  if (!(await deps.isEnrolled(ask.userId, ctx.courseId)))
++    return zeroTurn("REDIRECTED", GURU_NOT_ENROLLED);
++
++  // 4) Corpus retrieval (corpus-only). Empty corpus → honest "not taught yet"; no overlap → redirect.
++  const knowledge = await deps.loadKnowledge(ctx.courseId);
++  const r = retrieve(ask.question, knowledge, { topK: deps.topK ?? 3 });
++  if (r.empty) return zeroTurn("EMPTY", GURU_EMPTY_LESSON);
++  if (r.outOfScope) return zeroTurn("REDIRECTED", GURU_OUT_OF_SCOPE);
++
++  const context = r.hits.map((h) => h.chunk);
++
++  // 5) Generate. Provider failure → warm retry state (tokens already zero).
++  let gen: GuruGeneration;
++  try {
++    gen = await deps.generate({
++      question: ask.question,
++      systemPrompt: deps.systemPrompt,
++      context,
++    });
++  } catch {
++    return zeroTurn("ERROR", GURU_ERROR);
++  }
++
++  // 6) D-29 guardrail on the ANSWER — even if the model tries, no income talk leaves Guru. We still
++  //    account the tokens we spent (the call happened), but replace the answer with the safe redirect.
++  if (hasIncomeIntent(gen.answer)) {
++    return {
++      verdict: "BLOCKED",
++      answer: GURU_INCOME_REDIRECT,
++      citations: [],
++      promptTokens: gen.promptTokens,
++      completionTokens: gen.completionTokens,
++      costPaise: gen.costPaise,
++    };
++  }
++
++  // 7) Cited answer.
++  return {
++    verdict: "ANSWERED",
++    answer: gen.answer,
++    citations: citationsFor(context),
++    promptTokens: gen.promptTokens,
++    completionTokens: gen.completionTokens,
++    costPaise: gen.costPaise,
++  };
++}
+diff --git a/modules/ai/guru/guardrail.ts b/modules/ai/guru/guardrail.ts
+new file mode 100644
+index 0000000..1143ba8
+--- /dev/null
++++ b/modules/ai/guru/guardrail.ts
+@@ -0,0 +1,59 @@
++// GPS-M5 §2.0 — D-29 hard guardrail. Guru talks ZERO income/earnings — even if asked directly.
++// PURE + deterministic (so it's prompt-tested, per §2.0 "guardrail prompt-tested"). Applied to BOTH
++// the learner's question (block before we ever call the model) AND the model's answer (block even if
++// the model tries to answer). A trip → warm Hinglish redirect to course content, never a number.
++//
++// Precision matters: legitimate course concepts (revenue, profit, ROI, margin) are NOT blocked —
++// only PERSONAL earning intent ("kitna kamaunga", "how much can I earn", "refer and earn", salary,
++// income, payout, commission…). Bias, when ambiguous, is toward redirecting (D-29 is a floor).
++
++/** Normalize for matching: lowercase, keep ₹ + word chars, collapse whitespace. */
++function normalize(text: string): string {
++  return text
++    .toLowerCase()
++    .replace(/[^\p{L}\p{N}₹\s]/gu, " ")
++    .replace(/\s+/g, " ")
++    .trim();
++}
++
++// Hinglish earn conjugations (kama/kamaa/kamana/kamao/kamai/kamaunga/kamaenge/kamayenge…). The
++// suffix set is explicit so "kamaal" (amazing) and "kamal" (a name) do NOT match — only earning forms.
++const EARN_STEM =
++  /\bkama(?:a|na|ana|ao|aao|unga|aunga|enge|ayenge|ega|egi|oge|i|ai|ya|ye|aa)?\b/;
++const EARN_TERMS =
++  /\b(earn|earns|earning|earnings|earned|income|incomes|salary|salaries|stipend|payout|payouts|commission|commissions)\b/;
++const EARN_PHRASES = [
++  "make money",
++  "making money",
++  "refer and earn",
++  "refer & earn",
++  "paisa kaise",
++  "paise kaise",
++  "earning potential",
++  "income guarantee",
++  "guaranteed income",
++  "passive income",
++  "side income",
++  "extra income",
++];
++// "how much …" combined with a money word = an earnings question even without an earn verb.
++const HOW_MUCH = /\b(kitna|kitni|kitne|how much|how many)\b/;
++const MONEY_WORD =
++  /(₹|\brs\b|\brupees?\b|\brupaye?\b|\brupaya\b|\bpaisa\b|\bpaise\b|\bmoney\b)/;
++
++/** PURE: does this text carry personal income/earnings intent (D-29 tripwire)? */
++export function hasIncomeIntent(text: string): boolean {
++  const t = normalize(text);
++  if (!t) return false;
++  if (EARN_STEM.test(t)) return true;
++  if (EARN_TERMS.test(t)) return true;
++  if (EARN_PHRASES.some((p) => t.includes(p))) return true;
++  if (HOW_MUCH.test(t) && MONEY_WORD.test(t)) return true;
++  return false;
++}
++
++// Warm Hinglish redirect — LC #37 copy slot (finalized with the founder pre-launch). D-29-safe:
++// acknowledges warmly, promises nothing, steers back to learning. Never contains a number.
++export const GURU_INCOME_REDIRECT =
++  "Main aapka course tutor hoon — paise ya kamai ki baat main nahi kar sakta. " +
++  "Chalo is lesson ka koi bhi concept clear karte hain, jo bhi doubt ho pooch lo!";
+diff --git a/modules/ai/guru/prompt.ts b/modules/ai/guru/prompt.ts
+new file mode 100644
+index 0000000..36c9e54
+--- /dev/null
++++ b/modules/ai/guru/prompt.ts
+@@ -0,0 +1,49 @@
++// GPS-M5 §2.0 — Guru's Hinglish system prompt (LC #37 copy slot; founder-finalized pre-launch).
++// PURE. The prompt encodes the four invariants the live model MUST obey; the engine enforces them
++// independently too (retrieval = corpus-only, guardrail = D-29), so the prompt is defence-in-depth,
++// never the only line of defence.
++
++import type { KnowledgeChunk } from "./types";
++
++export const GURU_SYSTEM_PROMPT = [
++  "Tum 'Guru' ho — GoSkilled ka warm, patient Hinglish course tutor. Ek helpful teacher ki tarah baat karo:",
++  "simple Hinglish (Roman script), short paragraphs, encouraging tone.",
++  "",
++  "RULES (inko kabhi mat todo):",
++  "1. SIRF neeche diye gaye COURSE NOTES se jawab do. Agar answer notes me nahi hai, to imaandari se " +
++    "bolo ki ye is course me cover nahi hua — kabhi bhi apni general knowledge ya internet se mat jodo.",
++  "2. Jawab me hamesha lesson cite karo jaise 'Lesson 3 me dekha tha…' taaki student wapas jaake dekh sake.",
++  "3. Paise, kamai, income, salary, referral earnings — in sab pe ZERO baat. Agar koi directly bhi " +
++    "pooche, to politely course content pe wapas le aao. Koi number, koi guarantee, kabhi nahi.",
++  "4. Chhota aur clear rakho. Ek doubt, ek seedha jawab. Zaroorat ho to ek follow-up sawaal poocho.",
++].join("\n");
++
++/** PURE: render the retrieved chunks as the ONLY knowledge block the model may use. */
++export function renderContext(chunks: KnowledgeChunk[]): string {
++  if (chunks.length === 0)
++    return "(is lesson ke liye abhi koi notes available nahi hain.)";
++  return chunks
++    .map(
++      (c) =>
++        `[Lesson ${c.lessonOrder}: ${c.lessonTitle}${c.kind !== "TRANSCRIPT" ? ` · ${c.kind.toLowerCase()}` : ""}]\n${c.text}`,
++    )
++    .join("\n\n");
++}
++
++// Warm out-of-scope redirect (LC #37) — used when retrieval finds no overlapping course content.
++export const GURU_OUT_OF_SCOPE =
++  "Ye topic is course ke notes me nahi mila 🤔 — main sirf aapke course ke andar ki cheezein samjha sakta hoon. " +
++  "Is lesson se juda koi doubt ho to pooch lo!";
++
++// Honest empty-corpus state (transcript not uploaded yet — placeholder era, LC #7/8).
++export const GURU_EMPTY_LESSON =
++  "Is lesson ke notes abhi Guru ko sikhaaye nahi gaye hain 📚 — jaise hi content add hoga, main ise samjha paunga. " +
++  "Tab tak koi aur lesson ka doubt poochna ho to batao!";
++
++// Warm provider-error state — never a stack trace; invites a retry.
++export const GURU_ERROR =
++  "Oops — Guru abhi thoda ruk gaya 😅. Ek baar phir try karo, main yahin hoon.";
++
++// Guru is enrolled-courses-only (§1C). Unenrolled learner on a free-preview lesson → gentle nudge.
++export const GURU_NOT_ENROLLED =
++  "Guru is course ke enrolled students ke liye hai 🎓 — enroll karke saare lessons + Guru unlock ho jaayenge!";
+diff --git a/modules/ai/guru/retrieval.ts b/modules/ai/guru/retrieval.ts
+new file mode 100644
+index 0000000..60a2d6e
+--- /dev/null
++++ b/modules/ai/guru/retrieval.ts
+@@ -0,0 +1,202 @@
++// GPS-M5 §2.0 — Course Knowledge Base retrieval. CORPUS-ONLY: Guru may only use what these chunks
++// contain — no internet, no general LLM knowledge. PURE + deterministic (testable).
++//
++// Implementation choice (builder's choice per spec, documented here): lexical BM25-lite over
++// transcript/notes/glossary chunks. We deliberately avoid an embedding service — it would add an
++// external dependency and a per-chunk cost, and lexical retrieval is more than enough for
++// "which lesson answers this doubt" on short course corpora. Retrieval can later swap to embeddings
++// behind this same interface without touching the engine (FUTURE_IDEAS). Out-of-scope is detected
++// mechanically: zero content-term overlap with the corpus → redirect (never hallucinate).
++
++import type { KnowledgeChunk } from "./types";
++
++// Small English + Hinglish stopword set (question fillers that aren't content terms).
++const STOPWORDS = new Set([
++  "the",
++  "a",
++  "an",
++  "is",
++  "are",
++  "am",
++  "was",
++  "were",
++  "be",
++  "to",
++  "of",
++  "in",
++  "on",
++  "at",
++  "for",
++  "and",
++  "or",
++  "but",
++  "if",
++  "it",
++  "this",
++  "that",
++  "these",
++  "those",
++  "do",
++  "does",
++  "did",
++  "how",
++  "what",
++  "why",
++  "when",
++  "which",
++  "who",
++  "i",
++  "you",
++  "me",
++  "my",
++  "your",
++  "can",
++  "will",
++  "should",
++  "kya",
++  "hai",
++  "hain",
++  "ka",
++  "ke",
++  "ki",
++  "ko",
++  "me",
++  "mein",
++  "se",
++  "ye",
++  "yeh",
++  "wo",
++  "woh",
++  "kaise",
++  "kaisa",
++  "kaun",
++  "ho",
++  "hoon",
++  "hu",
++  "kar",
++  "karo",
++  "karu",
++  "karna",
++  "mujhe",
++  "mera",
++  "meri",
++  "aur",
++  "ya",
++  "bhi",
++  "hi",
++  "toh",
++  "to",
++  "na",
++  "ne",
++  "par",
++  "koi",
++  "kuch",
++  "sakta",
++  "sakti",
++]);
++
++function tokenize(text: string): string[] {
++  return text
++    .toLowerCase()
++    .replace(/[^\p{L}\p{N}\s]/gu, " ")
++    .split(/\s+/)
++    .filter((w) => w.length >= 2 && !STOPWORDS.has(w));
++}
++
++/**
++ * PURE: split raw knowledge text into retrieval chunks (~target chars, sentence-aware). Keeps each
++ * chunk bound to its lesson so citations are exact. Empty/whitespace input → no chunks.
++ */
++export function chunkText(
++  raw: string,
++  meta: Omit<KnowledgeChunk, "text">,
++  targetChars = 480,
++): KnowledgeChunk[] {
++  const clean = raw.replace(/\s+/g, " ").trim();
++  if (!clean) return [];
++  // Split on sentence boundaries (., !, ?, |, newline already collapsed) then greedily pack.
++  const sentences = clean.split(/(?<=[.!?।])\s+/);
++  const chunks: KnowledgeChunk[] = [];
++  let buf = "";
++  for (const s of sentences) {
++    if (buf && buf.length + s.length + 1 > targetChars) {
++      chunks.push({ ...meta, text: buf.trim() });
++      buf = "";
++    }
++    buf += (buf ? " " : "") + s;
++  }
++  if (buf.trim()) chunks.push({ ...meta, text: buf.trim() });
++  return chunks;
++}
++
++export interface ScoredChunk {
++  chunk: KnowledgeChunk;
++  score: number;
++}
++
++export interface RetrievalResult {
++  hits: ScoredChunk[];
++  /** true when the corpus is non-empty but nothing overlaps the question → out-of-scope redirect. */
++  outOfScope: boolean;
++  /** true when there is no knowledge at all for this course → honest "not taught yet" state. */
++  empty: boolean;
++}
++
++// BM25 parameters (standard defaults).
++const K1 = 1.5;
++const B = 0.75;
++
++/**
++ * PURE: rank chunks against the question with BM25-lite; return top-k. `outOfScope` when the corpus
++ * exists but no content term overlaps (best score 0). `empty` when there are no chunks at all.
++ */
++export function retrieve(
++  question: string,
++  chunks: KnowledgeChunk[],
++  opts: { topK?: number } = {},
++): RetrievalResult {
++  const topK = opts.topK ?? 3;
++  if (chunks.length === 0) return { hits: [], outOfScope: false, empty: true };
++
++  const qTerms = [...new Set(tokenize(question))];
++  const docs = chunks.map((c) => tokenize(c.text));
++  const avgLen = docs.reduce((a, d) => a + d.length, 0) / docs.length || 1;
++
++  // Document frequency per query term.
++  const df = new Map<string, number>();
++  for (const term of qTerms) {
++    let n = 0;
++    for (const d of docs) if (d.includes(term)) n++;
++    df.set(term, n);
++  }
++  const N = docs.length;
++  const idf = (term: string) => {
++    const n = df.get(term) ?? 0;
++    // BM25 idf, floored at 0 so ubiquitous terms don't push scores negative.
++    return Math.max(0, Math.log(1 + (N - n + 0.5) / (n + 0.5)));
++  };
++
++  const scored: ScoredChunk[] = chunks.map((chunk, i) => {
++    const doc = docs[i];
++    const len = doc.length || 1;
++    let score = 0;
++    for (const term of qTerms) {
++      const tf = doc.filter((w) => w === term).length;
++      if (tf === 0) continue;
++      const num = tf * (K1 + 1);
++      const den = tf + K1 * (1 - B + B * (len / avgLen));
++      score += idf(term) * (num / den);
++    }
++    return { chunk, score };
++  });
++
++  scored.sort((a, b) => b.score - a.score);
++  const best = scored[0]?.score ?? 0;
++  if (best <= 0) return { hits: [], outOfScope: true, empty: false };
++
++  return {
++    hits: scored.filter((s) => s.score > 0).slice(0, topK),
++    outOfScope: false,
++    empty: false,
++  };
++}
+diff --git a/modules/ai/guru/schemas.ts b/modules/ai/guru/schemas.ts
+new file mode 100644
+index 0000000..b361f87
+--- /dev/null
++++ b/modules/ai/guru/schemas.ts
+@@ -0,0 +1,13 @@
++// GPS-M5 §2.0 — boundary validation for a Guru ask (Golden Rule 4: Zod at every boundary).
++import { z } from "zod";
++
++export const askGuruSchema = z.object({
++  lessonId: z.string().trim().min(1, "lessonId is required"),
++  question: z
++    .string()
++    .trim()
++    .min(2, "Thoda aur likho — Guru ko samajhne ke liye.")
++    .max(500, "Sawaal thoda chhota rakho (max 500 characters)."),
++});
++
++export type AskGuruInput = z.infer<typeof askGuruSchema>;
+diff --git a/modules/ai/guru/types.ts b/modules/ai/guru/types.ts
+new file mode 100644
+index 0000000..533a51e
+--- /dev/null
++++ b/modules/ai/guru/types.ts
+@@ -0,0 +1,53 @@
++// GPS-M5 §2.0 Guru engine — shared domain types. PURE (no I/O, no framework).
++// Guru is a COURSE COMPANION, not a general chatbot: it answers ONLY from the Course Knowledge Base
++// (transcripts primary; notes/glossary enrich when present) and never talks income/earnings (D-29).
++
++/** The five terminal states of a Guru turn (§1B state machine + provider ERROR). */
++export type GuruVerdict =
++  | "ANSWERED" // cited answer from corpus
++  | "REDIRECTED" // out-of-scope → warm redirect to course content
++  | "BLOCKED" // D-29 guardrail (income/earnings) → warm refusal
++  | "CAPPED" // per-user or global cap hit → honest "thak gaya" state
++  | "EMPTY" // lesson/course has no knowledge yet → honest state
++  | "ERROR"; // provider failure → warm retry state
++
++/** One retrievable unit of the Course Knowledge Base, already resolved to its lesson. */
++export interface KnowledgeChunk {
++  lessonId: string;
++  lessonTitle: string;
++  lessonOrder: number; // 1-based within course, for "Lesson N" citations
++  kind: "TRANSCRIPT" | "NOTES" | "GLOSSARY";
++  text: string;
++}
++
++/** A citation surfaced to the learner ("Lesson 3 me dekha tha…"). */
++export interface Citation {
++  lessonId: string;
++  lessonTitle: string;
++  lessonOrder: number;
++}
++
++/** What the provider is asked to generate (corpus-only; the context IS the retrieved chunks). */
++export interface GuruGenerationInput {
++  question: string;
++  systemPrompt: string;
++  context: KnowledgeChunk[]; // top-k retrieved chunks — the ONLY knowledge Guru may use
++}
++
++/** What a provider returns for one generation (tokens + cost feed the caps + log). */
++export interface GuruGeneration {
++  answer: string;
++  promptTokens: number;
++  completionTokens: number;
++  costPaise: number;
++}
++
++/** The engine's result for one turn — what the UI renders + what we log. */
++export interface GuruTurn {
++  verdict: GuruVerdict;
++  answer: string;
++  citations: Citation[];
++  promptTokens: number;
++  completionTokens: number;
++  costPaise: number;
++}
+diff --git a/modules/analytics/events.ts b/modules/analytics/events.ts
+index 2af9094..9e15c05 100644
+--- a/modules/analytics/events.ts
++++ b/modules/analytics/events.ts
+@@ -33,6 +33,9 @@ export const ANALYTICS_EVENTS = [
+   "contact_submitted",
+   "user_onboarded",
+   "referral_share",
++  // GPS-M5 Guru (§1D). Verdict + whether it cited — never the question/answer text (that's course
++  // Q&A, logged only in GuruMessage, excluded from the analytics corpus).
++  "guru_asked",
+ ] as const;
+ 
+ export type AnalyticsEventName = (typeof ANALYTICS_EVENTS)[number];
+diff --git a/package.json b/package.json
+index 90a6be7..9932c76 100644
+--- a/package.json
++++ b/package.json
+@@ -29,6 +29,7 @@
+     "seed": "tsx prisma/seed.ts"
+   },
+   "dependencies": {
++    "@anthropic-ai/sdk": "^0.110.0",
+     "@prisma/client": "^6.2.0",
+     "@supabase/ssr": "^0.5.2",
+     "@supabase/supabase-js": "^2.47.0",
+diff --git a/prisma/migrations/20260705020000_guru_engine/migration.sql b/prisma/migrations/20260705020000_guru_engine/migration.sql
+new file mode 100644
+index 0000000..76742eb
+--- /dev/null
++++ b/prisma/migrations/20260705020000_guru_engine/migration.sql
+@@ -0,0 +1,62 @@
++-- GPS-M5 §2.0 Guru engine: Course Knowledge Base (corpus Guru answers from) + GuruMessage usage/cost log.
++-- Golden Rule 15: BOTH new public tables ship with RLS ENABLED (deny-all; owner/Prisma bypasses,
++-- PostgREST anon/authenticated denied). Idempotent guards so a re-run is safe.
++
++-- Enums
++DO $$ BEGIN
++  CREATE TYPE "KnowledgeKind" AS ENUM ('TRANSCRIPT', 'NOTES', 'GLOSSARY');
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++
++DO $$ BEGIN
++  CREATE TYPE "GuruVerdict" AS ENUM ('ANSWERED', 'REDIRECTED', 'BLOCKED', 'CAPPED', 'EMPTY', 'ERROR');
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++
++-- Course Knowledge Base — one row per (lesson, kind).
++CREATE TABLE IF NOT EXISTS "LessonKnowledge" (
++  "id"        TEXT NOT NULL,
++  "lessonId"  TEXT NOT NULL,
++  "kind"      "KnowledgeKind" NOT NULL DEFAULT 'TRANSCRIPT',
++  "content"   TEXT NOT NULL,
++  "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  "updatedAt" TIMESTAMP(3) NOT NULL,
++  CONSTRAINT "LessonKnowledge_pkey" PRIMARY KEY ("id")
++);
++
++CREATE UNIQUE INDEX IF NOT EXISTS "LessonKnowledge_lessonId_kind_key"
++  ON "LessonKnowledge" ("lessonId", "kind");
++
++DO $$ BEGIN
++  ALTER TABLE "LessonKnowledge"
++    ADD CONSTRAINT "LessonKnowledge_lessonId_fkey"
++    FOREIGN KEY ("lessonId") REFERENCES "Lesson" ("id") ON DELETE CASCADE ON UPDATE CASCADE;
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++
++-- Guru usage/cost log — per-turn accounting for caps + auditability.
++CREATE TABLE IF NOT EXISTS "GuruMessage" (
++  "id"               TEXT NOT NULL,
++  "userId"           TEXT NOT NULL,
++  "courseId"         TEXT,
++  "lessonId"         TEXT,
++  "question"         TEXT NOT NULL,
++  "answer"           TEXT NOT NULL,
++  "verdict"          "GuruVerdict" NOT NULL,
++  "citations"        JSONB,
++  "promptTokens"     INTEGER NOT NULL DEFAULT 0,
++  "completionTokens" INTEGER NOT NULL DEFAULT 0,
++  "costPaise"        INTEGER NOT NULL DEFAULT 0,
++  "createdAt"        TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT "GuruMessage_pkey" PRIMARY KEY ("id")
++);
++
++CREATE INDEX IF NOT EXISTS "GuruMessage_userId_createdAt_idx" ON "GuruMessage" ("userId", "createdAt");
++CREATE INDEX IF NOT EXISTS "GuruMessage_createdAt_idx" ON "GuruMessage" ("createdAt");
++
++DO $$ BEGIN
++  ALTER TABLE "GuruMessage"
++    ADD CONSTRAINT "GuruMessage_userId_fkey"
++    FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++
++-- Golden Rule 15: RLS ENABLED (deny-all) on both new tables.
++ALTER TABLE "LessonKnowledge" ENABLE ROW LEVEL SECURITY;
++ALTER TABLE "GuruMessage" ENABLE ROW LEVEL SECURITY;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 221ac4d..3e8ef75 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -59,6 +59,7 @@ model User {
+   kyc           Kyc?
+   uplineEdges   Referral[] @relation("Downline")
+   downlineEdges Referral[] @relation("Upline")
++  guruMessages  GuruMessage[]
+ }
+ 
+ // ─────────────── Catalog / LMS ───────────────
+@@ -121,6 +122,7 @@ model Lesson {
+   order         Int     @default(0)
+   isFreePreview Boolean @default(false)
+   progress      LessonProgress[]
++  knowledge     LessonKnowledge[]
+ }
+ 
+ enum EnrollmentSource {
+@@ -371,3 +373,53 @@ model AdminAction {
+   createdAt      DateTime @default(now())
+   @@index([actorSupabaseId])
+ }
++
++// ─────────────── AI / Guru (GPS-M5 §2.0) ───────────────
++// Course Knowledge Base: corpus Guru answers FROM (never general LLM knowledge). Transcript is the
++// primary source; NOTES/GLOSSARY enrich when a founder provides them. One row per (lesson, kind);
++// chunking + retrieval happen in code (modules/ai/guru/retrieval.ts) — simplest-that-works.
++enum KnowledgeKind {
++  TRANSCRIPT
++  NOTES
++  GLOSSARY
++}
++
++model LessonKnowledge {
++  id        String        @id @default(cuid())
++  lessonId  String
++  lesson    Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
++  kind      KnowledgeKind @default(TRANSCRIPT)
++  content   String                              // raw text; placeholder-labeled until real recordings (LC #7/8)
++  createdAt DateTime      @default(now())
++  updatedAt DateTime      @updatedAt
++  @@unique([lessonId, kind])
++}
++
++// Every Guru turn's usage/cost log (cost caps are architecture). Content is course Q&A, not PII —
++// still excluded from the analytics corpus. Indexed for the per-user daily cap + global daily budget.
++enum GuruVerdict {
++  ANSWERED    // cited answer from corpus
++  REDIRECTED  // out-of-scope → warm redirect to course content
++  BLOCKED     // D-29 guardrail (income/earnings) → warm refusal
++  CAPPED      // per-user or global cap hit → honest "thak gaya" state
++  EMPTY       // lesson has no knowledge yet → honest "abhi sikhaya nahi" state
++  ERROR       // provider failure → warm retry state
++}
++
++model GuruMessage {
++  id               String      @id @default(cuid())
++  userId           String
++  user             User        @relation(fields: [userId], references: [id])
++  courseId         String?                              // derived from lesson; used for scoping/accounting
++  lessonId         String?
++  question         String
++  answer           String
++  verdict          GuruVerdict
++  citations        Json?                                // [{ lessonId, title }]
++  promptTokens     Int         @default(0)
++  completionTokens Int         @default(0)
++  costPaise        Int         @default(0)              // money in paise (Golden Rule 1)
++  createdAt        DateTime    @default(now())
++  @@index([userId, createdAt])
++  @@index([createdAt])
++}
+diff --git a/prisma/seed.ts b/prisma/seed.ts
+index 54a9cdf..4dc31c1 100644
+--- a/prisma/seed.ts
++++ b/prisma/seed.ts
+@@ -83,6 +83,20 @@ async function seedCurriculum(courseId: string, slug: string) {
+         update: data,
+         create: { id, ...data },
+       });
++
++      // GPS-M5 §2.0: seed a [PLACEHOLDER] TRANSCRIPT so Guru has a Course Knowledge Base to answer
++      // from in dev/staging (real transcripts land with the recordings, LC #7/8). Clearly labeled,
++      // never presented as final. Contains lesson-relevant terms so lexical retrieval works locally.
++      const transcript =
++        `[PLACEHOLDER TRANSCRIPT] Is lesson "${l.title}" me hum ${slug.replace(/-/g, " ")} ke ` +
++        `${l.title.toLowerCase()} cover karte hain. Ye ek staging placeholder hai — asli recording ` +
++        `aane par ye replace ho jayega. Is lesson ka main idea samajhna zaroori hai: ${l.title}. ` +
++        `Practice karo aur doubts Guru se pooch lo.`;
++      await prisma.lessonKnowledge.upsert({
++        where: { lessonId_kind: { lessonId: id, kind: "TRANSCRIPT" } },
++        update: { content: transcript },
++        create: { lessonId: id, kind: "TRANSCRIPT", content: transcript },
++      });
+     }
+   }
+ }
+diff --git a/tests/guru-domain.test.ts b/tests/guru-domain.test.ts
+new file mode 100644
+index 0000000..876537a
+--- /dev/null
++++ b/tests/guru-domain.test.ts
+@@ -0,0 +1,273 @@
++// GPS-M5 §2.0 Guru engine — pure domain tests (no DB, no network). Covers the four spec-required
++// behaviours: D-29 guardrail (income refusal), out-of-scope redirect, cost caps, citation presence —
++// plus the full §1B state machine via the dependency-injected engine, and the mock provider.
++import { describe, it, expect } from "vitest";
++import {
++  hasIncomeIntent,
++  GURU_INCOME_REDIRECT,
++} from "../modules/ai/guru/guardrail";
++import { chunkText, retrieve } from "../modules/ai/guru/retrieval";
++import { decideCap, DEFAULT_DAILY_MSG_CAP } from "../modules/ai/guru/caps";
++import { runGuruTurn, type GuruDeps } from "../modules/ai/guru/engine";
++import { mockAiProvider } from "../lib/ai/provider";
++import type { KnowledgeChunk, GuruGeneration } from "../modules/ai/guru/types";
++
++// ── D-29 guardrail ────────────────────────────────────────────────────────────────────────────
++describe("guardrail: hasIncomeIntent (D-29)", () => {
++  it("blocks direct earning questions (Hinglish + English)", () => {
++    for (const q of [
++      "isse main kitna kamaa sakta hoon?",
++      "kitna kamaunga ise complete karke",
++      "how much can I earn from this course",
++      "how much money will I make",
++      "refer and earn kaise kaam karta hai",
++      "meri salary kitni hogi",
++      "monthly income kitna milega",
++      "referral commission kaise milta hai",
++    ]) {
++      expect(hasIncomeIntent(q), q).toBe(true);
++    }
++  });
++
++  it("allows legitimate course-content questions (no false positives)", () => {
++    for (const q of [
++      "system prompt kya hota hai?",
++      "is lesson me revenue model ka concept samjhao",
++      "digital marketing me funnel kaise banate hain",
++      "profit margin ka matlab kya hai",
++      "ye topic samajh nahi aaya, phir se batao",
++    ]) {
++      expect(hasIncomeIntent(q), q).toBe(false);
++    }
++  });
++});
++
++// ── Retrieval (corpus-only, out-of-scope detection) ─────────────────────────────────────────────
++const chunkOf = (
++  lessonOrder: number,
++  lessonTitle: string,
++  text: string,
++): KnowledgeChunk[] =>
++  chunkText(text, {
++    lessonId: `l${lessonOrder}`,
++    lessonTitle,
++    lessonOrder,
++    kind: "TRANSCRIPT",
++  });
++
++describe("retrieval", () => {
++  const corpus = [
++    ...chunkOf(
++      1,
++      "Welcome",
++      "Is course me prompt engineering aur AI tools sikhenge. Prompt likhna aata hai.",
++    ),
++    ...chunkOf(
++      2,
++      "Core concepts",
++      "System prompt model ko context deta hai. Temperature output ko control karta hai.",
++    ),
++  ];
++
++  it("chunks non-empty text and drops empty", () => {
++    expect(
++      chunkText("  ", {
++        lessonId: "x",
++        lessonTitle: "x",
++        lessonOrder: 1,
++        kind: "TRANSCRIPT",
++      }),
++    ).toHaveLength(0);
++    expect(chunkOf(1, "t", "Ek. Do. Teen.").length).toBeGreaterThan(0);
++  });
++
++  it("retrieves the overlapping lesson and cites its order", () => {
++    const r = retrieve("system prompt kya karta hai", corpus, { topK: 2 });
++    expect(r.empty).toBe(false);
++    expect(r.outOfScope).toBe(false);
++    expect(r.hits[0].chunk.lessonOrder).toBe(2); // "system prompt" is in Lesson 2
++  });
++
++  it("flags out-of-scope when nothing overlaps the corpus", () => {
++    const r = retrieve("chess me castling kaise karte hain", corpus);
++    expect(r.outOfScope).toBe(true);
++    expect(r.hits).toHaveLength(0);
++  });
++
++  it("flags empty when the corpus has no chunks", () => {
++    const r = retrieve("anything", []);
++    expect(r.empty).toBe(true);
++  });
++});
++
++// ── Cost caps ────────────────────────────────────────────────────────────────────────────────
++describe("caps: decideCap", () => {
++  const limits = { dailyMsgCap: 5, dailyTokenBudget: 1000 };
++  it("not capped below both limits", () => {
++    expect(
++      decideCap({ userMsgsToday: 2, globalTokensToday: 100, ...limits }).capped,
++    ).toBe(false);
++  });
++  it("caps on per-user daily message limit first", () => {
++    const d = decideCap({
++      userMsgsToday: 5,
++      globalTokensToday: 100,
++      ...limits,
++    });
++    expect(d).toEqual({ capped: true, reason: "user-daily" });
++  });
++  it("caps on global token budget", () => {
++    const d = decideCap({
++      userMsgsToday: 1,
++      globalTokensToday: 1000,
++      ...limits,
++    });
++    expect(d).toEqual({ capped: true, reason: "global-budget" });
++  });
++  it("has sane defaults", () => {
++    expect(DEFAULT_DAILY_MSG_CAP).toBeGreaterThan(0);
++  });
++});
++
++// ── Mock provider (citation presence, determinism) ─────────────────────────────────────────────
++describe("mock provider", () => {
++  it("cites the top lesson and is deterministic", async () => {
++    const ctx = chunkOf(
++      3,
++      "Core concepts",
++      "System prompt model ko context deta hai.",
++    );
++    const input = {
++      question: "system prompt?",
++      systemPrompt: "sys",
++      context: ctx,
++    };
++    const a = await mockAiProvider.generateAnswer(input);
++    const b = await mockAiProvider.generateAnswer(input);
++    expect(a.answer).toContain("Lesson 3");
++    expect(a).toEqual(b); // deterministic
++    expect(a.completionTokens).toBeGreaterThan(0);
++  });
++});
++
++// ── Engine state machine (dependency-injected — no DB/network) ──────────────────────────────────
++function deps(
++  over: Partial<GuruDeps> & { generateSpy?: () => void } = {},
++): GuruDeps {
++  const knowledge = chunkOf(
++    2,
++    "Core concepts",
++    "System prompt model ko context deta hai. Temperature output control karta hai.",
++  );
++  const gen: GuruGeneration = {
++    answer: "Lesson 2 me dekha tha — system prompt context deta hai.",
++    promptTokens: 40,
++    completionTokens: 12,
++    costPaise: 1,
++  };
++  return {
++    resolveContext: async () => ({
++      courseId: "c1",
++      lessonId: "l2",
++      lessonTitle: "Core concepts",
++      lessonOrder: 2,
++    }),
++    isEnrolled: async () => true,
++    loadKnowledge: async () => knowledge,
++    usage: async () => ({ userMsgsToday: 0, globalTokensToday: 0 }),
++    limits: { dailyMsgCap: 30, dailyTokenBudget: 2_000_000 },
++    systemPrompt: "sys",
++    generate: async (input) => {
++      over.generateSpy?.();
++      return over.generate ? over.generate(input) : gen;
++    },
++    ...over,
++  };
++}
++const ASK = {
++  userId: "u1",
++  lessonId: "l2",
++  question: "system prompt kya karta hai?",
++};
++
++describe("engine: runGuruTurn state machine", () => {
++  it("ANSWERED with a citation when in scope", async () => {
++    const t = await runGuruTurn(ASK, deps());
++    expect(t.verdict).toBe("ANSWERED");
++    expect(t.citations.length).toBeGreaterThan(0);
++    expect(t.citations[0].lessonOrder).toBe(2);
++    expect(t.completionTokens).toBe(12);
++  });
++
++  it("BLOCKED on an income question WITHOUT calling the model", async () => {
++    let called = false;
++    const t = await runGuruTurn(
++      { ...ASK, question: "kitna kamaunga isse?" },
++      deps({ generateSpy: () => (called = true) }),
++    );
++    expect(t.verdict).toBe("BLOCKED");
++    expect(t.answer).toBe(GURU_INCOME_REDIRECT);
++    expect(called).toBe(false);
++    expect(t.completionTokens).toBe(0);
++  });
++
++  it("BLOCKED when the model's answer sneaks in income talk (answer-side guardrail)", async () => {
++    const t = await runGuruTurn(
++      ASK,
++      deps({
++        generate: async () => ({
++          answer: "Aap ise complete karke ₹50000 kamaa sakte ho",
++          promptTokens: 30,
++          completionTokens: 8,
++          costPaise: 1,
++        }),
++      }),
++    );
++    expect(t.verdict).toBe("BLOCKED");
++    expect(t.answer).toBe(GURU_INCOME_REDIRECT);
++    expect(t.completionTokens).toBe(8); // tokens still accounted — the call happened
++  });
++
++  it("REDIRECTED when the question is out of the course's scope", async () => {
++    const t = await runGuruTurn(
++      { ...ASK, question: "chess castling rules" },
++      deps(),
++    );
++    expect(t.verdict).toBe("REDIRECTED");
++  });
++
++  it("EMPTY when the course has no knowledge yet", async () => {
++    const t = await runGuruTurn(ASK, deps({ loadKnowledge: async () => [] }));
++    expect(t.verdict).toBe("EMPTY");
++  });
++
++  it("CAPPED when over the daily message cap, WITHOUT calling the model", async () => {
++    let called = false;
++    const t = await runGuruTurn(
++      ASK,
++      deps({
++        usage: async () => ({ userMsgsToday: 30, globalTokensToday: 0 }),
++        generateSpy: () => (called = true),
++      }),
++    );
++    expect(t.verdict).toBe("CAPPED");
++    expect(called).toBe(false);
++  });
++
++  it("REDIRECTED (enroll) when the learner is not enrolled", async () => {
++    const t = await runGuruTurn(ASK, deps({ isEnrolled: async () => false }));
++    expect(t.verdict).toBe("REDIRECTED");
++  });
++
++  it("ERROR (warm) when the provider throws", async () => {
++    const t = await runGuruTurn(
++      ASK,
++      deps({
++        generate: async () => {
++          throw new Error("down");
++        },
++      }),
++    );
++    expect(t.verdict).toBe("ERROR");
++  });
++});

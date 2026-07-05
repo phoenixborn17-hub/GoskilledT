@@ -36,6 +36,7 @@ export const EnvSchema = z
     VIDEO_PROVIDER: z.enum(["mock", "stream"]).optional(),
     ANALYTICS_PROVIDER: z.enum(["console", "posthog"]).optional(),
     EMAIL_PROVIDER: z.enum(["console", "resend"]).optional(),
+    AI_PROVIDER: z.enum(["mock", "live"]).optional(), // Guru (GPS-M5) — default mock
     // App
     NEXT_PUBLIC_APP_URL: z.string().trim().url().optional(), // has a localhost default in lib/seo.ts
     AFFILIATE_PAYOUTS_ENABLED: z.enum(["true", "false"]).optional(),
@@ -48,7 +49,11 @@ export const EnvSchema = z
     CLOUDFLARE_STREAM_CUSTOMER_CODE: z.string().optional(),
     POSTHOG_API_KEY: z.string().optional(),
     RESEND_API_KEY: z.string().optional(),
+    ANTHROPIC_API_KEY: z.string().optional(), // required when AI_PROVIDER=live (Guru, LC #35)
     MSG91_AUTH_KEY: z.string().optional(),
+    // Guru cost caps (GPS-M5 §2.0, LC #36) — optional; safe numeric defaults live in modules/ai/guru/caps.ts.
+    GURU_DAILY_MSG_CAP: z.string().optional(),
+    GURU_DAILY_TOKEN_BUDGET: z.string().optional(),
     PII_ENCRYPTION_KEY: z.string().optional(),
     NODE_ENV: z.string().optional(),
   })
@@ -81,6 +86,9 @@ export const EnvSchema = z
     }
     if ((env.EMAIL_PROVIDER ?? "console") === "resend") {
       require("RESEND_API_KEY", "when EMAIL_PROVIDER=resend");
+    }
+    if ((env.AI_PROVIDER ?? "mock") === "live") {
+      require("ANTHROPIC_API_KEY", "when AI_PROVIDER=live");
     }
 
     // Production-only requirements.

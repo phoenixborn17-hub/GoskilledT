@@ -59,6 +59,7 @@ model User {
   kyc           Kyc?
   uplineEdges   Referral[] @relation("Downline")
   downlineEdges Referral[] @relation("Upline")
+  guruMessages  GuruMessage[]
 }
 
 // ─────────────── Catalog / LMS ───────────────
@@ -121,6 +122,7 @@ model Lesson {
   order         Int     @default(0)
   isFreePreview Boolean @default(false)
   progress      LessonProgress[]
+  knowledge     LessonKnowledge[]
 }
 
 enum EnrollmentSource {
@@ -370,4 +372,54 @@ model AdminAction {
   meta           Json?
   createdAt      DateTime @default(now())
   @@index([actorSupabaseId])
+}
+
+// ─────────────── AI / Guru (GPS-M5 §2.0) ───────────────
+// Course Knowledge Base: corpus Guru answers FROM (never general LLM knowledge). Transcript is the
+// primary source; NOTES/GLOSSARY enrich when a founder provides them. One row per (lesson, kind);
+// chunking + retrieval happen in code (modules/ai/guru/retrieval.ts) — simplest-that-works.
+enum KnowledgeKind {
+  TRANSCRIPT
+  NOTES
+  GLOSSARY
+}
+
+model LessonKnowledge {
+  id        String        @id @default(cuid())
+  lessonId  String
+  lesson    Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  kind      KnowledgeKind @default(TRANSCRIPT)
+  content   String                              // raw text; placeholder-labeled until real recordings (LC #7/8)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  @@unique([lessonId, kind])
+}
+
+// Every Guru turn's usage/cost log (cost caps are architecture). Content is course Q&A, not PII —
+// still excluded from the analytics corpus. Indexed for the per-user daily cap + global daily budget.
+enum GuruVerdict {
+  ANSWERED    // cited answer from corpus
+  REDIRECTED  // out-of-scope → warm redirect to course content
+  BLOCKED     // D-29 guardrail (income/earnings) → warm refusal
+  CAPPED      // per-user or global cap hit → honest "thak gaya" state
+  EMPTY       // lesson has no knowledge yet → honest "abhi sikhaya nahi" state
+  ERROR       // provider failure → warm retry state
+}
+
+model GuruMessage {
+  id               String      @id @default(cuid())
+  userId           String
+  user             User        @relation(fields: [userId], references: [id])
+  courseId         String?                              // derived from lesson; used for scoping/accounting
+  lessonId         String?
+  question         String
+  answer           String
+  verdict          GuruVerdict
+  citations        Json?                                // [{ lessonId, title }]
+  promptTokens     Int         @default(0)
+  completionTokens Int         @default(0)
+  costPaise        Int         @default(0)              // money in paise (Golden Rule 1)
+  createdAt        DateTime    @default(now())
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }

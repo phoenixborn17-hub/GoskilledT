@@ -83,6 +83,20 @@ async function seedCurriculum(courseId: string, slug: string) {
         update: data,
         create: { id, ...data },
       });
+
+      // GPS-M5 §2.0: seed a [PLACEHOLDER] TRANSCRIPT so Guru has a Course Knowledge Base to answer
+      // from in dev/staging (real transcripts land with the recordings, LC #7/8). Clearly labeled,
+      // never presented as final. Contains lesson-relevant terms so lexical retrieval works locally.
+      const transcript =
+        `[PLACEHOLDER TRANSCRIPT] Is lesson "${l.title}" me hum ${slug.replace(/-/g, " ")} ke ` +
+        `${l.title.toLowerCase()} cover karte hain. Ye ek staging placeholder hai — asli recording ` +
+        `aane par ye replace ho jayega. Is lesson ka main idea samajhna zaroori hai: ${l.title}. ` +
+        `Practice karo aur doubts Guru se pooch lo.`;
+      await prisma.lessonKnowledge.upsert({
+        where: { lessonId_kind: { lessonId: id, kind: "TRANSCRIPT" } },
+        update: { content: transcript },
+        create: { lessonId: id, kind: "TRANSCRIPT", content: transcript },
+      });
     }
   }
 }
