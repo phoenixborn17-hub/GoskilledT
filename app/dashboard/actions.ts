@@ -9,6 +9,10 @@ import { createSupabaseServerClient } from "../../lib/supabase/server";
 import { getCurrentUser } from "../../lib/auth/session";
 import { completeLesson } from "../../lib/lms/queries";
 import { issueCertificateIfEligible } from "../../lib/lms/certificate";
+import {
+  maybeSendWelcomeEmail,
+  maybeSendCertificateEmail,
+} from "../../lib/email/notify";
 import type { ProgressSummary } from "../../modules/lms/progress";
 import { track } from "../../lib/analytics/track";
 
@@ -63,6 +67,9 @@ export async function updateProfile(
         goal: parsed.data.goal,
       },
     });
+    // Welcome email (GPS-M5 §2.4) — fires once the learner's email is on file (onboarding). Idempotent
+    // + opt-out-aware + best-effort; never blocks the profile save.
+    await maybeSendWelcomeEmail(user.id);
     revalidatePath("/dashboard/profile");
     revalidatePath("/dashboard");
     return { ok: true };
@@ -72,6 +79,20 @@ export async function updateProfile(
       error: "Could not save (email may already be in use).",
     };
   }
+}
+
+// Email preference toggle (GPS-M5 §2.4, Tier-B). optOut=true suppresses all product emails.
+export async function setEmailOptOutAction(
+  optOut: boolean,
+): Promise<{ ok: boolean }> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false };
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { emailOptOut: optOut },
+  });
+  revalidatePath("/dashboard/profile");
+  return { ok: true };
 }
 
 export type CompleteLessonResult =
@@ -99,6 +120,8 @@ export async function completeLessonAction(input: {
     if (progress.percent === 100) {
       try {
         await issueCertificateIfEligible(user.id, courseId);
+        // Certificate-ready email (GPS-M5 §2.4) — idempotent + opt-out-aware, best-effort.
+        await maybeSendCertificateEmail(user.id, courseId);
       } catch (e) {
         console.warn(
           "[certificate] issuance failed:",

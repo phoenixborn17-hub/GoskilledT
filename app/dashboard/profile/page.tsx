@@ -2,6 +2,7 @@
 // No self-serve account deletion in M2 (support-mediated; DPDP flows = LEGAL workstream).
 import { getCurrentUserRecord } from "../../../lib/auth/session";
 import { ProfileForm } from "../../../components/dashboard/profile-form";
+import { EmailPrefToggle } from "../../../components/dashboard/email-pref-toggle";
 import { LogoutButton } from "../../../components/dashboard/logout-button";
 import { Card, CardTitle } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
@@ -55,6 +56,11 @@ export default async function ProfilePage() {
           {/* Phone = auth identity: changing it is support-mediated (no self-serve in M2). */}
           <span className="text-xs text-muted">Change via support</span>
         </div>
+      </Card>
+
+      <Card>
+        <CardTitle className="mb-4 text-lg">Email preferences</CardTitle>
+        <EmailPrefToggle initialOptedOut={user?.emailOptOut === true} />
       </Card>
 
       <LogoutButton />

@@ -1,0 +1,773 @@
+diff --git a/app/dashboard/actions.ts b/app/dashboard/actions.ts
+index 11a875b..d4a54ac 100644
+--- a/app/dashboard/actions.ts
++++ b/app/dashboard/actions.ts
+@@ -9,6 +9,10 @@ import { createSupabaseServerClient } from "../../lib/supabase/server";
+ import { getCurrentUser } from "../../lib/auth/session";
+ import { completeLesson } from "../../lib/lms/queries";
+ import { issueCertificateIfEligible } from "../../lib/lms/certificate";
++import {
++  maybeSendWelcomeEmail,
++  maybeSendCertificateEmail,
++} from "../../lib/email/notify";
+ import type { ProgressSummary } from "../../modules/lms/progress";
+ import { track } from "../../lib/analytics/track";
+ 
+@@ -63,6 +67,9 @@ export async function updateProfile(
+         goal: parsed.data.goal,
+       },
+     });
++    // Welcome email (GPS-M5 §2.4) — fires once the learner's email is on file (onboarding). Idempotent
++    // + opt-out-aware + best-effort; never blocks the profile save.
++    await maybeSendWelcomeEmail(user.id);
+     revalidatePath("/dashboard/profile");
+     revalidatePath("/dashboard");
+     return { ok: true };
+@@ -74,6 +81,20 @@ export async function updateProfile(
+   }
+ }
+ 
++// Email preference toggle (GPS-M5 §2.4, Tier-B). optOut=true suppresses all product emails.
++export async function setEmailOptOutAction(
++  optOut: boolean,
++): Promise<{ ok: boolean }> {
++  const user = await getCurrentUser();
++  if (!user) return { ok: false };
++  await prisma.user.update({
++    where: { id: user.id },
++    data: { emailOptOut: optOut },
++  });
++  revalidatePath("/dashboard/profile");
++  return { ok: true };
++}
++
+ export type CompleteLessonResult =
+   { ok: true; progress: ProgressSummary } | { ok: false; error: string };
+ 
+@@ -99,6 +120,8 @@ export async function completeLessonAction(input: {
+     if (progress.percent === 100) {
+       try {
+         await issueCertificateIfEligible(user.id, courseId);
++        // Certificate-ready email (GPS-M5 §2.4) — idempotent + opt-out-aware, best-effort.
++        await maybeSendCertificateEmail(user.id, courseId);
+       } catch (e) {
+         console.warn(
+           "[certificate] issuance failed:",
+diff --git a/app/dashboard/profile/page.tsx b/app/dashboard/profile/page.tsx
+index 2648657..3f90726 100644
+--- a/app/dashboard/profile/page.tsx
++++ b/app/dashboard/profile/page.tsx
+@@ -2,6 +2,7 @@
+ // No self-serve account deletion in M2 (support-mediated; DPDP flows = LEGAL workstream).
+ import { getCurrentUserRecord } from "../../../lib/auth/session";
+ import { ProfileForm } from "../../../components/dashboard/profile-form";
++import { EmailPrefToggle } from "../../../components/dashboard/email-pref-toggle";
+ import { LogoutButton } from "../../../components/dashboard/logout-button";
+ import { Card, CardTitle } from "../../../components/ui/card";
+ import { Badge } from "../../../components/ui/badge";
+@@ -57,6 +58,11 @@ export default async function ProfilePage() {
+         </div>
+       </Card>
+ 
++      <Card>
++        <CardTitle className="mb-4 text-lg">Email preferences</CardTitle>
++        <EmailPrefToggle initialOptedOut={user?.emailOptOut === true} />
++      </Card>
++
+       <LogoutButton />
+     </section>
+   );
+diff --git a/app/unsubscribe/page.tsx b/app/unsubscribe/page.tsx
+new file mode 100644
+index 0000000..488d34e
+--- /dev/null
++++ b/app/unsubscribe/page.tsx
+@@ -0,0 +1,78 @@
++// GPS-M5 §2.4 — one-click unsubscribe (public; the emailed link carries the user's unguessable cuid
++// as the token). Confirm-on-SUBMIT (not on load) so email-scanner prefetch can't accidentally opt a
++// learner out. Idempotent + reversible from Settings. No auth (logged-out users get emails too).
++import { redirect } from "next/navigation";
++import Link from "next/link";
++import { CheckCircle2, MailX } from "lucide-react";
++import { prisma } from "../../lib/prisma";
++import { Card, CardTitle, CardDescription } from "../../components/ui/card";
++import { Button } from "../../components/ui/button";
++
++export const dynamic = "force-dynamic";
++export const metadata = {
++  title: "Unsubscribe",
++  robots: { index: false, follow: false },
++};
++
++async function unsubscribe(formData: FormData): Promise<void> {
++  "use server";
++  const u = String(formData.get("u") ?? "").trim();
++  if (u) {
++    // The cuid is the token; update is safe + idempotent. Swallow errors (best-effort).
++    await prisma.user
++      .update({ where: { id: u }, data: { emailOptOut: true } })
++      .catch(() => {});
++  }
++  redirect("/unsubscribe?done=1");
++}
++
++export default async function UnsubscribePage({
++  searchParams,
++}: {
++  searchParams: Promise<{ u?: string; done?: string }>;
++}) {
++  const { u, done } = await searchParams;
++
++  return (
++    <main className="mx-auto flex min-h-[70vh] w-full max-w-md items-center px-4 py-16">
++      {done ? (
++        <Card className="w-full text-center">
++          <div
++            className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-brand/10 text-brand"
++            aria-hidden
++          >
++            <CheckCircle2 className="h-6 w-6" />
++          </div>
++          <CardTitle>You&apos;re unsubscribed</CardTitle>
++          <CardDescription>
++            Aapko ab GoSkilled emails nahi aayenge. Wapas on karna ho to
++            Settings me kabhi bhi kar sakte ho.
++          </CardDescription>
++          <div className="mx-auto mt-5 max-w-xs">
++            <Link href="/dashboard/profile">
++              <Button variant="outline">Go to settings</Button>
++            </Link>
++          </div>
++        </Card>
++      ) : (
++        <Card className="w-full text-center">
++          <div
++            className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-charcoal/5 text-muted"
++            aria-hidden
++          >
++            <MailX className="h-6 w-6" />
++          </div>
++          <CardTitle>Unsubscribe from emails?</CardTitle>
++          <CardDescription>
++            Ye welcome + certificate emails band kar dega. Aap kabhi bhi
++            Settings se wapas on kar sakte ho.
++          </CardDescription>
++          <form action={unsubscribe} className="mx-auto mt-5 max-w-xs">
++            <input type="hidden" name="u" value={u ?? ""} />
++            <Button type="submit">Unsubscribe</Button>
++          </form>
++        </Card>
++      )}
++    </main>
++  );
++}
+diff --git a/components/dashboard/email-pref-toggle.tsx b/components/dashboard/email-pref-toggle.tsx
+new file mode 100644
+index 0000000..10dfeb6
+--- /dev/null
++++ b/components/dashboard/email-pref-toggle.tsx
+@@ -0,0 +1,53 @@
++"use client";
++// GPS-M5 §2.4 (Tier-B) — email preference toggle. Optimistic + honest: "Email updates" on = subscribed
++// (emailOptOut false). Turning it off suppresses ALL product emails (welcome + certificate-ready too).
++import { useState, useTransition } from "react";
++import { setEmailOptOutAction } from "../../app/dashboard/actions";
++
++export function EmailPrefToggle({
++  initialOptedOut,
++}: {
++  initialOptedOut: boolean;
++}) {
++  const [subscribed, setSubscribed] = useState(!initialOptedOut);
++  const [pending, startTransition] = useTransition();
++
++  function toggle() {
++    const nextSubscribed = !subscribed;
++    setSubscribed(nextSubscribed); // optimistic
++    startTransition(async () => {
++      const res = await setEmailOptOutAction(!nextSubscribed);
++      if (!res.ok) setSubscribed(!nextSubscribed); // revert on failure
++    });
++  }
++
++  return (
++    <div className="flex items-center justify-between gap-4">
++      <div className="min-w-0">
++        <p className="text-sm font-medium text-charcoal">Email updates</p>
++        <p className="text-sm text-muted">
++          Welcome + certificate emails. Aap kabhi bhi band kar sakte ho.
++        </p>
++      </div>
++      <button
++        type="button"
++        role="switch"
++        aria-checked={subscribed}
++        aria-label="Email updates"
++        disabled={pending}
++        onClick={toggle}
++        className={
++          "relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 " +
++          (subscribed ? "bg-brand" : "bg-charcoal/20")
++        }
++      >
++        <span
++          className={
++            "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform " +
++            (subscribed ? "translate-x-5" : "translate-x-0.5")
++          }
++        />
++      </button>
++    </div>
++  );
++}
+diff --git a/docs/LAUNCH_CONFIG.md b/docs/LAUNCH_CONFIG.md
+index f3166fe..6eaa665 100644
+--- a/docs/LAUNCH_CONFIG.md
++++ b/docs/LAUNCH_CONFIG.md
+@@ -42,7 +42,7 @@
+ | 19 | Razorpay live account + activation | payments | External Service | PENDING | Founder | `PAYMENT_PROVIDER=mock` | Live keys + webhook secret | LAUNCH | Pre-launch | Needs legal pages (#2–5). Then ₹1 live e2e test. |
+ | 20 | Cloudflare Stream account + customer code | video | External Service | PENDING | Founder | `VIDEO_PROVIDER=mock` | `CLOUDFLARE_STREAM_CUSTOMER_CODE` | LAUNCH | Pre-launch | |
+ | 21 | MSG91 live OTP credentials | auth | External Service | PENDING | Founder | `OTP_PROVIDER=test` (Supabase test numbers); GPS-M4 shipped a per-IP + per-phone OTP-send throttle on all send paths (login, checkout) | `MSG91_AUTH_KEY`, provider=live | LAUNCH | Pre-launch | Abuse throttle live regardless of provider; still needs live SMS creds. |
+-| 22 | Resend key + sending domain | email receipts | External Service | PENDING | Founder | `EMAIL_PROVIDER=console`; `EMAIL_FROM` default noreply@goskilled.in | Verified domain + key | LAUNCH | Pre-launch | Console-in-prod soft-warns only. |
++| 22 | Resend key + sending domain | email receipts + notifications (GPS-M5 §2.4) | External Service | PENDING | Founder | `EMAIL_PROVIDER=console`; `EMAIL_FROM` default noreply@goskilled.in. Now drives receipt + **welcome + certificate-ready** emails (shared premium template, idempotent send-log, opt-out honored) | Verified domain + key | LAUNCH | Pre-launch | Console-in-prod soft-warns only. |
+ | 23 | PostHog project key | analytics | External Service | PENDING | Founder | `ANALYTICS_PROVIDER=console` | Live key | OPTIONAL | Pre/post-launch | Console fallback acceptable. |
+ | 24 | Production domain + DNS + `NEXT_PUBLIC_APP_URL` | deployment | External Service | PENDING | Founder | localhost default | goskilled.in (or final) | LAUNCH | Pre-launch | |
+ | 25 | Supabase PITR enabled | database | External Service | PENDING | Founder | Not enabled | PITR on | LAUNCH | Before real money | Blueprint §5 requirement. |
+@@ -59,6 +59,7 @@
+ | 36 | Guru model + cost caps | ai (guru) — GPS-M5 §2.0 | Configuration | PENDING | Founder | `GURU_MODEL=claude-haiku-4-5` (cost-appropriate tutor tier), per-user `GURU_DAILY_MSG_CAP=30`, global `GURU_DAILY_TOKEN_BUDGET=2,000,000` — safe defaults in `modules/ai/guru/caps.ts` | Founder-confirmed model + budget for launch scale | LAUNCH (activation cost) | Pre-launch | Model is the founder's cost decision (env-configurable, not baked in) — confirm tier + budget before `AI_PROVIDER=live`. Caps are server-enforced regardless. |
+ | 37 | Guru Hinglish system prompt + state copy | ai (guru) — GPS-M5 §2.0 | Content | PENDING | Founder | Placeholder Hinglish copy in `modules/ai/guru/prompt.ts` + `guardrail.ts`/`caps.ts` (system prompt, income redirect, out-of-scope, empty, capped, error states) — D-29-safe, no income language | Founder-approved Hinglish voice set | LAUNCH | Pre-launch | Warm "mera apna teacher" tone; D-29 floor absolute in every string. |
+ | 38 | Quiz pass threshold + which quizzes are mandatory | lms (quiz) — GPS-M5 §2.2 | Configuration | PENDING | Founder | Per-quiz `passPercent` (default 70) + `isMandatory` (default off) set by admin in `/admin/catalog`; no quiz is mandatory until the founder marks + publishes one | Founder's per-course mandatory-checkpoint policy | LAUNCH | Pre-launch | Certificate gate = all lessons complete + all PUBLISHED mandatory quizzes passed. Existing courses (no mandatory quizzes) unaffected — no retroactive revocation. |
++| 39 | Welcome + certificate-ready email copy | email (notifications) — GPS-M5 §2.4 | Content | PENDING | Founder | Placeholder Hinglish copy in `lib/email/notifications.ts` (welcome + cert-ready) via the shared premium template (`lib/email/template.ts`) — D-29-safe, unsubscribe on every email | Founder-approved email voice | LAUNCH | Pre-launch | Warm belonging/pride tone; zero income framing. |
+ 
+ ---
+ 
+diff --git a/lib/auth/session.ts b/lib/auth/session.ts
+index 5e8fef9..3fca3db 100644
+--- a/lib/auth/session.ts
++++ b/lib/auth/session.ts
+@@ -32,6 +32,7 @@ export interface CurrentUserRecord {
+   goal: "SKILL" | "INCOME" | "BOTH" | null;
+   referralCode: string;
+   onboardedAt: Date | null;
++  emailOptOut: boolean | null;
+ }
+ 
+ /** Full profile fields for the current user (Profile tab). */
+@@ -49,6 +50,7 @@ export const getCurrentUserRecord = cache(
+         goal: true,
+         referralCode: true,
+         onboardedAt: true,
++        emailOptOut: true,
+       },
+     });
+   },
+diff --git a/lib/email/notifications.ts b/lib/email/notifications.ts
+new file mode 100644
+index 0000000..213d2de
+--- /dev/null
++++ b/lib/email/notifications.ts
+@@ -0,0 +1,62 @@
++// GPS-M5 §2.4 — welcome + certificate-ready email builders. PURE (no I/O). Warm, D-29-safe copy
++// (learning + belonging + pride — never earnings). Copy is an LC voice slot, finalized pre-launch.
++import { buildBrandEmail } from "./template";
++import type { EmailMessage } from "./receipt";
++
++export interface WelcomeInput {
++  to: string;
++  name: string | null;
++  appUrl: string;
++  unsubscribeUrl: string;
++}
++
++export function buildWelcomeEmail(i: WelcomeInput): EmailMessage {
++  const hi = i.name ? `${i.name}, ` : "";
++  return buildBrandEmail({
++    to: i.to,
++    subject: "Welcome to GoSkilled 🎉",
++    preheader: "Aapka learning safar yahin se shuru hota hai.",
++    heading: `Welcome to GoSkilled, ${hi}`.replace(/, $/, "!"),
++    paragraphs: [
++      "Bahut khushi hui aapko yahan dekh kar! GoSkilled par aap apni pace se seekh sakte ho — chhote lessons, real practice, aur ek Hinglish tutor (Guru) jo aapke doubts solve karega.",
++      "Shuruaat karne ke liye ek 2-minute ka intro lesson taiyaar hai. Bas ek lesson se aaj hi apni learning streak shuru karo.",
++    ],
++    cta: { label: "Start learning", href: `${i.appUrl}/dashboard` },
++    unsubscribeUrl: i.unsubscribeUrl,
++    idempotencyKey: `welcome:${i.to}`,
++  });
++}
++
++export interface CertificateReadyInput {
++  to: string;
++  name: string | null;
++  courseTitle: string;
++  serial: string;
++  appUrl: string;
++  unsubscribeUrl: string;
++}
++
++export function buildCertificateReadyEmail(
++  i: CertificateReadyInput,
++): EmailMessage {
++  const hi = i.name ? `${i.name}, ` : "";
++  return buildBrandEmail({
++    to: i.to,
++    subject: `Your certificate is ready 🎓 — ${i.courseTitle}`,
++    preheader: "Aapne course complete kiya — shabaash!",
++    heading: `Shabaash ${hi}certificate ready hai!`.replace(
++      / certificate/,
++      " — certificate",
++    ),
++    paragraphs: [
++      `Aapne "${i.courseTitle}" complete kar liya — ye ek badi baat hai. Poori mehnat rang laayi!`,
++      `Aapka certificate serial: ${i.serial}. Ise koi bhi verify kar sakta hai — ye ek genuine GoSkilled proof hai.`,
++    ],
++    cta: {
++      label: "View your certificate",
++      href: `${i.appUrl}/verify/${i.serial}`,
++    },
++    unsubscribeUrl: i.unsubscribeUrl,
++    idempotencyKey: `cert-ready:${i.serial}`,
++  });
++}
+diff --git a/lib/email/notify.ts b/lib/email/notify.ts
+new file mode 100644
+index 0000000..ae05de8
+--- /dev/null
++++ b/lib/email/notify.ts
+@@ -0,0 +1,116 @@
++// GPS-M5 §2.4 — milestone email senders (welcome + certificate-ready). Best-effort (never breaks a
++// flow), IDEMPOTENT (EmailLog claim-before-send → at-most-once), and OPT-OUT-aware (a hard emailOptOut
++// suppresses even these). Copy builders are pure (lib/email/notifications); this is the thin adapter.
++import { Prisma } from "../generated/prisma";
++import { prisma } from "../prisma";
++import { sendEmail } from "./send";
++import { buildWelcomeEmail, buildCertificateReadyEmail } from "./notifications";
++
++function appUrl(): string {
++  return process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
++}
++// Unsubscribe token = the user's unguessable cuid (25 random chars). A dedicated signed token is a
++// noted hardening follow-up; the cuid is non-enumerable, so this is safe for v1.
++function unsubscribeUrl(userId: string): string {
++  return `${appUrl()}/unsubscribe?u=${encodeURIComponent(userId)}`;
++}
++
++/** Claim a dedupe key by INSERTing the send-log row FIRST. Returns false if already claimed (P2002) or
++ *  on any error — so a double-send is impossible and a hiccup fails safe (no send) rather than double. */
++async function claim(
++  userId: string,
++  dedupeKey: string,
++  kind: string,
++): Promise<boolean> {
++  try {
++    await prisma.emailLog.create({ data: { userId, dedupeKey, kind } });
++    return true;
++  } catch (e) {
++    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002")
++      return false;
++    console.warn(
++      `[email] claim failed for "${dedupeKey}":`,
++      e instanceof Error ? e.message : e,
++    );
++    return false;
++  }
++}
++
++/** Welcome-on-first-email. Fires once the learner has an email + hasn't opted out. Idempotent. */
++export async function maybeSendWelcomeEmail(userId: string): Promise<void> {
++  let user: {
++    email: string | null;
++    name: string | null;
++    emailOptOut: boolean | null;
++  } | null = null;
++  try {
++    user = await prisma.user.findUnique({
++      where: { id: userId },
++      select: { email: true, name: true, emailOptOut: true },
++    });
++  } catch {
++    return; // best-effort
++  }
++  if (!user?.email || user.emailOptOut === true) return; // no email yet, or hard opt-out
++
++  if (!(await claim(userId, `welcome:${userId}`, "welcome"))) return; // already sent
++
++  await sendEmail(
++    buildWelcomeEmail({
++      to: user.email,
++      name: user.name,
++      appUrl: appUrl(),
++      unsubscribeUrl: unsubscribeUrl(userId),
++    }),
++  );
++}
++
++/** Certificate-ready. Fires once per issued certificate (dedupe by serial). Opt-out respected. */
++export async function maybeSendCertificateEmail(
++  userId: string,
++  courseId: string,
++): Promise<void> {
++  let data: {
++    email: string | null;
++    name: string | null;
++    emailOptOut: boolean | null;
++    serial: string;
++    courseTitle: string;
++  } | null = null;
++  try {
++    const cert = await prisma.certificate.findUnique({
++      where: { userId_courseId: { userId, courseId } },
++      select: {
++        serial: true,
++        course: { select: { title: true } },
++        user: { select: { email: true, name: true, emailOptOut: true } },
++      },
++    });
++    if (cert)
++      data = {
++        email: cert.user.email,
++        name: cert.user.name,
++        emailOptOut: cert.user.emailOptOut,
++        serial: cert.serial,
++        courseTitle: cert.course.title,
++      };
++  } catch {
++    return;
++  }
++  if (!data) return; // no certificate issued
++  if (!data.email || data.emailOptOut === true) return;
++
++  if (!(await claim(userId, `cert-ready:${data.serial}`, "certificate_ready")))
++    return;
++
++  await sendEmail(
++    buildCertificateReadyEmail({
++      to: data.email,
++      name: data.name,
++      courseTitle: data.courseTitle,
++      serial: data.serial,
++      appUrl: appUrl(),
++      unsubscribeUrl: unsubscribeUrl(userId),
++    }),
++  );
++}
+diff --git a/lib/email/template.ts b/lib/email/template.ts
+new file mode 100644
+index 0000000..cdd6937
+--- /dev/null
++++ b/lib/email/template.ts
+@@ -0,0 +1,75 @@
++// GPS-M5 §2.4 — shared premium email template. PURE (no I/O). One brand shell for all product emails:
++// green wordmark header, warm body, optional CTA, company + one-click unsubscribe footer. Inline
++// styles only (email-client safe). D-29: never any income/earnings language. Copy = LC voice slot.
++import type { EmailMessage } from "./receipt";
++
++export interface BrandEmailInput {
++  to: string;
++  subject: string;
++  preheader?: string; // hidden inbox-preview line
++  heading: string;
++  paragraphs: string[];
++  cta?: { label: string; href: string };
++  unsubscribeUrl: string;
++  idempotencyKey: string;
++}
++
++function esc(s: string): string {
++  return s
++    .replace(/&/g, "&amp;")
++    .replace(/</g, "&lt;")
++    .replace(/>/g, "&gt;")
++    .replace(/"/g, "&quot;");
++}
++
++const GREEN = "#137E49";
++const CHARCOAL = "#2A302A";
++const OFFWHITE = "#F7F7F4";
++
++export function buildBrandEmail(i: BrandEmailInput): EmailMessage {
++  const ctaHtml = i.cta
++    ? `<tr><td style="padding:8px 0 4px"><a href="${esc(i.cta.href)}" style="display:inline-block;background:${GREEN};color:#fff;text-decoration:none;font-weight:700;padding:12px 22px;border-radius:12px">${esc(i.cta.label)}</a></td></tr>`
++    : "";
++
++  const bodyHtml = i.paragraphs
++    .map(
++      (p) =>
++        `<tr><td style="padding:6px 0;font-size:15px;line-height:1.65;color:${CHARCOAL}">${esc(p)}</td></tr>`,
++    )
++    .join("");
++
++  const html = `<div style="background:${OFFWHITE};padding:24px 12px;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif">
++  <span style="display:none;opacity:0;color:${OFFWHITE};font-size:1px">${esc(i.preheader ?? i.heading)}</span>
++  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;margin:0 auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #e7e7e2">
++    <tr><td style="padding:20px 28px;border-bottom:1px solid #eee">
++      <span style="font-size:18px;font-weight:800;color:${GREEN};letter-spacing:-0.3px">GoSkilled</span>
++    </td></tr>
++    <tr><td style="padding:24px 28px 8px">
++      <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
++        <tr><td style="font-size:20px;font-weight:800;color:${CHARCOAL};padding-bottom:8px">${esc(i.heading)}</td></tr>
++        ${bodyHtml}
++        ${ctaHtml}
++      </table>
++    </td></tr>
++    <tr><td style="padding:18px 28px 24px;border-top:1px solid #eee;font-size:12px;line-height:1.6;color:#8a8f88">
++      GoSkilled · EDZERA LLP · Made in India<br>
++      You're receiving this because you have a GoSkilled account.
++      <a href="${esc(i.unsubscribeUrl)}" style="color:${GREEN}">Unsubscribe from emails</a>.
++    </td></tr>
++  </table>
++</div>`;
++
++  const text =
++    `${i.heading}\n\n` +
++    i.paragraphs.join("\n\n") +
++    (i.cta ? `\n\n${i.cta.label}: ${i.cta.href}` : "") +
++    `\n\n— GoSkilled · EDZERA LLP\nUnsubscribe: ${i.unsubscribeUrl}`;
++
++  return {
++    to: i.to,
++    subject: i.subject,
++    text,
++    html,
++    idempotencyKey: i.idempotencyKey,
++  };
++}
+diff --git a/lib/lms/quiz.ts b/lib/lms/quiz.ts
+index 278b9a7..18c6b6c 100644
+--- a/lib/lms/quiz.ts
++++ b/lib/lms/quiz.ts
+@@ -5,6 +5,7 @@
+ import { prisma } from "../prisma";
+ import { isEnrolled } from "./queries";
+ import { issueCertificateIfEligible } from "./certificate";
++import { maybeSendCertificateEmail } from "../email/notify";
+ import { track } from "../analytics/track";
+ import {
+   gradeAttempt,
+@@ -128,6 +129,7 @@ export async function submitQuizAttempt(
+     // A passing mandatory quiz may complete the certificate gate. Best-effort + idempotent.
+     try {
+       await issueCertificateIfEligible(userId, courseId);
++      await maybeSendCertificateEmail(userId, courseId); // §2.4 cert-ready email (deduped)
+     } catch (e) {
+       console.warn(
+         "[quiz] cert issuance after pass failed:",
+diff --git a/prisma/migrations/20260705040000_notifications/migration.sql b/prisma/migrations/20260705040000_notifications/migration.sql
+new file mode 100644
+index 0000000..c765830
+--- /dev/null
++++ b/prisma/migrations/20260705040000_notifications/migration.sql
+@@ -0,0 +1,22 @@
++-- GPS-M5 §2.4 Notifications: additive nullable User.emailOptOut (non-breaking; User already RLS) +
++-- EmailLog idempotent send-log. Golden Rule 15: EmailLog ships RLS-ENABLED (deny-all). Idempotent.
++
++ALTER TABLE "User" ADD COLUMN IF NOT EXISTS "emailOptOut" BOOLEAN;
++
++CREATE TABLE IF NOT EXISTS "EmailLog" (
++  "id"        TEXT NOT NULL,
++  "userId"    TEXT NOT NULL,
++  "dedupeKey" TEXT NOT NULL,
++  "kind"      TEXT NOT NULL,
++  "sentAt"    TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  CONSTRAINT "EmailLog_pkey" PRIMARY KEY ("id")
++);
++CREATE UNIQUE INDEX IF NOT EXISTS "EmailLog_dedupeKey_key" ON "EmailLog" ("dedupeKey");
++CREATE INDEX IF NOT EXISTS "EmailLog_userId_idx" ON "EmailLog" ("userId");
++DO $$ BEGIN
++  ALTER TABLE "EmailLog" ADD CONSTRAINT "EmailLog_userId_fkey"
++    FOREIGN KEY ("userId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++EXCEPTION WHEN duplicate_object THEN null; END $$;
++
++-- Golden Rule 15.
++ALTER TABLE "EmailLog" ENABLE ROW LEVEL SECURITY;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 01d8f84..07ea0fb 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -46,6 +46,9 @@ model User {
+   // Derivable items (Lesson 0, preview, invites) are computed from real data — NEVER stored here.
+   // Shape: { dismissedAt?: string(ISO); doneSeen?: string[] }. Zod-validated on read/write.
+   checklistState Json?
++  // GPS-M5 §2.4 notifications: hard email opt-out. Null/false = subscribed; true = opted out of ALL
++  // product emails (even welcome / certificate-ready). Additive + nullable → non-breaking.
++  emailOptOut   Boolean?
+   createdAt     DateTime @default(now())
+   updatedAt     DateTime @updatedAt
+ 
+@@ -61,6 +64,7 @@ model User {
+   uplineEdges   Referral[] @relation("Downline")
+   downlineEdges Referral[] @relation("Upline")
+   guruMessages  GuruMessage[]
++  emailLogs     EmailLog[]
+ }
+ 
+ // ─────────────── Catalog / LMS ───────────────
+@@ -474,3 +478,17 @@ model QuizAttempt {
+   @@index([userId, quizId])
+   @@index([quizId])
+ }
++
++// ─────────────── Notifications (GPS-M5 §2.4) ───────────────
++// Idempotent email send-log: a unique dedupeKey (e.g. "welcome:{userId}", "cert-ready:{serial}")
++// makes every send at-most-once — the row is CLAIMED before the send, so a double-send is impossible.
++// No PII stored (dedupeKey + internal userId + kind only).
++model EmailLog {
++  id        String   @id @default(cuid())
++  userId    String
++  user      User     @relation(fields: [userId], references: [id])
++  dedupeKey String   @unique
++  kind      String                                       // "welcome" | "certificate_ready"
++  sentAt    DateTime @default(now())
++  @@index([userId])
++}
+diff --git a/tests/email-notifications.test.ts b/tests/email-notifications.test.ts
+new file mode 100644
+index 0000000..1330dd4
+--- /dev/null
++++ b/tests/email-notifications.test.ts
+@@ -0,0 +1,52 @@
++// GPS-M5 §2.4 — pure email builder tests (no I/O). Copy is D-29-safe, unsubscribe is always present.
++import { describe, it, expect } from "vitest";
++import {
++  buildWelcomeEmail,
++  buildCertificateReadyEmail,
++} from "../lib/email/notifications";
++
++const INCOME =
++  /\b(earn|earning|income|salary|kamai|kamao|kamaunga)\b|₹|\bpaisa\b|\bpaise\b/i;
++
++describe("buildWelcomeEmail", () => {
++  const msg = buildWelcomeEmail({
++    to: "asha@example.com",
++    name: "Asha",
++    appUrl: "https://goskilled.in",
++    unsubscribeUrl: "https://goskilled.in/unsubscribe?u=u1",
++  });
++  it("addresses the learner, links to the dashboard, and has an unsubscribe", () => {
++    expect(msg.to).toBe("asha@example.com");
++    expect(msg.subject).toMatch(/Welcome/i);
++    expect(msg.html).toContain("Asha");
++    expect(msg.html).toContain("https://goskilled.in/dashboard");
++    expect(msg.html).toContain("/unsubscribe?u=u1");
++    expect(msg.idempotencyKey).toBe("welcome:asha@example.com");
++  });
++  it("is D-29 safe (no income/earnings language)", () => {
++    expect(INCOME.test(msg.text ?? "")).toBe(false);
++    expect(INCOME.test(msg.html)).toBe(false);
++  });
++});
++
++describe("buildCertificateReadyEmail", () => {
++  const msg = buildCertificateReadyEmail({
++    to: "asha@example.com",
++    name: "Asha",
++    courseTitle: "AI Prompt Mastery",
++    serial: "GS-ABCDE-12345",
++    appUrl: "https://goskilled.in",
++    unsubscribeUrl: "https://goskilled.in/unsubscribe?u=u1",
++  });
++  it("names the course, links to verify, and dedupes by serial", () => {
++    expect(msg.subject).toContain("AI Prompt Mastery");
++    expect(msg.html).toContain("AI Prompt Mastery");
++    expect(msg.html).toContain("/verify/GS-ABCDE-12345");
++    expect(msg.idempotencyKey).toBe("cert-ready:GS-ABCDE-12345");
++    expect(msg.html).toContain("/unsubscribe?u=u1");
++  });
++  it("is D-29 safe (no income/earnings language)", () => {
++    expect(INCOME.test(msg.text ?? "")).toBe(false);
++    expect(INCOME.test(msg.html)).toBe(false);
++  });
++});
+diff --git a/tests/notifications.integration.test.ts b/tests/notifications.integration.test.ts
+new file mode 100644
+index 0000000..57efe1b
+--- /dev/null
++++ b/tests/notifications.integration.test.ts
+@@ -0,0 +1,87 @@
++// GPS-M5 §2.4 — idempotent + opt-out-aware sends (live DB). The observable contract is the EmailLog
++// send-log: a claim row means "attempted at-most-once"; no row means suppressed (no email / opt-out).
++import { describe, it, expect } from "vitest";
++import { prisma } from "@/lib/prisma";
++import {
++  maybeSendWelcomeEmail,
++  maybeSendCertificateEmail,
++} from "@/lib/email/notify";
++
++const HAS_DB = !!process.env.DATABASE_URL;
++const runId = `lmsnotif${Date.now()}`;
++let n = 0;
++async function makeUser(opts: { email?: string | null; optOut?: boolean }) {
++  n++;
++  const u = await prisma.user.create({
++    data: {
++      phone: `+9198${String(Date.now()).slice(-7)}${n}`.slice(0, 13),
++      referralCode: `${runId}${n}`.toUpperCase(),
++      name: "Notify Learner",
++      email: opts.email === undefined ? `${runId}${n}@example.com` : opts.email,
++      emailOptOut: opts.optOut ?? null,
++    },
++    select: { id: true },
++  });
++  return u.id;
++}
++
++describe.skipIf(!HAS_DB)("notifications: idempotent + opt-out", () => {
++  it("welcome: sends once (claim logged), never twice", async () => {
++    const userId = await makeUser({});
++    await maybeSendWelcomeEmail(userId);
++    await maybeSendWelcomeEmail(userId); // idempotent
++    expect(
++      await prisma.emailLog.count({ where: { userId, kind: "welcome" } }),
++    ).toBe(1);
++  });
++
++  it("welcome: hard opt-out suppresses the send (no claim)", async () => {
++    const userId = await makeUser({ optOut: true });
++    await maybeSendWelcomeEmail(userId);
++    expect(await prisma.emailLog.count({ where: { userId } })).toBe(0);
++  });
++
++  it("welcome: no email → no send", async () => {
++    const userId = await makeUser({ email: null });
++    await maybeSendWelcomeEmail(userId);
++    expect(await prisma.emailLog.count({ where: { userId } })).toBe(0);
++  });
++
++  it("certificate-ready: dedupes by serial; opt-out respected", async () => {
++    const userId = await makeUser({});
++    const course = await prisma.course.create({
++      data: {
++        slug: `notif-${runId}`,
++        title: "Notif Course",
++        status: "PUBLISHED",
++      },
++      select: { id: true },
++    });
++    await prisma.certificate.create({
++      data: {
++        userId,
++        courseId: course.id,
++        serial: `GS-${runId.slice(-5).toUpperCase()}-NOTIF`,
++      },
++    });
++    await maybeSendCertificateEmail(userId, course.id);
++    await maybeSendCertificateEmail(userId, course.id);
++    expect(
++      await prisma.emailLog.count({
++        where: { userId, kind: "certificate_ready" },
++      }),
++    ).toBe(1);
++
++    // Opted-out user with a cert → suppressed.
++    const optUser = await makeUser({ optOut: true });
++    await prisma.certificate.create({
++      data: {
++        userId: optUser,
++        courseId: course.id,
++        serial: `GS-${runId.slice(-5).toUpperCase()}-OPTOUT`,
++      },
++    });
++    await maybeSendCertificateEmail(optUser, course.id);
++    expect(await prisma.emailLog.count({ where: { userId: optUser } })).toBe(0);
++  });
++});

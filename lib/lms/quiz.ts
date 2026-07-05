@@ -5,6 +5,7 @@
 import { prisma } from "../prisma";
 import { isEnrolled } from "./queries";
 import { issueCertificateIfEligible } from "./certificate";
+import { maybeSendCertificateEmail } from "../email/notify";
 import { track } from "../analytics/track";
 import {
   gradeAttempt,
@@ -128,6 +129,7 @@ export async function submitQuizAttempt(
     // A passing mandatory quiz may complete the certificate gate. Best-effort + idempotent.
     try {
       await issueCertificateIfEligible(userId, courseId);
+      await maybeSendCertificateEmail(userId, courseId); // §2.4 cert-ready email (deduped)
     } catch (e) {
       console.warn(
         "[quiz] cert issuance after pass failed:",

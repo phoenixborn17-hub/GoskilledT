@@ -46,6 +46,9 @@ model User {
   // Derivable items (Lesson 0, preview, invites) are computed from real data — NEVER stored here.
   // Shape: { dismissedAt?: string(ISO); doneSeen?: string[] }. Zod-validated on read/write.
   checklistState Json?
+  // GPS-M5 §2.4 notifications: hard email opt-out. Null/false = subscribed; true = opted out of ALL
+  // product emails (even welcome / certificate-ready). Additive + nullable → non-breaking.
+  emailOptOut   Boolean?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -61,6 +64,7 @@ model User {
   uplineEdges   Referral[] @relation("Downline")
   downlineEdges Referral[] @relation("Upline")
   guruMessages  GuruMessage[]
+  emailLogs     EmailLog[]
 }
 
 // ─────────────── Catalog / LMS ───────────────
@@ -473,4 +477,18 @@ model QuizAttempt {
   createdAt DateTime @default(now())
   @@index([userId, quizId])
   @@index([quizId])
+}
+
+// ─────────────── Notifications (GPS-M5 §2.4) ───────────────
+// Idempotent email send-log: a unique dedupeKey (e.g. "welcome:{userId}", "cert-ready:{serial}")
+// makes every send at-most-once — the row is CLAIMED before the send, so a double-send is impossible.
+// No PII stored (dedupeKey + internal userId + kind only).
+model EmailLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  dedupeKey String   @unique
+  kind      String                                       // "welcome" | "certificate_ready"
+  sentAt    DateTime @default(now())
+  @@index([userId])
 }
