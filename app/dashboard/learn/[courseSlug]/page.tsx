@@ -78,6 +78,7 @@ export default async function CoursePlayerPage({
           {playback ? (
             <LessonPlayer
               courseSlug={courseSlug}
+              courseTitle={view.course.title}
               lessonId={selected.id}
               title={selected.title}
               src={playback.url}

@@ -17,6 +17,11 @@
 | 7 | All dashboards | Motion/delight budget largely unspent outside Lesson-0 confetti — "one small moment of delight" per screen unmet | S3 | DESIGN_DIRECTION audit | OPEN | Post-QA-01 pass |
 | 8 | /courses detail | Generic outcomes copy marked draft | S2 | FR (M1) | OPEN | LC #13 |
 | 9 | Guru panel (player) | Modal has `aria-modal` + focus-on-open + Esc, but no full Tab-wrap focus trap — keyboard focus can reach the dimmed backdrop | S3 | FR (§2.1 Tier-B review) | OPEN | a11y; close **before GPS-M5 module close-out** (in-flight module, not launch-gated) |
+| 10 | §2.6 Signature Moments — Homepage hero | Elevate to §11 five-jobs bar (motion typography / gradient-mesh / scroll-story; NO 3D). Exists with hero-aurora; not re-audited to the §2.6 bar | S3 | §2.6 pass | OPEN | Certificate-earned moment shipped; 5 existing-surface elevations itemized (DR-031 polish sprint, not churned mid-marathon) |
+| 11 | §2.6 Signature Moments — Registration welcome | "Belonging" moment elevation on `/welcome` (Day-0) | S3 | §2.6 pass | OPEN | Copy is LC #34; motion/belonging elevation pending |
+| 12 | §2.6 Signature Moments — Purchase success | Elevate the zero-regret celebration (exists) | S3 | §2.6 pass | OPEN | Ties to LC #19/#21 live-provider pass (see row 1) |
+| 13 | §2.6 Signature Moments — Referral milestone | Invite-count celebration at thresholds (pre-D-01, D-29: zero earn framing) | S3 | §2.6 pass | OPEN | Derived from real invite count; hub earn card |
+| 14 | §2.6 Signature Moments — First-lesson complete | Elevate the first-win moment beyond baseline confetti | S3 | §2.6 pass | OPEN | Confetti exists; moment-grade polish pending |
 
 
 ### QA-01 auto-filed (mechanical) rows

@@ -96,7 +96,13 @@ export async function setEmailOptOutAction(
 }
 
 export type CompleteLessonResult =
-  { ok: true; progress: ProgressSummary } | { ok: false; error: string };
+  | {
+      ok: true;
+      progress: ProgressSummary;
+      // Set only on the completion that hits 100% → powers the Certificate-earned moment (§2.6).
+      certificateSerial?: string | null;
+    }
+  | { ok: false; error: string };
 
 export async function completeLessonAction(input: {
   courseSlug: string;
@@ -117,9 +123,11 @@ export async function completeLessonAction(input: {
     });
     // Certificate issuance (§2.6): fires once when the course hits 100%. Best-effort + idempotent —
     // an issuance hiccup must never fail the learner's lesson completion.
+    let certificateSerial: string | null = null;
     if (progress.percent === 100) {
       try {
-        await issueCertificateIfEligible(user.id, courseId);
+        const cert = await issueCertificateIfEligible(user.id, courseId);
+        certificateSerial = cert?.serial ?? null; // powers the Certificate-earned moment
         // Certificate-ready email (GPS-M5 §2.4) — idempotent + opt-out-aware, best-effort.
         await maybeSendCertificateEmail(user.id, courseId);
       } catch (e) {
@@ -133,7 +141,7 @@ export async function completeLessonAction(input: {
     revalidatePath("/dashboard"); // Hub: checklist + continue card reflect new progress
     revalidatePath("/dashboard/learn");
     revalidatePath("/dashboard/progress");
-    return { ok: true, progress };
+    return { ok: true, progress, certificateSerial };
   } catch (e) {
     return {
       ok: false,

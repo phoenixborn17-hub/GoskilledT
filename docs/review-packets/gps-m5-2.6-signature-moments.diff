@@ -1,0 +1,188 @@
+diff --git a/app/dashboard/actions.ts b/app/dashboard/actions.ts
+index d4a54ac..45b18e7 100644
+--- a/app/dashboard/actions.ts
++++ b/app/dashboard/actions.ts
+@@ -96,7 +96,13 @@ export async function setEmailOptOutAction(
+ }
+ 
+ export type CompleteLessonResult =
+-  { ok: true; progress: ProgressSummary } | { ok: false; error: string };
++  | {
++      ok: true;
++      progress: ProgressSummary;
++      // Set only on the completion that hits 100% → powers the Certificate-earned moment (§2.6).
++      certificateSerial?: string | null;
++    }
++  | { ok: false; error: string };
+ 
+ export async function completeLessonAction(input: {
+   courseSlug: string;
+@@ -117,9 +123,11 @@ export async function completeLessonAction(input: {
+     });
+     // Certificate issuance (§2.6): fires once when the course hits 100%. Best-effort + idempotent —
+     // an issuance hiccup must never fail the learner's lesson completion.
++    let certificateSerial: string | null = null;
+     if (progress.percent === 100) {
+       try {
+-        await issueCertificateIfEligible(user.id, courseId);
++        const cert = await issueCertificateIfEligible(user.id, courseId);
++        certificateSerial = cert?.serial ?? null; // powers the Certificate-earned moment
+         // Certificate-ready email (GPS-M5 §2.4) — idempotent + opt-out-aware, best-effort.
+         await maybeSendCertificateEmail(user.id, courseId);
+       } catch (e) {
+@@ -133,7 +141,7 @@ export async function completeLessonAction(input: {
+     revalidatePath("/dashboard"); // Hub: checklist + continue card reflect new progress
+     revalidatePath("/dashboard/learn");
+     revalidatePath("/dashboard/progress");
+-    return { ok: true, progress };
++    return { ok: true, progress, certificateSerial };
+   } catch (e) {
+     return {
+       ok: false,
+diff --git a/app/dashboard/learn/[courseSlug]/page.tsx b/app/dashboard/learn/[courseSlug]/page.tsx
+index ac58a5e..98c57b5 100644
+--- a/app/dashboard/learn/[courseSlug]/page.tsx
++++ b/app/dashboard/learn/[courseSlug]/page.tsx
+@@ -78,6 +78,7 @@ export default async function CoursePlayerPage({
+           {playback ? (
+             <LessonPlayer
+               courseSlug={courseSlug}
++              courseTitle={view.course.title}
+               lessonId={selected.id}
+               title={selected.title}
+               src={playback.url}
+diff --git a/components/dashboard/certificate-moment.tsx b/components/dashboard/certificate-moment.tsx
+new file mode 100644
+index 0000000..8876137
+--- /dev/null
++++ b/components/dashboard/certificate-moment.tsx
+@@ -0,0 +1,71 @@
++"use client";
++// GPS-M5 §2.6 — Certificate Earned signature moment (Register 1: earned celebration, one of the six).
++// Fires when the course hits 100%. Confetti is reduced-motion-safe (inside <Confetti>); the overlay
++// entrance uses the gated .enter class. Pride, never earnings (D-29). Dismissible.
++import Link from "next/link";
++import { Award, X } from "lucide-react";
++import { Confetti } from "../ui/confetti";
++import { Button } from "../ui/button";
++import { ShareCertButton } from "./share-cert-button";
++
++export function CertificateMoment({
++  serial,
++  courseTitle,
++  onClose,
++}: {
++  serial: string;
++  courseTitle: string;
++  onClose: () => void;
++}) {
++  return (
++    <div
++      className="fixed inset-0 z-50 flex items-center justify-center p-4"
++      role="dialog"
++      aria-modal="true"
++      aria-labelledby="cert-moment-title"
++    >
++      <Confetti fire />
++      <button
++        type="button"
++        aria-label="Close"
++        onClick={onClose}
++        className="absolute inset-0 bg-charcoal/50"
++      />
++      <div className="enter relative w-full max-w-sm rounded-3xl bg-offwhite p-6 text-center shadow-2xl">
++        <button
++          type="button"
++          onClick={onClose}
++          aria-label="Close"
++          className="press absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full text-muted hover:bg-charcoal/5"
++        >
++          <X className="h-4 w-4" aria-hidden />
++        </button>
++
++        <span
++          className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-gold/20 text-charcoal"
++          aria-hidden
++        >
++          <Award className="h-8 w-8" />
++        </span>
++        <h2
++          id="cert-moment-title"
++          className="font-heading text-2xl font-bold text-charcoal"
++        >
++          Certificate earned! 🎉
++        </h2>
++        <p className="mx-auto mt-2 max-w-xs text-sm text-muted">
++          Aapne{" "}
++          <span className="font-semibold text-charcoal">{courseTitle}</span>{" "}
++          poora complete kiya — shabaash! Ye aapki mehnat ka proof hai.
++        </p>
++
++        <div className="mt-6 flex flex-col items-center gap-3">
++          <ShareCertButton serial={serial} courseTitle={courseTitle} />
++          <Link href={`/verify/${serial}`} className="w-full">
++            <Button variant="outline">View your certificate</Button>
++          </Link>
++        </div>
++      </div>
++    </div>
++  );
++}
+diff --git a/components/dashboard/lesson-player.tsx b/components/dashboard/lesson-player.tsx
+index 01236bc..3535473 100644
+--- a/components/dashboard/lesson-player.tsx
++++ b/components/dashboard/lesson-player.tsx
+@@ -4,10 +4,12 @@ import { useRouter } from "next/navigation";
+ import { Check } from "lucide-react";
+ import { Button } from "../ui/button";
+ import { Confetti } from "../ui/confetti";
++import { CertificateMoment } from "./certificate-moment";
+ import { completeLessonAction } from "../../app/dashboard/actions";
+ 
+ export function LessonPlayer({
+   courseSlug,
++  courseTitle,
+   lessonId,
+   title,
+   src,
+@@ -16,6 +18,7 @@ export function LessonPlayer({
+   nextLessonId,
+ }: {
+   courseSlug: string;
++  courseTitle: string;
+   lessonId: string;
+   title: string;
+   src: string;
+@@ -26,6 +29,7 @@ export function LessonPlayer({
+   const router = useRouter();
+   const [completed, setCompleted] = useState(initiallyCompleted);
+   const [celebrate, setCelebrate] = useState(false);
++  const [certSerial, setCertSerial] = useState<string | null>(null);
+   const [busy, setBusy] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   // Video load-error failure path (§2.3): retry (reload) + WhatsApp "report issue" deep-link.
+@@ -42,7 +46,9 @@ export function LessonPlayer({
+     setBusy(false);
+     if (!res.ok) return setError(res.error);
+     setCompleted(true);
+-    setCelebrate(true); // purposeful-delight moment (§5) — reduced-motion safe inside <Confetti>
++    // Course-complete → the Certificate Earned signature moment (§2.6); otherwise a small confetti win.
++    if (res.certificateSerial) setCertSerial(res.certificateSerial);
++    else setCelebrate(true); // purposeful-delight moment (§5) — reduced-motion safe inside <Confetti>
+     router.refresh(); // updates the lesson list + progress ring
+   }
+ 
+@@ -54,6 +60,13 @@ export function LessonPlayer({
+   return (
+     <div className="space-y-4">
+       <Confetti fire={celebrate} />
++      {certSerial && (
++        <CertificateMoment
++          serial={certSerial}
++          courseTitle={courseTitle}
++          onClose={() => setCertSerial(null)}
++        />
++      )}
+       <div className="overflow-hidden rounded-2xl bg-charcoal">
+         {/* Guru companion-panel slot (§1E, GPS-M5) reserved alongside the player — no UI in M2. */}
+         {videoError ? (
