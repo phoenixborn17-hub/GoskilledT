@@ -251,6 +251,47 @@ html {
   }
 }
 
+/* ── Welcome "belonging" moment (DR-030 §4): a soft green→gold glow behind the one-time screen +
+      a single gentle halo pulse on the membership medallion. Static + haloless under reduced-motion. */
+.welcome-glow {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.welcome-glow::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  left: 50%;
+  top: 30%;
+  width: 30rem;
+  height: 30rem;
+  transform: translate(-50%, -50%);
+  background:
+    radial-gradient(closest-side, rgb(26 160 94 / 0.1), transparent 70%),
+    radial-gradient(closest-side, rgb(237 200 37 / 0.08), transparent 72%);
+  filter: blur(50px);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .welcome-medallion::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    box-shadow: 0 0 0 0 rgb(26 160 94 / 0.35);
+    animation: welcome-halo 2.4s ease-out 0.3s 2 both;
+  }
+  @keyframes welcome-halo {
+    0% {
+      box-shadow: 0 0 0 0 rgb(26 160 94 / 0.35);
+    }
+    100% {
+      box-shadow: 0 0 0 1.25rem rgb(26 160 94 / 0);
+    }
+  }
+}
+
 /* ── CSS-only scroll reveal (from T5). Degrades safely: no-JS, unsupported browsers, and
       reduced-motion all see content instantly. Slides only — NO opacity fade: a fade leaves
       below-fold content at opacity 0, which reads as invisible to assistive tech and fails
