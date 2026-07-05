@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, PartyPopper } from "lucide-react";
 import { Button } from "../ui/button";
 import { Confetti } from "../ui/confetti";
 import { CertificateMoment } from "./certificate-moment";
@@ -29,6 +29,7 @@ export function LessonPlayer({
   const router = useRouter();
   const [completed, setCompleted] = useState(initiallyCompleted);
   const [celebrate, setCelebrate] = useState(false);
+  const [firstWin, setFirstWin] = useState(false);
   const [certSerial, setCertSerial] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,9 +47,14 @@ export function LessonPlayer({
     setBusy(false);
     if (!res.ok) return setError(res.error);
     setCompleted(true);
-    // Course-complete → the Certificate Earned signature moment (§2.6); otherwise a small confetti win.
-    if (res.certificateSerial) setCertSerial(res.certificateSerial);
-    else setCelebrate(true); // purposeful-delight moment (§5) — reduced-motion safe inside <Confetti>
+    // Course-complete → the Certificate Earned signature moment (§2.6); otherwise a confetti win, and
+    // the FIRST-ever completion (progress.completed === 1) earns a warm first-win banner (§2.6).
+    if (res.certificateSerial) {
+      setCertSerial(res.certificateSerial);
+    } else {
+      setCelebrate(true); // purposeful-delight moment (§5) — reduced-motion safe inside <Confetti>
+      if (res.progress.completed === 1) setFirstWin(true);
+    }
     router.refresh(); // updates the lesson list + progress ring
   }
 
@@ -60,6 +66,27 @@ export function LessonPlayer({
   return (
     <div className="space-y-4">
       <Confetti fire={celebrate} />
+      {firstWin && (
+        <div
+          role="status"
+          className="enter flex items-center gap-3 rounded-2xl bg-gradient-to-br from-brand/10 to-gold/15 p-4"
+        >
+          <span
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand/15 text-brand"
+            aria-hidden
+          >
+            <PartyPopper className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-heading font-bold text-charcoal">
+              Pehla lesson complete! 🎉
+            </p>
+            <p className="text-sm text-muted">
+              Shabaash — aapne shuru kar diya. Isi tarah aage badhte raho.
+            </p>
+          </div>
+        </div>
+      )}
       {certSerial && (
         <CertificateMoment
           serial={certSerial}
