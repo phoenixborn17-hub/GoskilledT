@@ -3,8 +3,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
+import { FormField } from "../../components/ui/form-field";
+import { Alert } from "../../components/ui/alert";
 import { Card, CardTitle, CardDescription } from "../../components/ui/card";
 import { OtpInput } from "../../components/ui/otp-input";
 import { sendLoginOtp, verifyLoginOtp } from "./actions";
@@ -46,28 +46,22 @@ export function LoginForm() {
 
       {step === "phone" && (
         <form onSubmit={onSend} className="mt-6 space-y-4">
-          <div>
-            <Label htmlFor="phone">Mobile number</Label>
-            <Input
-              id="phone"
-              name="phone"
-              type="tel"
-              inputMode="numeric"
-              autoComplete="tel"
-              placeholder="10-digit mobile"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-              maxLength={10}
-              required
-            />
-          </div>
-          {error && (
-            <p role="alert" className="text-sm text-red-600">
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={busy}>
-            {busy ? "Sending…" : "Send OTP"}
+          <FormField
+            label="Mobile number"
+            id="phone"
+            name="phone"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            placeholder="10-digit mobile"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+            maxLength={10}
+            required
+          />
+          {error && <Alert variant="error">{error}</Alert>}
+          <Button type="submit" loading={busy}>
+            Send OTP
           </Button>
           <p className="text-center text-sm text-muted">
             New here?{" "}
@@ -80,8 +74,7 @@ export function LoginForm() {
 
       {step === "otp" && (
         <div className="mt-6 space-y-4">
-          <div>
-            <Label htmlFor="otp">Enter OTP</Label>
+          <FormField label="Enter OTP" id="otp" hint={`Sent to +91 ${phone}`}>
             <OtpInput
               id="otp"
               value={token}
@@ -90,19 +83,15 @@ export function LoginForm() {
               disabled={busy}
               autoFocus
             />
-            <p className="mt-2 text-xs text-muted">Sent to +91 {phone}</p>
-          </div>
-          {error && (
-            <p role="alert" className="text-sm text-red-600">
-              {error}
-            </p>
-          )}
+          </FormField>
+          {error && <Alert variant="error">{error}</Alert>}
           <Button
             type="button"
             onClick={() => submitOtp(token)}
-            disabled={busy || token.length < 4}
+            loading={busy}
+            disabled={token.length < 4}
           >
-            {busy ? "Verifying…" : "Verify & log in"}
+            Verify &amp; log in
           </Button>
           <Button
             type="button"

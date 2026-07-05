@@ -3,8 +3,8 @@
 // shared OtpInput so the code-entry experience matches login everywhere. No passwords, ever.
 import { useState } from "react";
 import { Button } from "../../components/ui/button";
-import { Input } from "../../components/ui/input";
-import { Label } from "../../components/ui/label";
+import { FormField } from "../../components/ui/form-field";
+import { Alert } from "../../components/ui/alert";
 import { Card, CardTitle, CardDescription } from "../../components/ui/card";
 import { OtpInput } from "../../components/ui/otp-input";
 import { sendRegisterOtp, verifyRegisterOtp } from "./actions";
@@ -52,49 +52,44 @@ export function RegisterForm() {
 
       {step === "phone" && (
         <form onSubmit={onSend} className="mt-6 space-y-4">
-          <div>
-            <Label htmlFor="name">What should we call you? (optional)</Label>
-            <Input
-              id="name"
-              name="name"
-              type="text"
-              autoComplete="given-name"
-              placeholder="Your name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              maxLength={80}
-            />
-          </div>
-          <div>
-            <Label htmlFor="phone">Mobile number</Label>
-            <Input
-              id="phone"
-              name="phone"
-              type="tel"
-              inputMode="numeric"
-              autoComplete="tel"
-              placeholder="10-digit mobile"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-              maxLength={10}
-              required
-            />
-          </div>
-          {error && (
-            <p role="alert" className="text-sm text-red-600">
-              {error}
-            </p>
-          )}
-          <Button type="submit" disabled={busy}>
-            {busy ? "Sending…" : "Create free account"}
+          <FormField
+            label="What should we call you? (optional)"
+            id="name"
+            name="name"
+            type="text"
+            autoComplete="given-name"
+            placeholder="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+          />
+          <FormField
+            label="Mobile number"
+            id="phone"
+            name="phone"
+            type="tel"
+            inputMode="numeric"
+            autoComplete="tel"
+            placeholder="10-digit mobile"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+            maxLength={10}
+            required
+          />
+          {error && <Alert variant="error">{error}</Alert>}
+          <Button type="submit" loading={busy}>
+            Create free account
           </Button>
         </form>
       )}
 
       {step === "otp" && (
         <div className="mt-6 space-y-4">
-          <div>
-            <Label htmlFor="otp">Enter the OTP</Label>
+          <FormField
+            label="Enter the OTP"
+            id="otp"
+            hint={`Sent to +91 ${phone}`}
+          >
             <OtpInput
               id="otp"
               value={token}
@@ -103,19 +98,15 @@ export function RegisterForm() {
               disabled={busy}
               autoFocus
             />
-            <p className="mt-2 text-xs text-muted">Sent to +91 {phone}</p>
-          </div>
-          {error && (
-            <p role="alert" className="text-sm text-red-600">
-              {error}
-            </p>
-          )}
+          </FormField>
+          {error && <Alert variant="error">{error}</Alert>}
           <Button
             type="button"
             onClick={() => submitOtp(token)}
-            disabled={busy || token.length < 4}
+            loading={busy}
+            disabled={token.length < 4}
           >
-            {busy ? "Verifying…" : "Verify & continue"}
+            Verify &amp; continue
           </Button>
           <Button
             type="button"

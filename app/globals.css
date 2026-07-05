@@ -31,7 +31,8 @@
 
   /* Semantic */
   --gs-success: #137e49;
-  --gs-warning: #b87a00; /* accessible amber for text — gold stays decorative */
+  --gs-warning: #b87a00; /* accessible amber for text ON WHITE — gold stays decorative */
+  --gs-warning-strong: #8a5a00; /* darker amber — clears WCAG AA on warning-TINT surfaces (Alert) */
   --gs-danger: #c0392b;
   --gs-info: #1d6fa5;
 
