@@ -3,6 +3,7 @@ import { Sora, Inter, Noto_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
 import { siteUrl, SITE_NAME } from "../lib/seo";
 import { PwaRegister } from "../components/pwa/pwa-register";
+import { StagingBanner } from "../components/system/staging-banner";
 
 // Brand fonts (DR-012), self-hosted via next/font: zero layout-shift setup, `swap` so text
 // is never invisible, and subset to latin + devanagari only (data-light for Tier-2/3 users).
@@ -54,6 +55,7 @@ export default function RootLayout({
       className={`${sora.variable} ${inter.variable} ${devanagari.variable}`}
     >
       <body className="min-h-dvh bg-offwhite font-body text-charcoal antialiased">
+        <StagingBanner />
         {children}
         <PwaRegister />
       </body>
