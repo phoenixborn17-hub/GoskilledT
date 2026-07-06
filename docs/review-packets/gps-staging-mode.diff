@@ -1,0 +1,360 @@
+diff --git a/.env.example b/.env.example
+index 3200ef3..9a33b9b 100644
+--- a/.env.example
++++ b/.env.example
+@@ -49,6 +49,13 @@ PII_ENCRYPTION_KEY=""             # 32-byte base64 key for AES-256-GCM
+ 
+ # --- App ---
+ NEXT_PUBLIC_APP_URL="http://localhost:3000"
++# Deployment mode: development | staging | production. Only "staging" carries behaviour.
++# On test.goskilled.in it lets a PRODUCTION build (NODE_ENV=production) boot with mock
++# payment/OTP/video so the whole app runs end-to-end with NO real money/SMS/video — the guard
++# warns loudly instead of throwing, and an app-wide STAGING banner shows. HARD RULE: APP_ENV=staging
++# on the prod domain (goskilled.in / www.goskilled.in) STILL hard-throws — you can never simulate
++# money on production. Leave unset in dev and real prod (unset = today's strict behaviour).
++APP_ENV=""                        # ""|development|staging|production  (set "staging" ONLY on test.goskilled.in)
+ 
+ # --- Legal gates (Decision Register) ---
+ AFFILIATE_PAYOUTS_ENABLED="false"  # D-01: affiliate payouts stay OFF until legal sign-off. Read by lib/env.ts payoutsEnabled().
+diff --git a/app/layout.tsx b/app/layout.tsx
+index 2c0b604..ab529ff 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -3,6 +3,7 @@ import { Sora, Inter, Noto_Sans_Devanagari } from "next/font/google";
+ import "./globals.css";
+ import { siteUrl, SITE_NAME } from "../lib/seo";
+ import { PwaRegister } from "../components/pwa/pwa-register";
++import { StagingBanner } from "../components/system/staging-banner";
+ 
+ // Brand fonts (DR-012), self-hosted via next/font: zero layout-shift setup, `swap` so text
+ // is never invisible, and subset to latin + devanagari only (data-light for Tier-2/3 users).
+@@ -54,6 +55,7 @@ export default function RootLayout({
+       className={`${sora.variable} ${inter.variable} ${devanagari.variable}`}
+     >
+       <body className="min-h-dvh bg-offwhite font-body text-charcoal antialiased">
++        <StagingBanner />
+         {children}
+         <PwaRegister />
+       </body>
+diff --git a/components/system/staging-banner.tsx b/components/system/staging-banner.tsx
+new file mode 100644
+index 0000000..2019f08
+--- /dev/null
++++ b/components/system/staging-banner.tsx
+@@ -0,0 +1,19 @@
++// App-wide STAGING banner (money safety rail, gps-staging-mode). Server component: the flag lives in
++// server-only env (APP_ENV) and is read at render, so it ships in the FIRST server-rendered HTML —
++// present from first paint → zero CLS. Renders null in dev (no flag) and can NEVER render on the
++// canonical prod domain (showStagingBanner requires a non-prod host; the boot guard also hard-throws
++// a staging-flagged prod deploy). Charcoal fill + off-white text (unmistakable, AA; no gold-on-light).
++import { showStagingBanner } from "../../lib/config/providers";
++
++export function StagingBanner() {
++  if (!showStagingBanner()) return null;
++  return (
++    <div
++      role="status"
++      className="w-full border-b border-gold/40 bg-charcoal px-3 py-1.5 text-center text-xs font-semibold text-offwhite"
++    >
++      <span aria-hidden>⚠ </span>
++      STAGING — simulated: payments, OTP, emails are NOT real
++    </div>
++  );
++}
+diff --git a/lib/config/providers.ts b/lib/config/providers.ts
+index f8d6232..5e855eb 100644
+--- a/lib/config/providers.ts
++++ b/lib/config/providers.ts
+@@ -65,9 +65,85 @@ export function usingDevProviders(): boolean {
+   );
+ }
+ 
++// ── Staging mode (test.goskilled.in) ────────────────────────────────────────
++// A deliberate, tightly-scoped escape hatch: a PRODUCTION build may boot with mock
++// payment/OTP/video ON A NON-PRODUCTION HOST so the full app can be exercised end-to-end without
++// real money, real SMS, or real video. It is fail-CLOSED and money-safe by construction:
++//   • only when NODE_ENV=production AND APP_ENV=staging AND the host is provably NOT the prod domain;
++//   • the canonical prod domain ALWAYS hard-throws with mocks, even if APP_ENV=staging (the one rule
++//     that must never bend — you can never simulate money on goskilled.in);
++//   • an unset/unparseable NEXT_PUBLIC_APP_URL is treated as prod (no positive non-prod proof → strict).
++// No flag (APP_ENV unset) → the guard behaves EXACTLY as before.
++
++/** The canonical production hosts. Simulated providers may NEVER run on these. */
++const PROD_HOSTS = new Set(["goskilled.in", "www.goskilled.in"]);
++
++/** Hostname of NEXT_PUBLIC_APP_URL, lowercased; null if unset or unparseable. */
++function appHost(): string | null {
++  const raw = process.env.NEXT_PUBLIC_APP_URL;
++  if (!raw) return null;
++  try {
++    return new URL(raw).hostname.toLowerCase();
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * True only when the app is provably served from the canonical production domain. Fail-closed:
++ * an unknown/unparseable host returns `false` here, but staging then still requires a *positive*
++ * non-prod host (see isStagingMode) — so "unknown host" ends up strict, never staged.
++ */
++function isProdHost(): boolean {
++  const h = appHost();
++  return h !== null && PROD_HOSTS.has(h);
++}
++
++/**
++ * Staging mode = production build, explicitly flagged `APP_ENV=staging`, on a host that is
++ * positively NOT the prod domain (parseable + not in PROD_HOSTS). Money-safe fail-closed:
++ * unset/unparseable host or a prod host → NOT staging → the strict guard hard-throws.
++ */
++export function isStagingMode(): boolean {
++  if (process.env.NODE_ENV !== "production") return false; // dev is its own (unchanged) mode
++  if ((process.env.APP_ENV || "").toLowerCase() !== "staging") return false;
++  const h = appHost();
++  return h !== null && !PROD_HOSTS.has(h); // require a proven non-prod host
++}
++
++/**
++ * Whether the app-wide STAGING banner should render. Gated on APP_ENV=staging AND a non-prod host,
++ * so it can never appear on the real production domain (belt-and-suspenders with the boot guard,
++ * which already hard-throws on a staging-flagged prod host). Independent of NODE_ENV so a local
++ * `APP_ENV=staging` preview also shows it.
++ */
++export function showStagingBanner(): boolean {
++  if ((process.env.APP_ENV || "").toLowerCase() !== "staging") return false;
++  return !isProdHost();
++}
++
++let warnedStaging = false;
++
++/** Loud, once-per-process boot warning that simulated providers are active in staging. */
++function warnStagingProviders(offenders: string[]): void {
++  if (warnedStaging) return;
++  warnedStaging = true;
++  console.warn(
++    "\n══════════════════════════════════════════════════════════════════════\n" +
++      "  ⚠  STAGING MODE — SIMULATED PROVIDERS ACTIVE (NOT REAL):\n" +
++      `        ${offenders.join(", ")}\n` +
++      "  Payments, OTP and video are MOCKED — no real money moves, no real SMS.\n" +
++      `  Host: ${appHost() ?? "(unknown)"} · APP_ENV=staging. This must NEVER be the prod domain.\n` +
++      "══════════════════════════════════════════════════════════════════════\n",
++  );
++}
++
+ /**
+  * Fail immediately if production is booting with any mock/test provider.
+  * Called at import time (startup) AND inside every provider getter (defence in depth).
++ *
++ * Staging exception: a non-prod-host deploy flagged APP_ENV=staging WARNS loudly and boots instead
++ * of throwing (see isStagingMode). The prod domain still hard-throws — always.
+  */
+ export function assertProductionProviderSafety(): void {
+   if (process.env.NODE_ENV !== "production") return;
+@@ -75,12 +151,18 @@ export function assertProductionProviderSafety(): void {
+   if (paymentProviderName() === "mock") offenders.push("PAYMENT_PROVIDER=mock");
+   if (otpProviderName() === "test") offenders.push("OTP_PROVIDER=test");
+   if (videoProviderName() === "mock") offenders.push("VIDEO_PROVIDER=mock");
+-  if (offenders.length > 0) {
+-    throw new Error(
+-      `FATAL: development providers enabled in production (${offenders.join(", ")}). ` +
+-        `Set PAYMENT_PROVIDER=razorpay, OTP_PROVIDER=live and VIDEO_PROVIDER=stream with real credentials before deploying.`,
+-    );
++  if (offenders.length === 0) return; // real providers everywhere → nothing to guard
++
++  // Staging escape hatch — only on a proven non-prod host; the prod domain never reaches here.
++  if (isStagingMode()) {
++    warnStagingProviders(offenders);
++    return;
+   }
++
++  throw new Error(
++    `FATAL: development providers enabled in production (${offenders.join(", ")}). ` +
++      `Set PAYMENT_PROVIDER=razorpay, OTP_PROVIDER=live and VIDEO_PROVIDER=stream with real credentials before deploying.`,
++  );
+ }
+ 
+ let warnedAnalytics = false;
+diff --git a/lib/env.ts b/lib/env.ts
+index f1fdc99..0f9ff3f 100644
+--- a/lib/env.ts
++++ b/lib/env.ts
+@@ -39,6 +39,10 @@ export const EnvSchema = z
+     AI_PROVIDER: z.enum(["mock", "live"]).optional(), // Guru (GPS-M5) — default mock
+     // App
+     NEXT_PUBLIC_APP_URL: z.string().trim().url().optional(), // has a localhost default in lib/seo.ts
++    // Deployment mode. Only `staging` carries behaviour: on a NON-prod host it lets a production
++    // build boot with mock providers (see lib/config/providers.ts isStagingMode). Money-rail logic
++    // lives there, not here — this entry just validates the value + documents the var.
++    APP_ENV: z.enum(["development", "staging", "production"]).optional(),
+     AFFILIATE_PAYOUTS_ENABLED: z.enum(["true", "false"]).optional(),
+     D01_LEGAL_CLEARED: z.enum(["true", "false"]).optional(), // LC #1 gate for the payout-flag ceremony
+ 
+diff --git a/tests/env.test.ts b/tests/env.test.ts
+index 32e2a21..8c5497c 100644
+--- a/tests/env.test.ts
++++ b/tests/env.test.ts
+@@ -81,6 +81,15 @@ describe("env schema", () => {
+     ).toBe(false);
+   });
+ 
++  it("validates APP_ENV as an enum (staging accepted, typos flagged)", () => {
++    expect(envIssues({ ...DEV_BASE, APP_ENV: "staging" })).toEqual([]);
++    expect(
++      envIssues({ ...DEV_BASE, APP_ENV: "stagng" }).some((i) =>
++        i.startsWith("APP_ENV"),
++      ),
++    ).toBe(true);
++  });
++
+   it("validateEnv throws in production, warns in dev", () => {
+     expect(() => validateEnv({ ...DEV_BASE, NODE_ENV: "production" })).toThrow(
+       /environment validation failed/i,
+diff --git a/tests/providers-staging.test.ts b/tests/providers-staging.test.ts
+new file mode 100644
+index 0000000..5a793c9
+--- /dev/null
++++ b/tests/providers-staging.test.ts
+@@ -0,0 +1,142 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
++import {
++  assertProductionProviderSafety,
++  isStagingMode,
++  showStagingBanner,
++} from "@/lib/config/providers";
++import {
++  getPaymentProvider,
++  mockPaymentProvider,
++} from "@/lib/payments/provider";
++
++// Staging mode is the money safety rail: a production build may boot with mock payment/OTP/video
++// ONLY on a non-prod host explicitly flagged APP_ENV=staging. These tests pin every branch —
++// especially that the prod domain can NEVER simulate money.
++
++const KEYS = [
++  "NODE_ENV",
++  "APP_ENV",
++  "NEXT_PUBLIC_APP_URL",
++  "PAYMENT_PROVIDER",
++  "OTP_PROVIDER",
++  "VIDEO_PROVIDER",
++] as const;
++
++const STAGING_URL = "https://test.goskilled.in";
++const PROD_URL = "https://goskilled.in";
++const WWW_PROD_URL = "https://www.goskilled.in";
++const THROWS = /development providers enabled in production/i;
++
++// Mutable view: process.env types NODE_ENV as read-only, but at runtime it is freely assignable.
++const ENV = process.env as Record<string, string | undefined>;
++
++let saved: Record<string, string | undefined>;
++
++beforeEach(() => {
++  saved = {};
++  for (const k of KEYS) saved[k] = ENV[k];
++});
++
++afterEach(() => {
++  for (const k of KEYS) {
++    if (saved[k] === undefined) delete ENV[k];
++    else ENV[k] = saved[k];
++  }
++  vi.restoreAllMocks();
++});
++
++/** Replace exactly the KEYS we control; unset providers then default to mock/test in the getters. */
++function setEnv(env: Partial<Record<(typeof KEYS)[number], string>>) {
++  for (const k of KEYS) delete ENV[k];
++  for (const [k, v] of Object.entries(env)) ENV[k] = v;
++}
++
++describe("staging mode — production provider safety rail", () => {
++  it("prod + mock providers + NO flag → hard-throws (unchanged strict behaviour)", () => {
++    setEnv({ NODE_ENV: "production", NEXT_PUBLIC_APP_URL: STAGING_URL }); // defaults: mock/test/mock
++    expect(isStagingMode()).toBe(false);
++    expect(() => assertProductionProviderSafety()).toThrow(THROWS);
++  });
++
++  it("prod + APP_ENV=staging + non-prod host + mock → warns loudly and BOOTS", async () => {
++    setEnv({
++      NODE_ENV: "production",
++      APP_ENV: "staging",
++      NEXT_PUBLIC_APP_URL: STAGING_URL,
++    });
++    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
++    // Fresh module → its import-time boot guard runs under the staging env and warns.
++    vi.resetModules();
++    const providers = await import("@/lib/config/providers");
++    expect(warn).toHaveBeenCalled(); // loud boot warning
++    expect(providers.isStagingMode()).toBe(true);
++    expect(() => providers.assertProductionProviderSafety()).not.toThrow(); // boots
++  });
++
++  it("HARD RULE: APP_ENV=staging on the prod host → STILL hard-throws", () => {
++    setEnv({
++      NODE_ENV: "production",
++      APP_ENV: "staging",
++      NEXT_PUBLIC_APP_URL: PROD_URL,
++    });
++    expect(isStagingMode()).toBe(false);
++    expect(showStagingBanner()).toBe(false); // banner never on the prod domain
++    expect(() => assertProductionProviderSafety()).toThrow(THROWS);
++  });
++
++  it("HARD RULE: APP_ENV=staging on www.goskilled.in → STILL hard-throws", () => {
++    setEnv({
++      NODE_ENV: "production",
++      APP_ENV: "staging",
++      NEXT_PUBLIC_APP_URL: WWW_PROD_URL,
++    });
++    expect(isStagingMode()).toBe(false);
++    expect(() => assertProductionProviderSafety()).toThrow(THROWS);
++  });
++
++  it("fail-closed: APP_ENV=staging but NEXT_PUBLIC_APP_URL unset → NOT staging → throws", () => {
++    setEnv({ NODE_ENV: "production", APP_ENV: "staging" }); // no host = no proof of non-prod
++    expect(isStagingMode()).toBe(false);
++    expect(() => assertProductionProviderSafety()).toThrow(THROWS);
++  });
++
++  it("fail-closed: APP_ENV=staging + unparseable host → NOT staging → throws", () => {
++    setEnv({
++      NODE_ENV: "production",
++      APP_ENV: "staging",
++      NEXT_PUBLIC_APP_URL: "not a url",
++    });
++    expect(isStagingMode()).toBe(false);
++    expect(() => assertProductionProviderSafety()).toThrow(THROWS);
++  });
++
++  it("dev (NODE_ENV!=production) → unchanged: mocks boot, staging not engaged, no banner by default", () => {
++    setEnv({ NODE_ENV: "development" });
++    expect(() => assertProductionProviderSafety()).not.toThrow();
++    expect(isStagingMode()).toBe(false); // staging is production-only
++    expect(showStagingBanner()).toBe(false); // no APP_ENV → no banner
++  });
++
++  it("staging opens NO real-money path — payment provider stays the mock, never Razorpay", () => {
++    setEnv({
++      NODE_ENV: "production",
++      APP_ENV: "staging",
++      NEXT_PUBLIC_APP_URL: STAGING_URL,
++    });
++    vi.spyOn(console, "warn").mockImplementation(() => {});
++    const provider = getPaymentProvider(); // must not throw in staging
++    expect(provider.name).toBe("mock");
++    expect(provider).toBe(mockPaymentProvider); // identity: the no-network mock, not Razorpay
++  });
++
++  it("banner shows in the canonical staging config, hidden without the flag", () => {
++    setEnv({
++      NODE_ENV: "production",
++      APP_ENV: "staging",
++      NEXT_PUBLIC_APP_URL: STAGING_URL,
++    });
++    expect(showStagingBanner()).toBe(true);
++    setEnv({ NODE_ENV: "production", NEXT_PUBLIC_APP_URL: STAGING_URL });
++    expect(showStagingBanner()).toBe(false);
++  });
++});

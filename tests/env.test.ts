@@ -81,6 +81,15 @@ describe("env schema", () => {
     ).toBe(false);
   });
 
+  it("validates APP_ENV as an enum (staging accepted, typos flagged)", () => {
+    expect(envIssues({ ...DEV_BASE, APP_ENV: "staging" })).toEqual([]);
+    expect(
+      envIssues({ ...DEV_BASE, APP_ENV: "stagng" }).some((i) =>
+        i.startsWith("APP_ENV"),
+      ),
+    ).toBe(true);
+  });
+
   it("validateEnv throws in production, warns in dev", () => {
     expect(() => validateEnv({ ...DEV_BASE, NODE_ENV: "production" })).toThrow(
       /environment validation failed/i,

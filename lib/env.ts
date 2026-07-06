@@ -39,6 +39,10 @@ export const EnvSchema = z
     AI_PROVIDER: z.enum(["mock", "live"]).optional(), // Guru (GPS-M5) — default mock
     // App
     NEXT_PUBLIC_APP_URL: z.string().trim().url().optional(), // has a localhost default in lib/seo.ts
+    // Deployment mode. Only `staging` carries behaviour: on a NON-prod host it lets a production
+    // build boot with mock providers (see lib/config/providers.ts isStagingMode). Money-rail logic
+    // lives there, not here — this entry just validates the value + documents the var.
+    APP_ENV: z.enum(["development", "staging", "production"]).optional(),
     AFFILIATE_PAYOUTS_ENABLED: z.enum(["true", "false"]).optional(),
     D01_LEGAL_CLEARED: z.enum(["true", "false"]).optional(), // LC #1 gate for the payout-flag ceremony
 
