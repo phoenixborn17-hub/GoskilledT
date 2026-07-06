@@ -4,7 +4,7 @@
 > Rules: one row per item · anyone (founder, Fable, Claude Code, QA) may add · sourced from real walkthroughs/screenshots, not speculation · founder prioritizes · items graduate to tickets, never build directly from here.
 
 **Severity:** S1 blocks trust/comprehension · S2 friction/extra clicks · S3 polish/delight.
-**Source:** FW = founder walkthrough · QA = QA-01 screenshots · FR = Fable review · U = user feedback (post-launch).
+**Source:** FW = founder walkthrough · QA = QA-01 screenshots · FR = Fable review · U = user feedback (post-launch) · design-system = primitive built ahead of its adoption.
 
 | # | Surface | Issue | Severity | Source | Status | Notes |
 |---|---|---|---|---|---|---|
@@ -22,6 +22,7 @@
 | 12 | §2.6 Signature Moments — Purchase success | ~~Elevate the zero-regret celebration~~ | S3 | §2.6 pass | **CLOSED** (gps-polish-1) | Placed honestly at post-purchase onboarding-done: confetti + PartyPopper medallion + "Start learning" CTA. Pre-payment checkout step left un-celebrated. In-browser verified. |
 | 13 | §2.6 Signature Moments — Referral milestone | ~~Invite-count celebration at thresholds (pre-D-01, D-29: zero earn framing)~~ | S3 | §2.6 pass | **CLOSED** (gps-polish-1) | Derived tier track (1/5/10/25) + one-time localStorage-gated confetti. Count-only D-29 framing. Tiers unit-tested; zero-state in-browser verified. |
 | 14 | §2.6 Signature Moments — First-lesson complete | ~~Elevate the first-win moment beyond baseline confetti~~ | S3 | §2.6 pass | **CLOSED** (gps-polish-1) | Moment-grade confetti (drift + varied shapes) + first-win banner on `progress.completed === 1`. Reduced-motion safe. In-browser verified (real first-completion). |
+| 15 | admin · affiliate · checkout · dashboard | Alert/FormField/state-primitive adoption across admin · affiliate · checkout · dashboard (~40 `text-red-600` + ad-hoc forms) — swap during each surface's Phase 1–5 pass | S3 | design-system | OPEN | Polish-2 Phase-0 built the primitives + proved them on login/register; broad adoption deferred so closed surfaces aren't revisited mid-sprint (DR-031) |
 
 
 ### QA-01 auto-filed (mechanical) rows
@@ -58,3 +59,4 @@
 **Changelog:**
 - 2026-07-05 — created (founder CTO-review directive); seeded with 8 known items from module close-outs + reviews.
 - 2026-07-05 — QA-01 auto-filed 7 mechanical rows (8 fails, earn-hub 360+768 grouped); steward triage added (A visual / B eng-correctness split, dispositions, zero S1).
+- 2026-07-06 — row 15 added (Polish-2 Phase-0 foundation): deferred Alert/FormField/state-primitive adoption across admin · affiliate · checkout · dashboard.
