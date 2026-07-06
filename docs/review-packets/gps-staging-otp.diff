@@ -1,0 +1,409 @@
+diff --git a/.env.example b/.env.example
+index 9a33b9b..c789bdb 100644
+--- a/.env.example
++++ b/.env.example
+@@ -56,6 +56,12 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
+ # on the prod domain (goskilled.in / www.goskilled.in) STILL hard-throws — you can never simulate
+ # money on production. Leave unset in dev and real prod (unset = today's strict behaviour).
+ APP_ENV=""                        # ""|development|staging|production  (set "staging" ONLY on test.goskilled.in)
++# Staging OTP bypass code. ONLY active when APP_ENV=staging on a non-prod host (isStagingMode()).
++# In staging, no SMS is sent and this fixed code is accepted for ANY phone so testers can
++# register/login/checkout; the app then get-or-creates the phone user + mints a real session via the
++# service_role Admin API. UNREACHABLE in real production and on the prod domain. Staging MUST use a
++# NON-production Supabase project (this writes auth users). Default 123456 if unset.
++STAGING_OTP_CODE=""               # e.g. "123456" — staging only
+ 
+ # --- Legal gates (Decision Register) ---
+ AFFILIATE_PAYOUTS_ENABLED="false"  # D-01: affiliate payouts stay OFF until legal sign-off. Read by lib/env.ts payoutsEnabled().
+diff --git a/lib/auth/otp.ts b/lib/auth/otp.ts
+index 13484d7..c6c4cfb 100644
+--- a/lib/auth/otp.ts
++++ b/lib/auth/otp.ts
+@@ -2,10 +2,13 @@
+ // authority (DR-024). We never hand-roll OTP. `test` uses Supabase Dashboard test phone
+ // numbers (fixed codes, no SMS provider); `live` uses a real SMS provider. Same interface,
+ // so switching = flip OTP_PROVIDER + configure SMS in Supabase. `test` is prod-forbidden.
+-import type { User } from "@supabase/supabase-js";
++import { randomBytes } from "node:crypto";
++import type { SupabaseClient, User } from "@supabase/supabase-js";
+ import { createSupabaseServerClient } from "../supabase/server";
++import { createSupabaseAdminClient } from "../supabase/admin";
+ import {
+   assertProductionProviderSafety,
++  isStagingMode,
+   otpProviderName,
+   type OtpProviderName,
+ } from "../config/providers";
+@@ -56,8 +59,111 @@ function assertDevPhoneAllowed(phone: string): void {
+   }
+ }
+ 
++// ── Staging OTP bypass (test.goskilled.in only) ─────────────────────────────
++// Lets testers register/login/checkout WITHOUT SMS. Reachable ONLY when isStagingMode() is true
++// (NODE_ENV=production AND APP_ENV=staging AND a proven non-prod host). In real production, and on
++// the prod domain even with APP_ENV=staging, isStagingMode() is false → this code never runs and
++// the real Supabase OTP path below is used unchanged.
++
++/** The single fixed code accepted for ANY phone in staging. Default 123456; override via env. */
++function stagingOtpCode(): string {
++  return process.env.STAGING_OTP_CODE?.trim() || "123456";
++}
++
++const normalizePhone = (s: string | null | undefined) =>
++  (s ?? "").replace(/\D/g, "");
++
++/** Locate an existing auth user by phone via the Admin API (paged). Null if none exists. */
++async function findAuthUserByPhone(
++  admin: SupabaseClient,
++  phoneE164: string,
++): Promise<User | null> {
++  const want = normalizePhone(phoneE164);
++  for (let page = 1; page <= 20; page++) {
++    const { data, error } = await admin.auth.admin.listUsers({
++      page,
++      perPage: 200,
++    });
++    if (error) throw new Error(`Staging: listUsers failed: ${error.message}`);
++    const match = data.users.find((u) => normalizePhone(u.phone) === want);
++    if (match) return match;
++    if (data.users.length < 200) break; // last page reached
++  }
++  return null;
++}
++
++/**
++ * The staging provider. `sendOtp` is a no-op (no SMS, no Supabase send). `verifyOtp` accepts the
++ * fixed STAGING_OTP_CODE for any phone; on match it get-or-creates the phone user (phone_confirmed)
++ * via the service-role Admin API and mints a real Supabase session, returning the same `{ user }`
++ * shape as the live path — so cookies, RBAC and syncUser all behave exactly as production.
++ *
++ * Session minting uses a FRESH RANDOM password generated per verify and immediately discarded, so no
++ * reusable/guessable credential is ever persisted. REQUIRES staging to run against a NON-production
++ * Supabase project (see the review packet) — it writes auth users via service_role.
++ */
++function stagingOtpProvider(): OtpProvider {
++  return {
++    name: "test", // presents as a test provider; only reachable when isStagingMode() is true
++    async sendOtp() {
++      // No-op: the code is fixed (STAGING_OTP_CODE); nothing is sent.
++      return;
++    },
++    async verifyOtp(phone, token) {
++      if (token !== stagingOtpCode()) {
++        // Same generic message as the live path — never reveals the expected code.
++        throw new Error("Invalid or expired OTP");
++      }
++
++      const admin = createSupabaseAdminClient();
++      const phoneE164 = e164(phone);
++      const password = randomBytes(24).toString("base64url"); // transient; never stored or returned
++
++      // Get-or-create the phone user with a fresh password + confirmed phone.
++      const { data: created, error: createErr } =
++        await admin.auth.admin.createUser({
++          phone: phoneE164,
++          phone_confirm: true,
++          password,
++        });
++      if (createErr || !created?.user) {
++        // Already exists → find it and rotate to the fresh password so we can sign in.
++        const existing = await findAuthUserByPhone(admin, phoneE164);
++        if (!existing) {
++          throw new Error(
++            `Staging: could not create or find user for ${phone}${createErr ? `: ${createErr.message}` : ""}`,
++          );
++        }
++        const { error: updErr } = await admin.auth.admin.updateUserById(
++          existing.id,
++          { password, phone_confirm: true },
++        );
++        if (updErr) {
++          throw new Error(`Staging: could not update user: ${updErr.message}`);
++        }
++      }
++
++      // Mint a real session on the cookie-bound client → sets auth cookies, same as live verifyOtp.
++      const supabase = await createSupabaseServerClient();
++      const { data, error } = await supabase.auth.signInWithPassword({
++        phone: phoneE164,
++        password,
++      });
++      if (error || !data.user) {
++        throw new Error(
++          `Staging: could not mint session${error ? `: ${error.message}` : ""}`,
++        );
++      }
++      return { user: data.user };
++    },
++  };
++}
++
+ export function getOtpProvider(): OtpProvider {
+   assertProductionProviderSafety();
++  // Staging bypass — unreachable in real production and on the prod domain (isStagingMode() requires
++  // NODE_ENV=production + APP_ENV=staging + a proven non-prod host).
++  if (isStagingMode()) return stagingOtpProvider();
+   const name = otpProviderName();
+   if (name === "test") {
+     return {
+diff --git a/lib/supabase/admin.ts b/lib/supabase/admin.ts
+new file mode 100644
+index 0000000..8ade1de
+--- /dev/null
++++ b/lib/supabase/admin.ts
+@@ -0,0 +1,19 @@
++// Service-role Supabase client (server-only). Uses SUPABASE_SERVICE_ROLE_KEY, so it BYPASSES RLS —
++// never import this into client code and never expose the key. No session persistence (it acts as
++// the service, not a user). Currently used only by the staging OTP bypass (lib/auth/otp.ts) to
++// get-or-create a phone user + mint a session on test.goskilled.in.
++import { createClient, type SupabaseClient } from "@supabase/supabase-js";
++import { requireSupabaseConfig } from "./config";
++
++export function createSupabaseAdminClient(): SupabaseClient {
++  const { url } = requireSupabaseConfig();
++  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
++  if (!serviceRoleKey) {
++    throw new Error(
++      "SUPABASE_SERVICE_ROLE_KEY is required for the admin client (service-role operations).",
++    );
++  }
++  return createClient(url, serviceRoleKey, {
++    auth: { persistSession: false, autoRefreshToken: false },
++  });
++}
+diff --git a/tests/otp-staging.test.ts b/tests/otp-staging.test.ts
+new file mode 100644
+index 0000000..dbbb9de
+--- /dev/null
++++ b/tests/otp-staging.test.ts
+@@ -0,0 +1,230 @@
++import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
++import { isStagingMode } from "@/lib/config/providers";
++
++// Auth path — the staging OTP bypass must be reachable ONLY in staging (test.goskilled.in) and
++// NEVER in real production or on the prod domain. We mock the Supabase boundaries so tests exercise
++// the branching + code-check logic without a live project.
++
++const h = vi.hoisted(() => ({
++  signInWithPassword: vi.fn(),
++  verifyOtp: vi.fn(),
++  signInWithOtp: vi.fn(),
++  createUser: vi.fn(),
++  updateUserById: vi.fn(),
++  listUsers: vi.fn(),
++  createSupabaseAdminClient: vi.fn(),
++  createSupabaseServerClient: vi.fn(),
++}));
++
++vi.mock("@/lib/supabase/server", () => ({
++  createSupabaseServerClient: h.createSupabaseServerClient,
++}));
++vi.mock("@/lib/supabase/admin", () => ({
++  createSupabaseAdminClient: h.createSupabaseAdminClient,
++}));
++
++// Imported AFTER the mocks are registered (vi.mock is hoisted, so this is safe).
++import { getOtpProvider } from "@/lib/auth/otp";
++
++const FAKE_USER = {
++  id: "user-uuid-123",
++  phone: "919812345678",
++} as unknown as import("@supabase/supabase-js").User;
++const PHONE = "9812345678";
++const E164 = "+919812345678";
++
++const KEYS = [
++  "NODE_ENV",
++  "APP_ENV",
++  "NEXT_PUBLIC_APP_URL",
++  "OTP_PROVIDER",
++  "PAYMENT_PROVIDER",
++  "VIDEO_PROVIDER",
++  "STAGING_OTP_CODE",
++  "NEXT_PUBLIC_SUPABASE_URL",
++  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
++  "SUPABASE_SERVICE_ROLE_KEY",
++] as const;
++
++const SUPA = {
++  NEXT_PUBLIC_SUPABASE_URL: "https://proj.supabase.co",
++  NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key",
++  SUPABASE_SERVICE_ROLE_KEY: "service-key",
++};
++const STAGING = {
++  NODE_ENV: "production",
++  APP_ENV: "staging",
++  NEXT_PUBLIC_APP_URL: "https://test.goskilled.in",
++  ...SUPA,
++};
++const REAL_PROD = {
++  NODE_ENV: "production",
++  NEXT_PUBLIC_APP_URL: "https://goskilled.in",
++  OTP_PROVIDER: "live",
++  PAYMENT_PROVIDER: "razorpay",
++  VIDEO_PROVIDER: "stream",
++  ...SUPA,
++};
++
++const ENV = process.env as Record<string, string | undefined>;
++let saved: Record<string, string | undefined>;
++
++beforeEach(() => {
++  saved = {};
++  for (const k of KEYS) saved[k] = ENV[k];
++  vi.clearAllMocks();
++  // Default happy-path wiring for the mocked Supabase boundaries.
++  h.createSupabaseAdminClient.mockReturnValue({
++    auth: {
++      admin: {
++        createUser: h.createUser,
++        updateUserById: h.updateUserById,
++        listUsers: h.listUsers,
++      },
++    },
++  });
++  h.createSupabaseServerClient.mockResolvedValue({
++    auth: {
++      signInWithPassword: h.signInWithPassword,
++      verifyOtp: h.verifyOtp,
++      signInWithOtp: h.signInWithOtp,
++    },
++  });
++  vi.spyOn(console, "warn").mockImplementation(() => {}); // silence the staging boot warning
++});
++
++afterEach(() => {
++  for (const k of KEYS) {
++    if (saved[k] === undefined) delete ENV[k];
++    else ENV[k] = saved[k];
++  }
++  vi.restoreAllMocks();
++});
++
++function setEnv(env: Partial<Record<(typeof KEYS)[number], string>>) {
++  for (const k of KEYS) delete ENV[k];
++  for (const [k, v] of Object.entries(env)) ENV[k] = v;
++}
++
++describe("staging OTP bypass — auth safety", () => {
++  it("staging + CORRECT code → get-or-creates user + mints a session { user }", async () => {
++    setEnv(STAGING); // STAGING_OTP_CODE unset → default 123456
++    h.createUser.mockResolvedValue({
++      data: { user: { id: "new-1" } },
++      error: null,
++    });
++    h.signInWithPassword.mockResolvedValue({
++      data: { user: FAKE_USER },
++      error: null,
++    });
++
++    expect(isStagingMode()).toBe(true);
++    const res = await getOtpProvider().verifyOtp(PHONE, "123456");
++
++    expect(res.user.id).toBe(FAKE_USER.id);
++    expect(h.createUser).toHaveBeenCalledWith(
++      expect.objectContaining({ phone: E164, phone_confirm: true }),
++    );
++    expect(h.signInWithPassword).toHaveBeenCalledWith(
++      expect.objectContaining({ phone: E164 }),
++    );
++    expect(h.verifyOtp).not.toHaveBeenCalled(); // real SMS-verify path NOT used
++  });
++
++  it("staging + WRONG code → rejects and touches NO Supabase (no create, no session)", async () => {
++    setEnv(STAGING);
++    await expect(getOtpProvider().verifyOtp(PHONE, "000000")).rejects.toThrow(
++      /invalid or expired otp/i,
++    );
++    expect(h.createSupabaseAdminClient).not.toHaveBeenCalled();
++    expect(h.signInWithPassword).not.toHaveBeenCalled();
++  });
++
++  it("staging + existing user → rotates password via updateUserById, still mints a session", async () => {
++    setEnv(STAGING);
++    h.createUser.mockResolvedValue({
++      data: { user: null },
++      error: { message: "phone already registered" },
++    });
++    h.listUsers.mockResolvedValue({
++      data: { users: [{ id: "existing-9", phone: "919812345678" }] },
++      error: null,
++    });
++    h.updateUserById.mockResolvedValue({ error: null });
++    h.signInWithPassword.mockResolvedValue({
++      data: { user: FAKE_USER },
++      error: null,
++    });
++
++    const res = await getOtpProvider().verifyOtp(PHONE, "123456");
++    expect(h.updateUserById).toHaveBeenCalledWith(
++      "existing-9",
++      expect.objectContaining({ phone_confirm: true }),
++    );
++    expect(res.user.id).toBe(FAKE_USER.id);
++  });
++
++  it("staging sendOtp → no-op (no SMS, no Supabase send)", async () => {
++    setEnv(STAGING);
++    await expect(getOtpProvider().sendOtp(PHONE)).resolves.toBeUndefined();
++    expect(h.createSupabaseServerClient).not.toHaveBeenCalled();
++    expect(h.signInWithOtp).not.toHaveBeenCalled();
++  });
++
++  it("STAGING_OTP_CODE override is respected (default no longer accepted)", async () => {
++    setEnv({ ...STAGING, STAGING_OTP_CODE: "999111" });
++    await expect(getOtpProvider().verifyOtp(PHONE, "123456")).rejects.toThrow(
++      /invalid or expired otp/i,
++    );
++    h.createUser.mockResolvedValue({
++      data: { user: { id: "new-2" } },
++      error: null,
++    });
++    h.signInWithPassword.mockResolvedValue({
++      data: { user: FAKE_USER },
++      error: null,
++    });
++    const res = await getOtpProvider().verifyOtp(PHONE, "999111");
++    expect(res.user.id).toBe(FAKE_USER.id);
++  });
++
++  it("REAL production (not staging) → bypass never runs; the fixed code hits real SMS-verify", async () => {
++    setEnv(REAL_PROD); // live/razorpay/stream → guard passes, isStagingMode() false
++    h.verifyOtp.mockResolvedValue({ data: { user: FAKE_USER }, error: null });
++
++    expect(isStagingMode()).toBe(false);
++    const res = await getOtpProvider().verifyOtp(PHONE, "123456"); // the staging code…
++
++    // …went to the REAL Supabase SMS verify, and the bypass did NOT create a user.
++    expect(h.verifyOtp).toHaveBeenCalledWith({
++      phone: E164,
++      token: "123456",
++      type: "sms",
++    });
++    expect(h.createUser).not.toHaveBeenCalled();
++    expect(res.user.id).toBe(FAKE_USER.id);
++  });
++
++  it("prod HOST + APP_ENV=staging + real providers → real OTP (bypass not active)", async () => {
++    setEnv({ ...REAL_PROD, APP_ENV: "staging" }); // staging flag but on goskilled.in
++    h.verifyOtp.mockResolvedValue({ data: { user: FAKE_USER }, error: null });
++
++    expect(isStagingMode()).toBe(false);
++    await getOtpProvider().verifyOtp(PHONE, "123456");
++    expect(h.verifyOtp).toHaveBeenCalled();
++    expect(h.createUser).not.toHaveBeenCalled();
++  });
++
++  it("prod HOST + APP_ENV=staging + mock providers → hard-throws (bypass unreachable on prod domain)", () => {
++    setEnv({
++      NODE_ENV: "production",
++      APP_ENV: "staging",
++      NEXT_PUBLIC_APP_URL: "https://goskilled.in",
++      ...SUPA,
++    });
++    expect(() => getOtpProvider()).toThrow(
++      /development providers enabled in production/i,
++    );
++    expect(h.createUser).not.toHaveBeenCalled();
++  });
++});
