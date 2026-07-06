@@ -1,14 +1,31 @@
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
+// Elevation ramp (progressive depth). `raised` is the historical default → identical to the
+// pre-Polish-2 card, so existing surfaces render pixel-for-pixel unchanged.
+//  · flat        — border only, no shadow (dense lists, nested cards, admin tables)
+//  · raised      — border + soft shadow (the standard content card)
+//  · interactive — raised + hover-lift affordance (clickable cards; wrap a Link/button)
+// `.lift` is defined in globals.css (reduced-motion-gated, transform/opacity only → 60fps, CLS 0).
+type Elevation = "flat" | "raised" | "interactive";
+
+const elevations: Record<Elevation, string> = {
+  flat: "border-charcoal/10",
+  raised: "border-charcoal/10 shadow-sm",
+  interactive:
+    "border-charcoal/10 shadow-sm lift hover:border-brand/30 focus-within:border-brand/30",
+};
+
 export function Card({
   className,
+  elevation = "raised",
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+}: React.HTMLAttributes<HTMLDivElement> & { elevation?: Elevation }) {
   return (
     <div
       className={cn(
-        "rounded-2xl border border-charcoal/10 bg-white p-6 shadow-sm",
+        "rounded-2xl border bg-white p-6",
+        elevations[elevation],
         className,
       )}
       {...props}

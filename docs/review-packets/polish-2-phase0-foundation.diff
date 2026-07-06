@@ -1,0 +1,843 @@
+diff --git a/app/globals.css b/app/globals.css
+index c83b063..44afc9a 100644
+--- a/app/globals.css
++++ b/app/globals.css
+@@ -31,7 +31,8 @@
+ 
+   /* Semantic */
+   --gs-success: #137e49;
+-  --gs-warning: #b87a00; /* accessible amber for text — gold stays decorative */
++  --gs-warning: #b87a00; /* accessible amber for text ON WHITE — gold stays decorative */
++  --gs-warning-strong: #8a5a00; /* darker amber — clears WCAG AA on warning-TINT surfaces (Alert) */
+   --gs-danger: #c0392b;
+   --gs-info: #1d6fa5;
+ 
+diff --git a/app/login/login-form.tsx b/app/login/login-form.tsx
+index 78e5b67..074e052 100644
+--- a/app/login/login-form.tsx
++++ b/app/login/login-form.tsx
+@@ -3,8 +3,8 @@ import { useState } from "react";
+ import Link from "next/link";
+ import { useSearchParams } from "next/navigation";
+ import { Button } from "../../components/ui/button";
+-import { Input } from "../../components/ui/input";
+-import { Label } from "../../components/ui/label";
++import { FormField } from "../../components/ui/form-field";
++import { Alert } from "../../components/ui/alert";
+ import { Card, CardTitle, CardDescription } from "../../components/ui/card";
+ import { OtpInput } from "../../components/ui/otp-input";
+ import { sendLoginOtp, verifyLoginOtp } from "./actions";
+@@ -46,28 +46,22 @@ export function LoginForm() {
+ 
+       {step === "phone" && (
+         <form onSubmit={onSend} className="mt-6 space-y-4">
+-          <div>
+-            <Label htmlFor="phone">Mobile number</Label>
+-            <Input
+-              id="phone"
+-              name="phone"
+-              type="tel"
+-              inputMode="numeric"
+-              autoComplete="tel"
+-              placeholder="10-digit mobile"
+-              value={phone}
+-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+-              maxLength={10}
+-              required
+-            />
+-          </div>
+-          {error && (
+-            <p role="alert" className="text-sm text-red-600">
+-              {error}
+-            </p>
+-          )}
+-          <Button type="submit" disabled={busy}>
+-            {busy ? "Sending…" : "Send OTP"}
++          <FormField
++            label="Mobile number"
++            id="phone"
++            name="phone"
++            type="tel"
++            inputMode="numeric"
++            autoComplete="tel"
++            placeholder="10-digit mobile"
++            value={phone}
++            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
++            maxLength={10}
++            required
++          />
++          {error && <Alert variant="error">{error}</Alert>}
++          <Button type="submit" loading={busy}>
++            Send OTP
+           </Button>
+           <p className="text-center text-sm text-muted">
+             New here?{" "}
+@@ -80,8 +74,7 @@ export function LoginForm() {
+ 
+       {step === "otp" && (
+         <div className="mt-6 space-y-4">
+-          <div>
+-            <Label htmlFor="otp">Enter OTP</Label>
++          <FormField label="Enter OTP" id="otp" hint={`Sent to +91 ${phone}`}>
+             <OtpInput
+               id="otp"
+               value={token}
+@@ -90,19 +83,15 @@ export function LoginForm() {
+               disabled={busy}
+               autoFocus
+             />
+-            <p className="mt-2 text-xs text-muted">Sent to +91 {phone}</p>
+-          </div>
+-          {error && (
+-            <p role="alert" className="text-sm text-red-600">
+-              {error}
+-            </p>
+-          )}
++          </FormField>
++          {error && <Alert variant="error">{error}</Alert>}
+           <Button
+             type="button"
+             onClick={() => submitOtp(token)}
+-            disabled={busy || token.length < 4}
++            loading={busy}
++            disabled={token.length < 4}
+           >
+-            {busy ? "Verifying…" : "Verify & log in"}
++            Verify &amp; log in
+           </Button>
+           <Button
+             type="button"
+diff --git a/app/register/register-form.tsx b/app/register/register-form.tsx
+index 275de6d..5c2f4d4 100644
+--- a/app/register/register-form.tsx
++++ b/app/register/register-form.tsx
+@@ -3,8 +3,8 @@
+ // shared OtpInput so the code-entry experience matches login everywhere. No passwords, ever.
+ import { useState } from "react";
+ import { Button } from "../../components/ui/button";
+-import { Input } from "../../components/ui/input";
+-import { Label } from "../../components/ui/label";
++import { FormField } from "../../components/ui/form-field";
++import { Alert } from "../../components/ui/alert";
+ import { Card, CardTitle, CardDescription } from "../../components/ui/card";
+ import { OtpInput } from "../../components/ui/otp-input";
+ import { sendRegisterOtp, verifyRegisterOtp } from "./actions";
+@@ -52,49 +52,44 @@ export function RegisterForm() {
+ 
+       {step === "phone" && (
+         <form onSubmit={onSend} className="mt-6 space-y-4">
+-          <div>
+-            <Label htmlFor="name">What should we call you? (optional)</Label>
+-            <Input
+-              id="name"
+-              name="name"
+-              type="text"
+-              autoComplete="given-name"
+-              placeholder="Your name"
+-              value={name}
+-              onChange={(e) => setName(e.target.value)}
+-              maxLength={80}
+-            />
+-          </div>
+-          <div>
+-            <Label htmlFor="phone">Mobile number</Label>
+-            <Input
+-              id="phone"
+-              name="phone"
+-              type="tel"
+-              inputMode="numeric"
+-              autoComplete="tel"
+-              placeholder="10-digit mobile"
+-              value={phone}
+-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+-              maxLength={10}
+-              required
+-            />
+-          </div>
+-          {error && (
+-            <p role="alert" className="text-sm text-red-600">
+-              {error}
+-            </p>
+-          )}
+-          <Button type="submit" disabled={busy}>
+-            {busy ? "Sending…" : "Create free account"}
++          <FormField
++            label="What should we call you? (optional)"
++            id="name"
++            name="name"
++            type="text"
++            autoComplete="given-name"
++            placeholder="Your name"
++            value={name}
++            onChange={(e) => setName(e.target.value)}
++            maxLength={80}
++          />
++          <FormField
++            label="Mobile number"
++            id="phone"
++            name="phone"
++            type="tel"
++            inputMode="numeric"
++            autoComplete="tel"
++            placeholder="10-digit mobile"
++            value={phone}
++            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
++            maxLength={10}
++            required
++          />
++          {error && <Alert variant="error">{error}</Alert>}
++          <Button type="submit" loading={busy}>
++            Create free account
+           </Button>
+         </form>
+       )}
+ 
+       {step === "otp" && (
+         <div className="mt-6 space-y-4">
+-          <div>
+-            <Label htmlFor="otp">Enter the OTP</Label>
++          <FormField
++            label="Enter the OTP"
++            id="otp"
++            hint={`Sent to +91 ${phone}`}
++          >
+             <OtpInput
+               id="otp"
+               value={token}
+@@ -103,19 +98,15 @@ export function RegisterForm() {
+               disabled={busy}
+               autoFocus
+             />
+-            <p className="mt-2 text-xs text-muted">Sent to +91 {phone}</p>
+-          </div>
+-          {error && (
+-            <p role="alert" className="text-sm text-red-600">
+-              {error}
+-            </p>
+-          )}
++          </FormField>
++          {error && <Alert variant="error">{error}</Alert>}
+           <Button
+             type="button"
+             onClick={() => submitOtp(token)}
+-            disabled={busy || token.length < 4}
++            loading={busy}
++            disabled={token.length < 4}
+           >
+-            {busy ? "Verifying…" : "Verify & continue"}
++            Verify &amp; continue
+           </Button>
+           <Button
+             type="button"
+diff --git a/components/ui/alert.tsx b/components/ui/alert.tsx
+new file mode 100644
+index 0000000..7c11888
+--- /dev/null
++++ b/components/ui/alert.tsx
+@@ -0,0 +1,90 @@
++import * as React from "react";
++import {
++  Info,
++  CheckCircle2,
++  AlertTriangle,
++  AlertCircle,
++  type LucideIcon,
++} from "lucide-react";
++import { cn } from "../../lib/utils";
++
++type Variant = "info" | "success" | "warning" | "error";
++
++// Soft tint + accessible text — never a "red wall" (DESIGN_DIRECTION §15). `warning` uses the
++// darker `warning-strong` amber (not gold — Golden Rule 14) so text + icon clear WCAG AA/1.4.11 on
++// the amber tint. All four variants measured ≥4.5:1 text / ≥3:1 icon on their own surface.
++// error/warning announce assertively (role="alert"); info/success are polite (role="status").
++const styles: Record<
++  Variant,
++  {
++    wrap: string;
++    icon: LucideIcon;
++    iconColor: string;
++    role: "alert" | "status";
++  }
++> = {
++  info: {
++    wrap: "border-info/20 bg-info/10 text-info",
++    icon: Info,
++    iconColor: "text-info",
++    role: "status",
++  },
++  success: {
++    wrap: "border-brand/20 bg-brand/10 text-brand-deep",
++    icon: CheckCircle2,
++    iconColor: "text-brand-deep",
++    role: "status",
++  },
++  warning: {
++    wrap: "border-warning/30 bg-warning/10 text-warning-strong",
++    icon: AlertTriangle,
++    iconColor: "text-warning-strong",
++    role: "alert",
++  },
++  error: {
++    wrap: "border-danger/20 bg-danger/10 text-danger",
++    icon: AlertCircle,
++    iconColor: "text-danger",
++    role: "alert",
++  },
++};
++
++export interface AlertProps extends Omit<
++  React.HTMLAttributes<HTMLDivElement>,
++  "title"
++> {
++  variant?: Variant;
++  /** Optional bold lead line above the body. */
++  title?: React.ReactNode;
++}
++
++export function Alert({
++  className,
++  variant = "info",
++  title,
++  children,
++  ...props
++}: AlertProps) {
++  const s = styles[variant];
++  const Icon = s.icon;
++  return (
++    <div
++      role={s.role}
++      className={cn(
++        "flex items-start gap-2.5 rounded-xl border px-3.5 py-3 text-sm",
++        s.wrap,
++        className,
++      )}
++      {...props}
++    >
++      <Icon
++        className={cn("mt-0.5 h-4 w-4 shrink-0", s.iconColor)}
++        aria-hidden
++      />
++      <div className="min-w-0 space-y-0.5">
++        {title && <p className="font-semibold">{title}</p>}
++        {children && <div className="leading-relaxed">{children}</div>}
++      </div>
++    </div>
++  );
++}
+diff --git a/components/ui/button.tsx b/components/ui/button.tsx
+index 873bb23..d97c21d 100644
+--- a/components/ui/button.tsx
++++ b/components/ui/button.tsx
+@@ -2,35 +2,93 @@ import * as React from "react";
+ import { cn } from "../../lib/utils";
+ 
+ type Variant = "primary" | "outline" | "ghost" | "gold";
++type Size = "sm" | "md" | "lg";
+ 
+ const variants: Record<Variant, string> = {
+-  primary: "press bg-brand text-brand-fg hover:bg-brand/90 disabled:opacity-50",
++  primary: "bg-brand text-brand-fg hover:bg-brand/90",
+   outline:
+     "border border-brand/30 bg-transparent text-charcoal hover:bg-brand/5",
+   ghost: "bg-transparent text-charcoal hover:bg-charcoal/5",
+   // Gold-forward affiliate CTA — charcoal text on a gold fill (Golden Rule 14: gold is never
+   // text on light; here it's a fill with dark text → AA).
+-  gold: "press bg-gold text-charcoal hover:bg-gold/90 disabled:opacity-50",
++  gold: "bg-gold text-charcoal hover:bg-gold/90",
++};
++
++// `md` is the historical size (h-11 / text-base) → existing buttons are unchanged.
++const sizes: Record<Size, string> = {
++  sm: "h-9 rounded-lg px-3 text-sm",
++  md: "h-11 rounded-xl px-4 text-base",
++  lg: "h-12 rounded-xl px-5 text-base",
+ };
+ 
+ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
+   variant?: Variant;
++  size?: Size;
++  /** Shows a spinner, sets `aria-busy`, and disables the button to prevent double-submit. */
++  loading?: boolean;
++}
++
++// Inline spinner — transform-only spin, motion-reduced users see a static ring (no motion, still
++// communicates "busy" via the visible spinner glyph + aria-busy).
++function Spinner() {
++  return (
++    <svg
++      className="h-4 w-4 shrink-0 motion-safe:animate-spin"
++      viewBox="0 0 24 24"
++      fill="none"
++      aria-hidden
++    >
++      <circle
++        cx="12"
++        cy="12"
++        r="9"
++        stroke="currentColor"
++        strokeWidth="3"
++        className="opacity-25"
++      />
++      <path
++        d="M21 12a9 9 0 0 0-9-9"
++        stroke="currentColor"
++        strokeWidth="3"
++        strokeLinecap="round"
++      />
++    </svg>
++  );
+ }
+ 
+ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+-  ({ className, variant = "primary", type = "button", ...props }, ref) => (
++  (
++    {
++      className,
++      variant = "primary",
++      size = "md",
++      loading = false,
++      disabled,
++      type = "button",
++      children,
++      ...props
++    },
++    ref,
++  ) => (
+     <button
+       ref={ref}
+       type={type}
++      // `loading` implies disabled so a slow action can't be double-submitted.
++      disabled={disabled || loading}
++      aria-busy={loading || undefined}
+       className={cn(
+-        "inline-flex h-11 w-full items-center justify-center rounded-xl px-4 text-base font-semibold transition-colors",
++        "press inline-flex w-full items-center justify-center gap-2 font-semibold transition-colors",
+         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
+-        "disabled:pointer-events-none",
++        "disabled:pointer-events-none disabled:opacity-50",
++        sizes[size],
+         variants[variant],
+         className,
+       )}
+       {...props}
+-    />
++    >
++      {loading && <Spinner />}
++      {children}
++    </button>
+   ),
+ );
+ Button.displayName = "Button";
+diff --git a/components/ui/card.tsx b/components/ui/card.tsx
+index 48fa9c7..b978ac2 100644
+--- a/components/ui/card.tsx
++++ b/components/ui/card.tsx
+@@ -1,14 +1,31 @@
+ import * as React from "react";
+ import { cn } from "../../lib/utils";
+ 
++// Elevation ramp (progressive depth). `raised` is the historical default → identical to the
++// pre-Polish-2 card, so existing surfaces render pixel-for-pixel unchanged.
++//  · flat        — border only, no shadow (dense lists, nested cards, admin tables)
++//  · raised      — border + soft shadow (the standard content card)
++//  · interactive — raised + hover-lift affordance (clickable cards; wrap a Link/button)
++// `.lift` is defined in globals.css (reduced-motion-gated, transform/opacity only → 60fps, CLS 0).
++type Elevation = "flat" | "raised" | "interactive";
++
++const elevations: Record<Elevation, string> = {
++  flat: "border-charcoal/10",
++  raised: "border-charcoal/10 shadow-sm",
++  interactive:
++    "border-charcoal/10 shadow-sm lift hover:border-brand/30 focus-within:border-brand/30",
++};
++
+ export function Card({
+   className,
++  elevation = "raised",
+   ...props
+-}: React.HTMLAttributes<HTMLDivElement>) {
++}: React.HTMLAttributes<HTMLDivElement> & { elevation?: Elevation }) {
+   return (
+     <div
+       className={cn(
+-        "rounded-2xl border border-charcoal/10 bg-white p-6 shadow-sm",
++        "rounded-2xl border bg-white p-6",
++        elevations[elevation],
+         className,
+       )}
+       {...props}
+diff --git a/components/ui/empty-state.tsx b/components/ui/empty-state.tsx
+new file mode 100644
+index 0000000..47fbe4e
+--- /dev/null
++++ b/components/ui/empty-state.tsx
+@@ -0,0 +1,49 @@
++import * as React from "react";
++import type { LucideIcon } from "lucide-react";
++import { cn } from "../../lib/utils";
++
++export interface EmptyStateProps {
++  /** Brand-tinted illustration glyph (lucide). */
++  icon?: LucideIcon;
++  /** Warm, Hinglish-friendly headline. Never "No data" — say what to do next. */
++  title: string;
++  description?: string;
++  /** ONE clear CTA (a <Button>, <Link>, etc.). */
++  action?: React.ReactNode;
++  className?: string;
++}
++
++/**
++ * The one empty-state primitive (DESIGN_DIRECTION §15): illustration + one warm line + one CTA,
++ * with a subtle entrance (`.enter`, reduced-motion-gated). A beautiful zero-state, never a dead end.
++ */
++export function EmptyState({
++  icon: Icon,
++  title,
++  description,
++  action,
++  className,
++}: EmptyStateProps) {
++  return (
++    <div
++      className={cn(
++        "enter flex flex-col items-center px-4 py-12 text-center",
++        className,
++      )}
++    >
++      {Icon && (
++        <div
++          className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand"
++          aria-hidden
++        >
++          <Icon className="h-8 w-8" />
++        </div>
++      )}
++      <h2 className="font-heading text-lg font-bold text-charcoal">{title}</h2>
++      {description && (
++        <p className="mt-2 max-w-sm text-sm text-muted">{description}</p>
++      )}
++      {action && <div className="mt-6 w-full max-w-xs">{action}</div>}
++    </div>
++  );
++}
+diff --git a/components/ui/error-state.tsx b/components/ui/error-state.tsx
+new file mode 100644
+index 0000000..c463849
+--- /dev/null
++++ b/components/ui/error-state.tsx
+@@ -0,0 +1,55 @@
++"use client";
++import * as React from "react";
++import { RefreshCw, type LucideIcon } from "lucide-react";
++import { cn } from "../../lib/utils";
++import { Button } from "./button";
++
++export interface ErrorStateProps {
++  icon?: LucideIcon;
++  /** Plain-language, calm — blame the system, never the user. */
++  title?: string;
++  description?: string;
++  /** Retry affordance — renders a "Try again" button when provided. */
++  onRetry?: () => void;
++  retryLabel?: string;
++  className?: string;
++}
++
++/**
++ * Calm, plain-language error state with a retry path (DESIGN_DIRECTION §15) — no red walls. Mirrors
++ * the branded route error boundary so failures feel consistent wherever they surface.
++ */
++export function ErrorState({
++  icon: Icon = RefreshCw,
++  title = "Something went wrong",
++  description = "A hiccup on our end — not you. Please try again.",
++  onRetry,
++  retryLabel = "Try again",
++  className,
++}: ErrorStateProps) {
++  return (
++    <div
++      className={cn(
++        "flex flex-col items-center px-4 py-12 text-center",
++        className,
++      )}
++    >
++      <div
++        className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand"
++        aria-hidden
++      >
++        <Icon className="h-8 w-8" />
++      </div>
++      <h2 className="font-heading text-lg font-bold text-charcoal">{title}</h2>
++      <p className="mt-2 max-w-sm text-sm text-muted">{description}</p>
++      {onRetry && (
++        <div className="mt-6 w-full max-w-xs">
++          <Button onClick={onRetry}>
++            <RefreshCw className="h-4 w-4" aria-hidden />
++            {retryLabel}
++          </Button>
++        </div>
++      )}
++    </div>
++  );
++}
+diff --git a/components/ui/form-field.tsx b/components/ui/form-field.tsx
+new file mode 100644
+index 0000000..d8bc1b8
+--- /dev/null
++++ b/components/ui/form-field.tsx
+@@ -0,0 +1,104 @@
++import * as React from "react";
++import { Check } from "lucide-react";
++import { cn } from "../../lib/utils";
++import { Label } from "./label";
++import { Input } from "./input";
++
++export interface FormFieldProps extends Omit<
++  React.InputHTMLAttributes<HTMLInputElement>,
++  "children"
++> {
++  label: React.ReactNode;
++  /** Helper text shown under the field (hidden while an error is showing). */
++  hint?: React.ReactNode;
++  /** Inline validation message — renders a calm danger line + wires aria-invalid. */
++  error?: string | null;
++  /** Shows a success tick inside the field (e.g. after async validation passes). */
++  success?: boolean;
++  /** Wrapper className (the field group), not the input. */
++  containerClassName?: string;
++  /** Custom control (e.g. OtpInput) rendered in place of the default <Input>. */
++  children?: React.ReactNode;
++}
++
++/**
++ * Labelled field wrapper — the single form primitive: Label + control + hint/error + success tick,
++ * with correct `htmlFor`/`aria-describedby`/`aria-invalid` wiring for screen readers. Pass input
++ * props through directly, or supply a custom control via `children`.
++ */
++export const FormField = React.forwardRef<HTMLInputElement, FormFieldProps>(
++  (
++    {
++      label,
++      hint,
++      error,
++      success = false,
++      required,
++      containerClassName,
++      className,
++      id: idProp,
++      children,
++      ...inputProps
++    },
++    ref,
++  ) => {
++    const reactId = React.useId();
++    const id = idProp ?? reactId;
++    const hintId = `${id}-hint`;
++    const errorId = `${id}-error`;
++    const describedBy = error ? errorId : hint ? hintId : undefined;
++
++    return (
++      // No vertical spacing utility here: <Label> already carries mb-1.5, and hint/error add their
++      // own mt — so an idle field (label + control) renders identically to hand-written markup.
++      <div className={containerClassName}>
++        <Label htmlFor={id}>
++          {label}
++          {required && (
++            <span className="ml-0.5 text-danger" aria-hidden>
++              *
++            </span>
++          )}
++        </Label>
++
++        {children ? (
++          children
++        ) : (
++          <div className="relative">
++            <Input
++              ref={ref}
++              id={id}
++              required={required}
++              aria-invalid={error ? true : undefined}
++              aria-describedby={describedBy}
++              className={cn(
++                error &&
++                  "border-danger focus-visible:border-danger focus-visible:ring-danger/30",
++                success && "pr-10",
++                className,
++              )}
++              {...inputProps}
++            />
++            {success && !error && (
++              <Check
++                className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand"
++                aria-hidden
++              />
++            )}
++          </div>
++        )}
++
++        {error ? (
++          <p id={errorId} role="alert" className="mt-1.5 text-sm text-danger">
++            {error}
++          </p>
++        ) : hint ? (
++          <p id={hintId} className="mt-1.5 text-xs text-muted">
++            {hint}
++          </p>
++        ) : null}
++      </div>
++    );
++  },
++);
++FormField.displayName = "FormField";
+diff --git a/components/ui/loading-state.tsx b/components/ui/loading-state.tsx
+new file mode 100644
+index 0000000..29d805d
+--- /dev/null
++++ b/components/ui/loading-state.tsx
+@@ -0,0 +1,42 @@
++import * as React from "react";
++import { cn } from "../../lib/utils";
++import { Skeleton } from "./skeleton";
++
++export interface LoadingStateProps {
++  /** Show a wider "title" bar above the body lines. */
++  title?: boolean;
++  /** Number of body skeleton lines. */
++  lines?: number;
++  className?: string;
++  /** Accessible label announced to screen readers while loading. */
++  label?: string;
++}
++
++/**
++ * Generic text-block loading template (DESIGN_DIRECTION §15): fixed-height skeletons that reserve
++ * the final layout's space → zero CLS on hydrate. For bespoke layouts, compose <Skeleton> directly;
++ * this covers the common "heading + paragraph lines" placeholder that most sections need.
++ */
++export function LoadingState({
++  title = true,
++  lines = 3,
++  className,
++  label = "Loading",
++}: LoadingStateProps) {
++  return (
++    <div
++      className={cn("space-y-3", className)}
++      aria-busy="true"
++      aria-label={label}
++      role="status"
++    >
++      {title && <Skeleton className="h-7 w-2/5" />}
++      {Array.from({ length: lines }).map((_, i) => (
++        <Skeleton
++          key={i}
++          className={cn("h-4", i === lines - 1 ? "w-3/5" : "w-full")}
++        />
++      ))}
++    </div>
++  );
++}
+diff --git a/components/ui/success-state.tsx b/components/ui/success-state.tsx
+new file mode 100644
+index 0000000..8e2b974
+--- /dev/null
++++ b/components/ui/success-state.tsx
+@@ -0,0 +1,53 @@
++"use client";
++import * as React from "react";
++import { CheckCircle2 } from "lucide-react";
++import { cn } from "../../lib/utils";
++import { Confetti } from "./confetti";
++
++export interface SuccessStateProps {
++  /** Celebration headline proportional to the achievement. */
++  title: string;
++  description?: string;
++  /** Optional next-step CTA. */
++  action?: React.ReactNode;
++  /** Fire a one-shot confetti burst (reserve for earned moments — purchase, certificate, Lesson 0). */
++  celebrate?: boolean;
++  className?: string;
++}
++
++/**
++ * Designed success moment (DESIGN_DIRECTION §15): a check that pops in (reduced-motion-gated) with
++ * optional, earned confetti. Tone = celebration proportional to the achievement.
++ */
++export function SuccessState({
++  title,
++  description,
++  action,
++  celebrate = false,
++  className,
++}: SuccessStateProps) {
++  return (
++    <div
++      className={cn(
++        "flex flex-col items-center px-4 py-12 text-center",
++        className,
++      )}
++      role="status"
++    >
++      {celebrate && <Confetti fire />}
++      <div
++        className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-brand/10 text-brand motion-safe:animate-[gs-pop_360ms_cubic-bezier(0.16,1,0.3,1)_both]"
++        aria-hidden
++      >
++        <CheckCircle2 className="h-9 w-9" />
++      </div>
++      {/* Scoped keyframe — self-contained so the primitive needs no globals.css change. */}
++      <style>{`@keyframes gs-pop{from{opacity:0;transform:scale(0.6)}to{opacity:1;transform:none}}`}</style>
++      <h2 className="font-heading text-xl font-bold text-charcoal">{title}</h2>
++      {description && (
++        <p className="mt-2 max-w-sm text-sm text-muted">{description}</p>
++      )}
++      {action && <div className="mt-6 w-full max-w-xs">{action}</div>}
++    </div>
++  );
++}
+diff --git a/tailwind.config.ts b/tailwind.config.ts
+index c49db80..7affd0a 100644
+--- a/tailwind.config.ts
++++ b/tailwind.config.ts
+@@ -15,6 +15,36 @@ const config: Config = {
+         charcoal: "#2A302A",
+         offwhite: "#FEFEFE",
+         muted: "var(--gs-muted)", // accessible muted text (~6:1 on offwhite) — use `text-muted`
++        // Neutral ramp (off charcoal) — single source of truth for borders/dividers/surfaces.
++        // Use `bg-n-050`, `border-n-150`, `text-n-700` instead of ad-hoc charcoal opacities.
++        n: {
++          "050": "var(--gs-n-050)",
++          "150": "var(--gs-n-150)",
++          "300": "var(--gs-n-300)",
++          "500": "var(--gs-n-500)",
++          "700": "var(--gs-n-700)",
++          "900": "var(--gs-n-900)",
++        },
++        // Semantic tokens for Alert/state surfaces. `warning` is accessible amber (NOT gold) so it
++        // stays legible as text (Golden Rule 14: gold is fills only).
++        success: "var(--gs-success)",
++        warning: "var(--gs-warning)",
++        "warning-strong": "var(--gs-warning-strong)", // AA amber on warning-tint surfaces
++        danger: "var(--gs-danger)",
++        info: "var(--gs-info)",
++      },
++      // Elevation & shape ramps wired to the CSS tokens (one source of truth for depth/rhythm).
++      // Namespaced (`shadow-gs*`, `rounded-gs*`) so Tailwind's built-in `shadow-sm`/`rounded-lg`
++      // stay untouched — no regression on existing surfaces.
++      boxShadow: {
++        "gs-sm": "var(--gs-shadow-sm)",
++        gs: "var(--gs-shadow)",
++        "gs-lg": "var(--gs-shadow-lg)",
++      },
++      borderRadius: {
++        "gs-sm": "var(--gs-radius-sm)",
++        gs: "var(--gs-radius)",
++        "gs-lg": "var(--gs-radius-lg)",
+       },
+       fontFamily: {
+         heading: ["Sora", "system-ui", "sans-serif"],
