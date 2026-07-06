@@ -1,0 +1,13 @@
+diff --git a/package.json b/package.json
+index 9932c76..7b4e36d 100644
+--- a/package.json
++++ b/package.json
+@@ -5,7 +5,7 @@
+   "description": "GoSkilled vNext — production rebuild. Solo founder + Claude Code.",
+   "scripts": {
+     "dev": "next dev",
+-    "build": "next build",
++    "build": "prisma generate && next build",
+     "start": "next start",
+     "lint": "eslint .",
+     "format": "prettier --write .",
