@@ -3,9 +3,10 @@
 // OWN confirmed purchase. This module states the rule as a pure, unit-testable predicate; the
 // DB-backed input (`hasConfirmedPurchase`) is supplied by the adapter in lib/affiliate/eligibility.ts.
 //
-// Phase A scope: the rule is LOCKED + unit-tested here and wired as a DOCUMENTED HOOK at the
-// commission-credit site (lib/payments/webhook.ts → CREDIT_COMMISSIONS). FULL enforcement — filtering
-// ineligible uplines out of the live credit — is Phase B, so the DR-023 money path is unchanged now.
+// Phase A locked + unit-tested this rule; Phase B (B1) ACTIVATED it at the commission-credit site
+// (lib/payments/webhook.ts → CREDIT_COMMISSIONS): each resolved upline is credited only if this
+// predicate holds for their own confirmed purchase, evaluated inside the crediting transaction.
+// Ineligible uplines are skipped with NO roll-up (each surviving hop keeps its original level).
 
 export interface EarningEligibilityInput {
   /** Does this affiliate have ≥1 of their OWN confirmed (paid) purchases? */

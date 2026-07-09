@@ -17,6 +17,7 @@ import {
 import { resolveUplines } from "../../modules/affiliate/upline";
 import { buildCommissionTxns } from "../../modules/affiliate/credit";
 import { buildClawbackTxns } from "../../modules/affiliate/clawback";
+import { canEarnCommission } from "../../modules/affiliate/eligibility";
 import { coursesToEnroll } from "../../modules/lms/entitlement";
 import type { PackageSlug } from "../../modules/affiliate/commission";
 import { executeTxSpec } from "../../modules/ledger/persist";
@@ -193,18 +194,28 @@ async function executeAction(
     }
     case "CREDIT_COMMISSIONS": {
       const chain = await fetchReferralChain(tx, order.userId);
-      const uplines = resolveUplines(order.userId, chain);
+      const resolved = resolveUplines(order.userId, chain);
+      if (resolved.length === 0) return;
+      // ── DR-038 earning gate — LIVE ENFORCEMENT (Phase B / B1, Tier-A) ────────────────────────
+      // Credit an upline ONLY if they have their OWN confirmed (PAID) purchase — a referral link or
+      // free registration alone never earns. Eligibility is evaluated NOW (credit time = the moment
+      // the downline's payment verified); there is NO retroactive backfill if an upline buys later
+      // (locked behaviour — flagged for founder/Fable confirmation). An ineligible upline is SKIPPED
+      // ENTIRELY: no credit, and NO roll-up of their commission to the next level — each surviving
+      // hop keeps its original level/amount (conservative default; never pays more than earned —
+      // protects the thin referred-margin, AR-1). Roll-up of skipped commission is a separate
+      // founder/Fable money-policy decision — NOT implemented here.
+      // Read is INSIDE this tx (mirrors lib/affiliate/eligibility.hasConfirmedPurchase). Idempotency
+      // keys, HELD lifecycle (DR-025), clawback and DR-007 amounts are all preserved unchanged.
+      const uplines = [];
+      for (const hop of resolved) {
+        const ownPaid = await tx.order.count({
+          where: { userId: hop.userId, status: "PAID" },
+        });
+        if (canEarnCommission({ hasOwnConfirmedPurchase: ownPaid > 0 }))
+          uplines.push(hop);
+      }
       if (uplines.length === 0) return;
-      // ── DR-038 earning gate — DOCUMENTED HOOK (Phase B enforcement) ──────────────────────────
-      // The rule (canEarnCommission, modules/affiliate/eligibility.ts) is LOCKED and unit-tested in
-      // Phase A but NOT enforced here yet, so this Phase-A change does not regress the DR-023 money
-      // path. Phase B activates it by filtering uplines to those with their OWN confirmed purchase:
-      //   const eligible = [];
-      //   for (const hop of uplines)
-      //     if (canEarnCommission({ hasOwnConfirmedPurchase: (await tx.order.count({
-      //       where: { userId: hop.userId, status: "PAID" } })) > 0 })) eligible.push(hop);
-      //   // ...then buildCommissionTxns({ uplines: eligible }).
-      // (Mirrors lib/affiliate/eligibility.hasConfirmedPurchase, but reads inside this tx.)
       const specs = buildCommissionTxns({
         orderId: order.id,
         pkg: order.package.slug as PackageSlug,

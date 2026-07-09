@@ -10,8 +10,12 @@ import {
   getWalletHistory,
   hasPendingWithdrawal,
 } from "../../../../lib/wallet/queries";
+import { getWalletBalanceData } from "../../../../lib/affiliate/graph-queries";
+import { cumulativeByBucket } from "../../../../lib/affiliate/analytics";
 import { getKycStatus } from "../../../../lib/kyc/queries";
 import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
+import { AFFILIATE_LABELS } from "../../../../lib/affiliate/labels";
+import { MiniChart } from "../../../../components/affiliate/mini-chart";
 import { WalletSummary } from "../../../../components/affiliate/wallet-summary";
 import { HeldCreditRow } from "../../../../components/affiliate/held-credit-row";
 import { WithdrawForm } from "../../../../components/affiliate/withdraw-form";
@@ -45,20 +49,36 @@ export default async function WalletPage() {
 
 async function WalletMoney({ userId }: { userId: string }) {
   const now = new Date();
-  const [summary, held, history, pending, kycStatus] = await Promise.all([
-    getWalletSummaryFor(userId, now),
-    getHeldCredits(userId, now),
-    getWalletHistory(userId),
-    hasPendingWithdrawal(userId),
-    getKycStatus(userId),
-  ]);
+  const [summary, held, history, pending, kycStatus, balanceData] =
+    await Promise.all([
+      getWalletSummaryFor(userId, now),
+      getHeldCredits(userId, now),
+      getWalletHistory(userId),
+      hasPendingWithdrawal(userId),
+      getKycStatus(userId),
+      getWalletBalanceData(userId),
+    ]);
 
   const kycVerified = kycStatus === "APPROVED";
   const canWithdraw = kycVerified && summary.availableInPaise > 0 && !pending;
+  const balanceSeries = cumulativeByBucket(balanceData, "day");
 
   return (
     <div className="space-y-6">
       <WalletSummary summary={summary} />
+
+      {/* B4 — balance over time (running total from the ledger). Held vs available split is above. */}
+      <Card className="space-y-2">
+        <CardTitle className="text-base">
+          {AFFILIATE_LABELS.walletGraph}
+        </CardTitle>
+        <MiniChart
+          points={balanceSeries}
+          kind="line"
+          format={(n) => formatINR(n)}
+          empty="No wallet activity yet."
+        />
+      </Card>
 
       {/* Withdrawal — form only when every rule is met; otherwise the honest reason. */}
       <Card className="space-y-3">

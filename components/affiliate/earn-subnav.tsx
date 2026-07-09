@@ -5,13 +5,17 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "../../lib/utils";
 
+// Labels follow DR-038 (compliance-safe): "My Network" for the referral relationship; levels stay
+// "Level 1/2/3" inside. Leaderboard + Rewards are Phase D (not here).
 const BASE = [
   { href: "/dashboard/earn", label: "Overview", exact: true },
   { href: "/dashboard/earn/referrals", label: "Referrals" },
+  { href: "/dashboard/earn/network", label: "My Network" },
 ];
 const MONEY = [
   { href: "/dashboard/earn/wallet", label: "Wallet" },
   { href: "/dashboard/earn/commissions", label: "Commissions" },
+  { href: "/dashboard/earn/commission-structure", label: "Rewards structure" },
   { href: "/dashboard/earn/kyc", label: "KYC" },
 ];
 
