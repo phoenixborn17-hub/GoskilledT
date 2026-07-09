@@ -3,6 +3,7 @@
 import type { Metadata } from "next";
 import { prisma } from "../../lib/prisma";
 import { formatINR } from "../../lib/money";
+import { contactChannels } from "../../lib/config/contact";
 import { CheckoutForm } from "./checkout-form";
 
 // Transactional page — keep out of search indexes (defence-in-depth beyond robots.txt).
@@ -70,6 +71,9 @@ export default async function CheckoutPage({
         requiresCourseChoice={pkg.slug === "skill-builder"}
         courses={courses}
         referralCode={ref ?? null}
+        contact={contactChannels(
+          "Hi! I'd like a GoSkilled referral code to buy a package.",
+        )}
       />
     </main>
   );

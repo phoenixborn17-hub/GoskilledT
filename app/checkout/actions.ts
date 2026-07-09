@@ -9,17 +9,23 @@ import { phoneSchema } from "../../modules/payments/schemas";
 import { getOtpProvider } from "../../lib/auth/otp";
 import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
 import { syncUser } from "../../lib/auth/user-sync";
+import { resolveSponsorByCode } from "../../lib/auth/sponsor";
 import { startCheckout as placeOrder } from "../../lib/payments/checkout";
 import { getPaymentProvider } from "../../lib/payments/provider";
 import { track, anonId } from "../../lib/analytics/track";
 
-// ≤3 inputs before pay: phone, package, optional course. No name/email here (DR-023).
+// Invite-only (DR-036/DR-038): a VALID referral code is MANDATORY before payment, in checkout too.
+// It usually arrives pre-filled from the affiliate's ?ref= link, so manual pre-pay inputs stay ≤3
+// (phone, OTP, + course for Skill Builder). Password is deferred to /onboarding to keep the Razorpay
+// step stable (§4.2). The money/webhook/ledger path is unchanged — enforcement lives in this adapter.
+const INVALID_CODE = "Enter a valid referral code to continue";
+
 const startSchema = z
   .object({
     phone: phoneSchema,
     packageSlug: z.enum(["skill-builder", "career-booster"]),
     chosenCourseId: z.string().min(1).optional(),
-    referralCode: z.string().trim().toUpperCase().optional(),
+    referralCode: z.string().trim().toUpperCase().min(3, INVALID_CODE),
   })
   .superRefine((v, ctx) => {
     if (v.packageSlug === "skill-builder" && !v.chosenCourseId)
@@ -38,7 +44,7 @@ const verifySchema = z.object({
     .regex(/^\d{4,8}$/, "Enter the OTP"),
   packageSlug: z.enum(["skill-builder", "career-booster"]),
   chosenCourseId: z.string().min(1).optional(),
-  referralCode: z.string().trim().toUpperCase().optional(),
+  referralCode: z.string().trim().toUpperCase().min(3, INVALID_CODE),
 });
 
 export type CheckoutActionResult = { ok: true } | { ok: false; error: string };
@@ -62,6 +68,9 @@ export async function startCheckout(
       ok: false,
       error: parsed.error.issues[0]?.message ?? "Invalid details",
     };
+  // Mandatory referral gate — a valid code (real sponsor) is required before we send an OTP or pay.
+  const sponsor = await resolveSponsorByCode(parsed.data.referralCode);
+  if (!sponsor) return { ok: false, error: INVALID_CODE };
   const id = anonId(parsed.data.phone);
   await track("begin_checkout", id, { package: parsed.data.packageSlug });
   const rl = await checkOtpSendRate(parsed.data.phone);
@@ -89,10 +98,14 @@ export async function verifyCheckoutOtp(
     };
   const data = parsed.data;
 
+  // Re-validate the mandatory code server-side (defence in depth — never trust the client).
+  const sponsor = await resolveSponsorByCode(data.referralCode);
+  if (!sponsor) return { ok: false, error: INVALID_CODE };
+
   try {
     // 1) Verify OTP → authenticated Supabase session (cookies set by the server client).
     const { user } = await getOtpProvider().verifyOtp(data.phone, data.token);
-    // 2) Sync our internal User (attribution from ?ref=).
+    // 2) Sync our internal User (attribution from the mandatory referral code).
     await syncUser(user, data.referralCode);
     // 3) Create Order + payment-provider order (mock or razorpay) via the Ticket 2 flow.
     const provider = getPaymentProvider();

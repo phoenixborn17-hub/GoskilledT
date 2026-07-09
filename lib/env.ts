@@ -45,6 +45,10 @@ export const EnvSchema = z
     APP_ENV: z.enum(["development", "staging", "production"]).optional(),
     AFFILIATE_PAYOUTS_ENABLED: z.enum(["true", "false"]).optional(),
     D01_LEGAL_CLEARED: z.enum(["true", "false"]).optional(), // LC #1 gate for the payout-flag ceremony
+    // Phase A (DR-036) auth. Password min length (default 8) + invite-only "no code" contact channels.
+    MIN_PASSWORD_LENGTH: z.string().optional(), // parsed in lib/auth/password.ts (>=8 or default 8)
+    NEXT_PUBLIC_SUPPORT_WHATSAPP: z.string().optional(), // LAUNCH_CONFIG: no-code contact
+    NEXT_PUBLIC_SUPPORT_EMAIL: z.string().optional(), // LAUNCH_CONFIG: no-code contact
 
     // Provider secrets (conditionally required below)
     RAZORPAY_KEY_ID: z.string().optional(),
