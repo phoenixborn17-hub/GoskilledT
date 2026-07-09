@@ -9,8 +9,15 @@ import { siteUrl } from "../../../lib/seo";
 import { formatINR } from "../../../lib/money";
 import { getReferralTree } from "../../../lib/affiliate/referrals";
 import { getWalletSummaryFor } from "../../../lib/wallet/queries";
+import {
+  getEarningSeriesData,
+  getPaymentsReceivedData,
+} from "../../../lib/affiliate/graph-queries";
+import { sumByBucket } from "../../../lib/affiliate/analytics";
 import { AFFILIATE_COPY } from "../../../lib/affiliate/copy";
+import { AFFILIATE_LABELS } from "../../../lib/affiliate/labels";
 import { ShareBlock } from "../../../components/affiliate/share-block";
+import { MiniChart } from "../../../components/affiliate/mini-chart";
 import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
 
@@ -98,7 +105,13 @@ async function PostFlag({
   shareUrl: string;
   inviteCount: number;
 }) {
-  const summary = await getWalletSummaryFor(userId);
+  const [summary, earningData, paymentsData] = await Promise.all([
+    getWalletSummaryFor(userId),
+    getEarningSeriesData(userId),
+    getPaymentsReceivedData(userId),
+  ]);
+  const earningSeries = sumByBucket(earningData, "month");
+  const paymentsSeries = sumByBucket(paymentsData, "month");
   return (
     <div className="space-y-5">
       <Card className="bg-gold/10">
@@ -124,6 +137,30 @@ async function PostFlag({
             <Button variant="outline">Referrals</Button>
           </Link>
         </div>
+      </Card>
+
+      {/* B2 — earnings + payments-received graphs (derived from the ledger; honest empty states). */}
+      <Card className="space-y-2">
+        <CardTitle className="text-base">
+          {AFFILIATE_LABELS.earningGraph}
+        </CardTitle>
+        <MiniChart
+          points={earningSeries}
+          kind="bar"
+          format={(n) => formatINR(n)}
+          empty="No commissions credited yet — they'll show here as your network buys."
+        />
+      </Card>
+      <Card className="space-y-2">
+        <CardTitle className="text-base">
+          {AFFILIATE_LABELS.paymentsGraph}
+        </CardTitle>
+        <MiniChart
+          points={paymentsSeries}
+          kind="bar"
+          format={(n) => formatINR(n)}
+          empty="No payments received yet."
+        />
       </Card>
 
       <Card className="space-y-3">
