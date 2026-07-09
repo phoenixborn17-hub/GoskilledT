@@ -1,6 +1,7 @@
 // /admin — dashboard hub (GPS-M4 §2.0). One glance = state of the business today; pending queues
 // surfaced by urgency; recent audit trail. All real aggregates; zero-states truthful.
 import { getDashboardData } from "../../lib/admin/queries";
+import { getAdminKpis } from "../../lib/admin/kpi";
 import { formatINR } from "../../lib/money";
 import {
   PageHeading,
@@ -8,12 +9,13 @@ import {
   QueueCard,
   fmtDateTime,
 } from "../../components/admin/primitives";
-import { Card } from "../../components/ui/card";
+import { MiniChart } from "../../components/affiliate/mini-chart";
+import { Card, CardTitle } from "../../components/ui/card";
 
 export const dynamic = "force-dynamic";
 
 export default async function AdminDashboardPage() {
-  const d = await getDashboardData();
+  const [d, kpis] = await Promise.all([getDashboardData(), getAdminKpis()]);
 
   return (
     <section className="space-y-6">
@@ -47,6 +49,66 @@ export default async function AdminDashboardPage() {
           value={d.activeLearners.toLocaleString("en-IN")}
           sub="enrolled in ≥1 course"
         />
+      </div>
+
+      {/* KPI graphs (E1) — real aggregates, inline-SVG, honest empty states. */}
+      <div>
+        <h2 className="mb-3 font-heading text-lg font-bold text-charcoal">
+          Trends
+        </h2>
+        <div className="grid gap-3 lg:grid-cols-2">
+          <Card className="space-y-2">
+            <CardTitle className="text-base">Registrations / month</CardTitle>
+            <MiniChart
+              points={kpis.registrations}
+              kind="bar"
+              format={(n) => n.toLocaleString("en-IN")}
+              empty="No registrations yet."
+            />
+          </Card>
+          <Card className="space-y-2">
+            <CardTitle className="text-base">Paid purchases / month</CardTitle>
+            <MiniChart
+              points={kpis.purchases}
+              kind="bar"
+              format={(n) => n.toLocaleString("en-IN")}
+              empty="No paid purchases yet."
+            />
+          </Card>
+          <Card className="space-y-2">
+            <CardTitle className="text-base">
+              Commissions credited / month
+            </CardTitle>
+            <MiniChart
+              points={kpis.commissionsCredited}
+              kind="bar"
+              format={(n) => formatINR(n)}
+              empty="No commissions credited yet."
+            />
+            <p className="text-xs text-muted">
+              Snapshot: {formatINR(kpis.commissionsHeldInPaise)} held ·{" "}
+              {formatINR(kpis.commissionsAvailableInPaise)} available (DR-025).
+            </p>
+          </Card>
+          <Card className="space-y-2">
+            <CardTitle className="text-base">Withdrawals by status</CardTitle>
+            <MiniChart
+              points={kpis.withdrawalsByStatus}
+              kind="bar"
+              format={(n) => n.toLocaleString("en-IN")}
+              empty="No withdrawal requests yet."
+            />
+          </Card>
+          <Card className="space-y-2">
+            <CardTitle className="text-base">KYC pipeline</CardTitle>
+            <MiniChart
+              points={kpis.kycPipeline}
+              kind="bar"
+              format={(n) => n.toLocaleString("en-IN")}
+              empty="No KYC submissions yet."
+            />
+          </Card>
+        </div>
       </div>
 
       {/* Pending work — deep-linked queue cards, urgency-highlighted. */}
