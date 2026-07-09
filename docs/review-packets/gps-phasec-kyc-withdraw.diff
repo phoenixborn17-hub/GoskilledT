@@ -1,0 +1,2150 @@
+diff --git a/app/admin/kyc/[userId]/doc/[kind]/route.ts b/app/admin/kyc/[userId]/doc/[kind]/route.ts
+new file mode 100644
+index 0000000..c1efc7f
+--- /dev/null
++++ b/app/admin/kyc/[userId]/doc/[kind]/route.ts
+@@ -0,0 +1,39 @@
++// KYC document access — ADMIN (Phase C §3). Only an admin may fetch another user's KYC document,
++// and every access is REVEAL-LOGGED (KYC_DOC_VIEWED, no PII) before a short-lived signed URL is
++// issued. Non-admin → 403. Missing → 404.
++import { NextResponse } from "next/server";
++import { prisma } from "@/lib/prisma";
++import { getAdminUser } from "@/lib/auth/admin";
++import { recordAdminAction } from "@/lib/admin/audit";
++import { isKycDocKind, kycDocSignedUrl } from "@/lib/storage/kyc-docs";
++import { resolveKycDocPath } from "@/lib/kyc/doc-access";
++
++export const dynamic = "force-dynamic";
++
++export async function GET(
++  _req: Request,
++  { params }: { params: Promise<{ userId: string; kind: string }> },
++) {
++  const { userId, kind } = await params;
++  const admin = await getAdminUser();
++  if (!admin) return new NextResponse("Not authorized", { status: 403 });
++  if (!isKycDocKind(kind))
++    return new NextResponse("Not found", { status: 404 });
++
++  const path = await resolveKycDocPath(userId, kind);
++  if (!path) return new NextResponse("No document", { status: 404 });
++
++  // Reveal-log the access (audit row carries NO PII — just that this admin viewed this doc kind).
++  await prisma.$transaction((tx) =>
++    recordAdminAction(tx, {
++      actor: admin,
++      action: "KYC_DOC_VIEWED",
++      entity: "Kyc",
++      entityId: userId,
++      meta: { kind },
++    }),
++  );
++
++  const url = await kycDocSignedUrl(path, 60);
++  return NextResponse.redirect(url);
++}
+diff --git a/app/admin/kyc/[userId]/page.tsx b/app/admin/kyc/[userId]/page.tsx
+index c399596..e0a9d00 100644
+--- a/app/admin/kyc/[userId]/page.tsx
++++ b/app/admin/kyc/[userId]/page.tsx
+@@ -62,6 +62,15 @@ export default async function KycDetailPage({
+       ) : (
+         <Card className="space-y-4">
+           <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
++            <dt className="text-muted">Email</dt>
++            <dd className="font-semibold">
++              {detail.email ?? "—"} <VerifyTag ok={detail.emailVerified} />
++            </dd>
++            <dt className="text-muted">WhatsApp</dt>
++            <dd className="font-semibold">
++              {detail.whatsapp ?? "—"}{" "}
++              <VerifyTag ok={detail.whatsappVerified} />
++            </dd>
+             <dt className="text-muted">PAN</dt>
+             <dd className="font-mono font-semibold">
+               {detail.panMasked ?? "—"}
+@@ -72,11 +81,45 @@ export default async function KycDetailPage({
+             </dd>
+             <dt className="text-muted">Account holder name</dt>
+             <dd className="font-semibold">{detail.holderName ?? "—"}</dd>
++            <dt className="text-muted">Bank name</dt>
++            <dd className="font-semibold">{detail.bankName ?? "—"}</dd>
+             <dt className="text-muted">IFSC</dt>
+             <dd className="font-mono font-semibold">{detail.ifsc ?? "—"}</dd>
++            <dt className="text-muted">Address doc</dt>
++            <dd>{detail.docType ?? "—"}</dd>
+             <dt className="text-muted">Submitted</dt>
+             <dd>{fmtDateTime(detail.submittedAt)}</dd>
+           </dl>
++
++          {/* Documents — each open is reveal-logged (KYC_DOC_VIEWED) by the admin route. */}
++          <div className="border-t border-charcoal/10 pt-4">
++            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
++              Documents
++            </p>
++            <div className="flex flex-wrap gap-2 text-sm">
++              {(["pan", "address", "bank"] as const).map((kind) =>
++                detail.docs[kind] ? (
++                  <a
++                    key={kind}
++                    href={`/admin/kyc/${detail.userId}/doc/${kind}`}
++                    target="_blank"
++                    rel="noopener noreferrer"
++                    className="rounded-lg border border-charcoal/20 px-3 py-1.5 font-semibold text-charcoal hover:bg-charcoal/5"
++                  >
++                    View {kind} doc
++                  </a>
++                ) : (
++                  <span
++                    key={kind}
++                    className="rounded-lg bg-charcoal/5 px-3 py-1.5 text-muted"
++                  >
++                    No {kind} doc
++                  </span>
++                ),
++              )}
++            </div>
++          </div>
++
+           <div className="border-t border-charcoal/10 pt-4">
+             <KycReveal userId={detail.userId} />
+           </div>
+@@ -114,3 +157,11 @@ export default async function KycDetailPage({
+     </section>
+   );
+ }
++
++function VerifyTag({ ok }: { ok: boolean }) {
++  return ok ? (
++    <span className="text-xs font-semibold text-brand">✓ verified</span>
++  ) : (
++    <span className="text-xs text-muted">unverified</span>
++  );
++}
+diff --git a/app/admin/withdrawals/actions.ts b/app/admin/withdrawals/actions.ts
+index cde0e81..c4b3aae 100644
+--- a/app/admin/withdrawals/actions.ts
++++ b/app/admin/withdrawals/actions.ts
+@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
+ import { getAdminUser } from "../../../lib/auth/admin";
+ import {
+   markWithdrawalPaid,
++  markWithdrawalInProgress,
+   rejectWithdrawal,
+ } from "../../../lib/admin/withdrawals";
+ 
+@@ -25,6 +26,21 @@ export async function markPaidAction(
+   return { ok: true, idempotent: res.idempotent };
+ }
+ 
++export type SimpleResult = { ok: true } | { ok: false; error: string };
++
++export async function markInProgressAction(
++  withdrawalId: string,
++): Promise<SimpleResult> {
++  const admin = await getAdminUser();
++  if (!admin) return { ok: false, error: "Not authorized" };
++  if (!withdrawalId) return { ok: false, error: "Missing withdrawal" };
++  const res = await markWithdrawalInProgress(admin, withdrawalId);
++  if (!res.ok) return res;
++  revalidatePath("/admin/withdrawals");
++  revalidatePath("/admin");
++  return { ok: true };
++}
++
+ const rejectSchema = z.object({
+   withdrawalId: z.string().min(1),
+   reason: z.string().trim().min(1, "A reason is required").max(300),
+diff --git a/app/admin/withdrawals/page.tsx b/app/admin/withdrawals/page.tsx
+index 8ba37ad..5d271f4 100644
+--- a/app/admin/withdrawals/page.tsx
++++ b/app/admin/withdrawals/page.tsx
+@@ -85,6 +85,7 @@ export default async function WithdrawalsPage() {
+                   <WithdrawalActions
+                     withdrawalId={w.id}
+                     canMark={kycOk && amountOk}
++                    status={w.status}
+                   />
+                 </div>
+               </Card>
+diff --git a/app/dashboard/earn/actions.ts b/app/dashboard/earn/actions.ts
+index c14e244..fb4cc49 100644
+--- a/app/dashboard/earn/actions.ts
++++ b/app/dashboard/earn/actions.ts
+@@ -2,6 +2,7 @@
+ // NEVER trusted, all rules come from the domain spine (modules/wallet), PII is encrypted before it
+ // touches the DB and never logged, and every request is audit-logged.
+ "use server";
++import { randomBytes } from "node:crypto";
+ import { z } from "zod";
+ import { revalidatePath } from "next/cache";
+ import { prisma } from "../../../lib/prisma";
+@@ -12,6 +13,19 @@ import {
+   isValidIfsc,
+   isValidAccountNumber,
+ } from "../../../modules/kyc/kyc";
++import { isKycDocType } from "../../../lib/kyc/doc-types";
++import {
++  KYC_DOC_KINDS,
++  KYC_DOC_COLUMN,
++  isAllowedDocContentType,
++  uploadKycDoc,
++} from "../../../lib/storage/kyc-docs";
++import {
++  startContactVerification,
++  confirmContactVerification,
++} from "../../../lib/kyc/verify";
++import type { VerifyChannel } from "../../../modules/kyc/verify";
++import { checkOtpSendRate } from "../../../lib/auth/otp-rate-limit";
+ import { validateWithdrawal } from "../../../modules/wallet/withdrawal";
+ import { payoutsEnabled } from "../../../lib/env";
+ import {
+@@ -23,6 +37,12 @@ import { track, anonId } from "../../../lib/analytics/track";
+ 
+ export type ActionResult = { ok: true } | { ok: false; error: string };
+ 
++const MAX_DOC_BYTES = 5 * 1024 * 1024; // 5 MB per document
++function fileExt(name: string): string {
++  const m = name.match(/\.([a-z0-9]+)$/i);
++  return m ? m[1] : "bin";
++}
++
+ // ── Referral share — fires the canonical `referral_share` event (no PII, no ₹). ──
+ export async function recordReferralShare(): Promise<ActionResult> {
+   const user = await getCurrentUser();
+@@ -31,7 +51,40 @@ export async function recordReferralShare(): Promise<ActionResult> {
+   return { ok: true };
+ }
+ 
+-// ── KYC submit (§2.4) — PII encrypted at rest, audit-logged, never logged in plaintext. ──
++// ── KYC contact verification (§3) — set the email / WhatsApp verify flag only on a correct code. ──
++export async function sendKycVerification(
++  channel: VerifyChannel,
++  target: string,
++): Promise<ActionResult> {
++  if (channel !== "email" && channel !== "whatsapp")
++    return { ok: false, error: "Invalid channel." };
++  const user = await getCurrentUser();
++  if (!user) return { ok: false, error: "Please sign in." };
++  // Reuse the OTP send throttle (per-phone key stands in for per-user here).
++  const rl = await checkOtpSendRate(`${channel}:${user.id}`.slice(-10));
++  if (!rl.ok) return { ok: false, error: rl.error };
++  try {
++    return await startContactVerification(user.id, channel, target);
++  } catch {
++    return { ok: false, error: "Could not send the code. Please try again." };
++  }
++}
++
++export async function confirmKycVerification(
++  channel: VerifyChannel,
++  target: string,
++  code: string,
++): Promise<ActionResult> {
++  if (channel !== "email" && channel !== "whatsapp")
++    return { ok: false, error: "Invalid channel." };
++  const user = await getCurrentUser();
++  if (!user) return { ok: false, error: "Please sign in." };
++  const res = await confirmContactVerification(user.id, channel, target, code);
++  if (res.ok) revalidatePath("/dashboard/earn/kyc");
++  return res;
++}
++
++// ── KYC submit (§3) — PII + doc paths encrypted at rest, audit-logged, never logged in plaintext. ──
+ const kycSchema = z.object({
+   pan: z
+     .string()
+@@ -48,45 +101,86 @@ const kycSchema = z.object({
+     .transform((s) => s.toUpperCase())
+     .refine(isValidIfsc, "Enter a valid IFSC (e.g. SBIN0001234)"),
+   holderName: z.string().trim().min(1, "Enter the account holder name").max(80),
++  bankName: z.string().trim().min(1, "Enter the bank name").max(80),
++  docType: z
++    .string()
++    .trim()
++    .refine(isKycDocType, "Choose a valid document type"),
+ });
+ 
+-export async function submitKyc(
+-  input: z.input<typeof kycSchema>,
+-): Promise<ActionResult> {
+-  const parsed = kycSchema.safeParse(input);
++// FormData boundary: KYC now carries file uploads, so the action takes FormData (not a typed object).
++export async function submitKyc(formData: FormData): Promise<ActionResult> {
++  const user = await getCurrentUser();
++  if (!user) return { ok: false, error: "Please sign in." };
++
++  const parsed = kycSchema.safeParse({
++    pan: String(formData.get("pan") ?? ""),
++    accountNumber: String(formData.get("accountNumber") ?? ""),
++    ifsc: String(formData.get("ifsc") ?? ""),
++    holderName: String(formData.get("holderName") ?? ""),
++    bankName: String(formData.get("bankName") ?? ""),
++    docType: String(formData.get("docType") ?? ""),
++  });
+   if (!parsed.success)
+     return {
+       ok: false,
+       error: parsed.error.issues[0]?.message ?? "Invalid details",
+     };
++  const d = parsed.data;
+ 
+-  const user = await getCurrentUser();
+-  if (!user) return { ok: false, error: "Please sign in." };
++  // Upload any provided documents to the PRIVATE bucket FIRST (outside the tx). Store only the
++  // AES-256-GCM-encrypted object path. A failed upload aborts before any DB write.
++  const docEnc: Record<string, string> = {};
++  try {
++    for (const kind of KYC_DOC_KINDS) {
++      const file = formData.get(`${kind}Doc`);
++      if (!(file instanceof File) || file.size === 0) continue;
++      if (file.size > MAX_DOC_BYTES)
++        return { ok: false, error: "Each document must be under 5 MB." };
++      if (!isAllowedDocContentType(file.type))
++        return {
++          ok: false,
++          error: "Documents must be a PDF or image (JPG/PNG/WebP).",
++        };
++      const path = await uploadKycDoc({
++        userId: user.id,
++        kind,
++        bytes: new Uint8Array(await file.arrayBuffer()),
++        contentType: file.type,
++        ext: fileExt(file.name),
++        rand: randomBytes(8).toString("hex"),
++      });
++      docEnc[KYC_DOC_COLUMN[kind]] = encryptPii(path);
++    }
++  } catch {
++    return {
++      ok: false,
++      error: "Could not upload a document. Please try again.",
++    };
++  }
+ 
+-  const d = parsed.data;
+   try {
+-    // Encrypt secret fields before they touch the DB; IFSC is a public branch code (plaintext).
+-    // Module invariant (GPS-M4 §1): the domain write + its audit row commit in ONE $transaction.
++    // Encrypt secret fields before they touch the DB; IFSC + bank name are not secret (plaintext).
++    // Module invariant: the domain write + its audit row commit in ONE $transaction.
++    const secret = {
++      panEnc: encryptPii(d.pan),
++      accountNoEnc: encryptPii(d.accountNumber),
++      accountHolderEnc: encryptPii(d.holderName),
++      ifsc: d.ifsc,
++      bankName: d.bankName,
++      docType: d.docType,
++      ...docEnc,
++    };
+     await prisma.$transaction(async (tx) => {
+       await tx.kyc.upsert({
+         where: { userId: user.id },
+         create: {
+           userId: user.id,
+-          panEnc: encryptPii(d.pan),
+-          accountNoEnc: encryptPii(d.accountNumber),
+-          accountHolderEnc: encryptPii(d.holderName), // account-holder name (LC #32)
+-          ifsc: d.ifsc,
++          ...secret,
+           status: "SUBMITTED",
+           submittedAt: new Date(),
+         },
+-        update: {
+-          panEnc: encryptPii(d.pan),
+-          accountNoEnc: encryptPii(d.accountNumber),
+-          accountHolderEnc: encryptPii(d.holderName),
+-          ifsc: d.ifsc,
+-          status: "SUBMITTED", // resubmit after a rejection
+-          submittedAt: new Date(),
+-        },
++        update: { ...secret, status: "SUBMITTED", submittedAt: new Date() }, // resubmit after rejection
+       });
+       // Audit — NO PII in the audit row (only that a submission happened).
+       await tx.adminAction.create({
+diff --git a/app/dashboard/earn/kyc/doc/[kind]/route.ts b/app/dashboard/earn/kyc/doc/[kind]/route.ts
+new file mode 100644
+index 0000000..b396851
+--- /dev/null
++++ b/app/dashboard/earn/kyc/doc/[kind]/route.ts
+@@ -0,0 +1,38 @@
++// KYC document access — OWNER self-serve (Phase C §3). Serves ONLY the signed-in user's own document
++// via a short-lived signed URL to the private bucket. No `userId` param exists here, so a user can
++// never reach another person's file. Unauthenticated → 401; missing → 404. Direct bucket access
++// without a signed URL is denied by Supabase (private bucket).
++import { NextResponse } from "next/server";
++import { getCurrentUser } from "@/lib/auth/session";
++import {
++  isKycDocKind,
++  kycDocSignedUrl,
++  canAccessKycDoc,
++} from "@/lib/storage/kyc-docs";
++import { resolveKycDocPath } from "@/lib/kyc/doc-access";
++
++export const dynamic = "force-dynamic";
++
++export async function GET(
++  _req: Request,
++  { params }: { params: Promise<{ kind: string }> },
++) {
++  const { kind } = await params;
++  if (!isKycDocKind(kind))
++    return new NextResponse("Not found", { status: 404 });
++
++  const user = await getCurrentUser();
++  if (!user) return new NextResponse("Not authorized", { status: 401 });
++
++  // Owner-only route (self). The rule is still evaluated explicitly for defence in depth.
++  if (
++    !canAccessKycDoc({ requesterId: user.id, ownerId: user.id, isAdmin: false })
++  )
++    return new NextResponse("Forbidden", { status: 403 });
++
++  const path = await resolveKycDocPath(user.id, kind);
++  if (!path) return new NextResponse("No document", { status: 404 });
++
++  const url = await kycDocSignedUrl(path, 60);
++  return NextResponse.redirect(url);
++}
+diff --git a/app/dashboard/earn/kyc/page.tsx b/app/dashboard/earn/kyc/page.tsx
+index bbc9592..e5a2f8a 100644
+--- a/app/dashboard/earn/kyc/page.tsx
++++ b/app/dashboard/earn/kyc/page.tsx
+@@ -102,10 +102,17 @@ async function KycBody({ userId }: { userId: string }) {
+       )}
+       <Card>
+         <div className="mb-4 flex items-center justify-between">
+-          <CardTitle className="text-base">Your bank details</CardTitle>
++          <CardTitle className="text-base">Your KYC details</CardTitle>
+           <Badge variant="muted">Encrypted</Badge>
+         </div>
+-        <KycForm />
++        <KycForm
++          initial={{
++            email: kyc.email,
++            emailVerified: kyc.emailVerified,
++            whatsapp: kyc.whatsapp,
++            whatsappVerified: kyc.whatsappVerified,
++          }}
++        />
+       </Card>
+       <StoreNote />
+     </>
+diff --git a/components/admin/withdrawal-actions.tsx b/components/admin/withdrawal-actions.tsx
+index 85761a0..59ae09b 100644
+--- a/components/admin/withdrawal-actions.tsx
++++ b/components/admin/withdrawal-actions.tsx
+@@ -6,15 +6,18 @@ import { useState } from "react";
+ import { useRouter } from "next/navigation";
+ import {
+   markPaidAction,
++  markInProgressAction,
+   rejectWithdrawalAction,
+ } from "../../app/admin/withdrawals/actions";
+ 
+ export function WithdrawalActions({
+   withdrawalId,
+   canMark,
++  status,
+ }: {
+   withdrawalId: string;
+   canMark: boolean;
++  status: "APPLIED" | "IN_PROGRESS" | "PAID" | "REJECTED";
+ }) {
+   const router = useRouter();
+   const [busy, setBusy] = useState(false);
+@@ -22,6 +25,15 @@ export function WithdrawalActions({
+   const [reason, setReason] = useState("");
+   const [error, setError] = useState<string | null>(null);
+ 
++  async function onStart() {
++    setBusy(true);
++    setError(null);
++    const res = await markInProgressAction(withdrawalId);
++    setBusy(false);
++    if (res.ok) router.refresh();
++    else setError(res.error);
++  }
++
+   async function onMarkPaid() {
+     if (
+       !window.confirm(
+@@ -49,6 +61,15 @@ export function WithdrawalActions({
+   return (
+     <div className="space-y-2">
+       <div className="flex flex-wrap justify-end gap-2">
++        {status === "APPLIED" && (
++          <button
++            onClick={onStart}
++            disabled={busy}
++            className="rounded-lg border border-charcoal/20 px-3 py-1.5 text-xs font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
++          >
++            {busy ? "…" : "Start processing"}
++          </button>
++        )}
+         <button
+           onClick={onMarkPaid}
+           disabled={busy || !canMark}
+diff --git a/components/affiliate/kyc-form.tsx b/components/affiliate/kyc-form.tsx
+index 484e6d4..e98ce45 100644
+--- a/components/affiliate/kyc-form.tsx
++++ b/components/affiliate/kyc-form.tsx
+@@ -1,26 +1,40 @@
+ "use client";
+-// KYC form (GPS-M3 §2.4, Tier A · PII). Collects PAN + account + IFSC + holder name. The action
+-// Zod-validates and ENCRYPTS server-side; the client never stores or logs PII.
++// KYC form (Phase C §3, Tier A · PII). Collects contact (email/WhatsApp, each verified by code),
++// bank details, PAN, an address-proof document type, and document uploads. The action Zod-validates,
++// ENCRYPTS PAN/account/doc-paths server-side, and stores docs in a PRIVATE bucket. The client never
++// stores or logs PII. Verification flags are set only via the verify sub-flow.
+ import { useState } from "react";
+-import { submitKyc } from "../../app/dashboard/earn/actions";
++import {
++  submitKyc,
++  sendKycVerification,
++  confirmKycVerification,
++} from "../../app/dashboard/earn/actions";
++import { KYC_DOC_TYPES } from "../../lib/kyc/doc-types";
++import type { VerifyChannel } from "../../modules/kyc/verify";
+ import { Button } from "../ui/button";
+ import { Input } from "../ui/input";
+ import { Label } from "../ui/label";
+ 
+-export function KycForm() {
+-  const [pan, setPan] = useState("");
+-  const [accountNumber, setAccountNumber] = useState("");
+-  const [ifsc, setIfsc] = useState("");
+-  const [holderName, setHolderName] = useState("");
++export interface KycInitial {
++  email: string | null;
++  emailVerified: boolean;
++  whatsapp: string | null;
++  whatsappVerified: boolean;
++}
++
++export function KycForm({ initial }: { initial: KycInitial }) {
+   const [busy, setBusy] = useState(false);
+   const [error, setError] = useState<string | null>(null);
+   const [done, setDone] = useState(false);
++  const [emailOk, setEmailOk] = useState(initial.emailVerified);
++  const [waOk, setWaOk] = useState(initial.whatsappVerified);
+ 
+-  async function onSubmit(e: React.FormEvent) {
++  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+     e.preventDefault();
+     setBusy(true);
+     setError(null);
+-    const res = await submitKyc({ pan, accountNumber, ifsc, holderName });
++    const fd = new FormData(e.currentTarget);
++    const res = await submitKyc(fd);
+     setBusy(false);
+     if (res.ok) setDone(true);
+     else setError(res.error);
+@@ -35,59 +49,127 @@ export function KycForm() {
+   }
+ 
+   return (
+-    <form onSubmit={onSubmit} className="space-y-4">
+-      <div>
+-        <Label htmlFor="kyc-holder">Account holder name</Label>
+-        <Input
++    <form
++      onSubmit={onSubmit}
++      className="space-y-6"
++      encType="multipart/form-data"
++    >
++      {/* Contact — each channel verified with a one-time code */}
++      <fieldset className="space-y-4">
++        <legend className="font-heading text-sm font-bold">Contact</legend>
++        <ContactVerify
++          channel="email"
++          label="Email"
++          type="email"
++          placeholder="you@example.com"
++          initialValue={initial.email ?? ""}
++          verified={emailOk}
++          onVerified={() => setEmailOk(true)}
++        />
++        <ContactVerify
++          channel="whatsapp"
++          label="WhatsApp number"
++          type="tel"
++          placeholder="10-digit WhatsApp number"
++          initialValue={initial.whatsapp?.replace("+91", "") ?? ""}
++          verified={waOk}
++          onVerified={() => setWaOk(true)}
++        />
++      </fieldset>
++
++      {/* Bank */}
++      <fieldset className="space-y-4">
++        <legend className="font-heading text-sm font-bold">Bank account</legend>
++        <Field
+           id="kyc-holder"
+-          value={holderName}
+-          onChange={(e) => setHolderName(e.target.value)}
++          name="holderName"
++          label="Account holder name"
+           autoComplete="name"
+           maxLength={80}
+           required
+         />
+-      </div>
+-      <div>
+-        <Label htmlFor="kyc-pan">PAN</Label>
+-        <Input
+-          id="kyc-pan"
+-          value={pan}
+-          onChange={(e) => setPan(e.target.value.toUpperCase())}
+-          placeholder="ABCDE1234F"
+-          maxLength={10}
+-          aria-describedby="kyc-pan-help"
++        <Field
++          id="kyc-bank"
++          name="bankName"
++          label="Bank name"
++          maxLength={80}
+           required
+         />
+-        <p id="kyc-pan-help" className="mt-1 text-xs text-muted">
+-          10 characters, e.g. ABCDE1234F.
+-        </p>
+-      </div>
+-      <div>
+-        <Label htmlFor="kyc-account">Bank account number</Label>
+-        <Input
++        <Field
+           id="kyc-account"
++          name="accountNumber"
++          label="Account number"
+           inputMode="numeric"
+-          value={accountNumber}
+-          onChange={(e) => setAccountNumber(e.target.value.replace(/\D/g, ""))}
+           maxLength={18}
+           required
+         />
+-      </div>
+-      <div>
+-        <Label htmlFor="kyc-ifsc">IFSC</Label>
+-        <Input
++        <Field
+           id="kyc-ifsc"
+-          value={ifsc}
+-          onChange={(e) => setIfsc(e.target.value.toUpperCase())}
++          name="ifsc"
++          label="IFSC"
+           placeholder="SBIN0001234"
+           maxLength={11}
+-          aria-describedby="kyc-ifsc-help"
+           required
++          uppercase
+         />
+-        <p id="kyc-ifsc-help" className="mt-1 text-xs text-muted">
+-          11 characters, e.g. SBIN0001234.
++      </fieldset>
++
++      {/* Identity + documents */}
++      <fieldset className="space-y-4">
++        <legend className="font-heading text-sm font-bold">
++          Identity &amp; documents
++        </legend>
++        <Field
++          id="kyc-pan"
++          name="pan"
++          label="PAN"
++          placeholder="ABCDE1234F"
++          maxLength={10}
++          required
++          uppercase
++        />
++        <FileField
++          id="kyc-pan-doc"
++          name="panDoc"
++          label="PAN card (image/PDF)"
++        />
++        <div>
++          <Label htmlFor="kyc-doctype">Address proof — document type</Label>
++          <select
++            id="kyc-doctype"
++            name="docType"
++            required
++            defaultValue=""
++            className="h-11 w-full rounded-xl border border-charcoal/15 bg-white px-4 text-base"
++          >
++            <option value="" disabled>
++              Choose…
++            </option>
++            {KYC_DOC_TYPES.map((t) => (
++              <option key={t} value={t}>
++                {t}
++              </option>
++            ))}
++          </select>
++        </div>
++        <FileField
++          id="kyc-address-doc"
++          name="addressDoc"
++          label="Address proof (image/PDF)"
++        />
++        <FileField
++          id="kyc-bank-doc"
++          name="bankDoc"
++          label="Bank proof — passbook/cheque (image/PDF)"
++        />
++      </fieldset>
++
++      {!emailOk || !waOk ? (
++        <p className="text-xs text-muted">
++          Tip: verify your email and WhatsApp above so we can reach you about
++          payouts.
+         </p>
+-      </div>
++      ) : null}
+       {error && (
+         <p role="alert" className="text-sm text-red-600">
+           {error}
+@@ -99,3 +181,150 @@ export function KycForm() {
+     </form>
+   );
+ }
++
++// ── Contact verify sub-flow: enter value → send code → enter code → verified. ──
++function ContactVerify({
++  channel,
++  label,
++  type,
++  placeholder,
++  initialValue,
++  verified,
++  onVerified,
++}: {
++  channel: VerifyChannel;
++  label: string;
++  type: string;
++  placeholder: string;
++  initialValue: string;
++  verified: boolean;
++  onVerified: () => void;
++}) {
++  const [value, setValue] = useState(initialValue);
++  const [sent, setSent] = useState(false);
++  const [code, setCode] = useState("");
++  const [busy, setBusy] = useState(false);
++  const [msg, setMsg] = useState<string | null>(null);
++
++  async function send() {
++    setBusy(true);
++    setMsg(null);
++    const res = await sendKycVerification(channel, value);
++    setBusy(false);
++    if (res.ok) {
++      setSent(true);
++      setMsg("Code sent. Enter it below.");
++    } else setMsg(res.error);
++  }
++  async function confirm() {
++    setBusy(true);
++    setMsg(null);
++    const res = await confirmKycVerification(channel, value, code);
++    setBusy(false);
++    if (res.ok) onVerified();
++    else setMsg(res.error);
++  }
++
++  return (
++    <div>
++      <Label htmlFor={`kyc-${channel}`}>
++        {label}{" "}
++        {verified && (
++          <span className="text-xs font-semibold text-brand">✓ verified</span>
++        )}
++      </Label>
++      <div className="flex gap-2">
++        <Input
++          id={`kyc-${channel}`}
++          type={type}
++          value={value}
++          onChange={(e) => setValue(e.target.value)}
++          placeholder={placeholder}
++          disabled={verified}
++        />
++        {!verified && (
++          <button
++            type="button"
++            onClick={send}
++            disabled={busy || value.trim().length < 3}
++            className="shrink-0 rounded-xl border border-charcoal/20 px-3 text-sm font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
++          >
++            {sent ? "Resend" : "Send code"}
++          </button>
++        )}
++      </div>
++      {!verified && sent && (
++        <div className="mt-2 flex gap-2">
++          <Input
++            inputMode="numeric"
++            value={code}
++            onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
++            placeholder="6-digit code"
++            maxLength={6}
++          />
++          <button
++            type="button"
++            onClick={confirm}
++            disabled={busy || code.length < 4}
++            className="shrink-0 rounded-xl bg-gold px-3 text-sm font-semibold text-charcoal disabled:opacity-40"
++          >
++            Verify
++          </button>
++        </div>
++      )}
++      {msg && <p className="mt-1 text-xs text-muted">{msg}</p>}
++    </div>
++  );
++}
++
++function Field({
++  id,
++  name,
++  label,
++  uppercase,
++  ...rest
++}: {
++  id: string;
++  name: string;
++  label: string;
++  uppercase?: boolean;
++} & React.InputHTMLAttributes<HTMLInputElement>) {
++  const [v, setV] = useState("");
++  return (
++    <div>
++      <Label htmlFor={id}>{label}</Label>
++      <Input
++        id={id}
++        name={name}
++        value={v}
++        onChange={(e) =>
++          setV(uppercase ? e.target.value.toUpperCase() : e.target.value)
++        }
++        {...rest}
++      />
++    </div>
++  );
++}
++
++function FileField({
++  id,
++  name,
++  label,
++}: {
++  id: string;
++  name: string;
++  label: string;
++}) {
++  return (
++    <div>
++      <Label htmlFor={id}>{label}</Label>
++      <input
++        id={id}
++        name={name}
++        type="file"
++        accept="image/jpeg,image/png,image/webp,application/pdf"
++        className="block w-full text-sm text-charcoal file:mr-3 file:rounded-lg file:border-0 file:bg-charcoal/5 file:px-3 file:py-2 file:text-sm file:font-semibold"
++      />
++    </div>
++  );
++}
+diff --git a/docs/LAUNCH_CONFIG.md b/docs/LAUNCH_CONFIG.md
+index 0e6d77c..b9bc620 100644
+--- a/docs/LAUNCH_CONFIG.md
++++ b/docs/LAUNCH_CONFIG.md
+@@ -67,6 +67,10 @@
+ | 44 | Register / Login / Checkout — Phase A copy | `/register`, `/login`, `/checkout` (DR-036) | Content | PENDING | Founder | Placeholder Hinglish copy live + clearly non-final: invite-only headings, "Invited by {name}", no-code panel, password + OTP-reset labels, checkout referral-code hint. SEO title now "Register — GoSkilled" (was "Register free") | Founder-approved copy set | LAUNCH | Pre-launch | Supersedes the register half of #34 (DR-030 open-registration → DR-036 invite-only). D-29 floor applies — no income language anywhere. |
+ | 45 | Commission-structure page copy | `/dashboard/earn/commission-structure` (DR-007/DR-038) | Content | PENDING | Founder | Placeholder D-29-safe copy in `lib/affiliate/commission-structure.ts` (heading/intro/disclaimer — learning-first, "no income projections"). Reward NUMBERS are DR-007 (fixed, not a copy slot). Page gated behind the payouts flag (D-01) | Founder-approved compliance-safe copy | LAUNCH | Pre-launch | Numbers come from the engine (₹900/150/75 · ₹1250/250/150) — do not edit here. |
+ | 46 | Affiliate surface labels | earn dashboard (DR-038/DR-034-035) | Content | FINAL* | Founder | `lib/affiliate/labels.ts` — "My Network" section, "Level 1/2/3", "Rewards structure". No "Team/Downline" (DR-034/035). Leaderboard + Rewards deferred to Phase D | Same unless founder renames | OPTIONAL | — | *Compliance-safe defaults live in code + configurable in one place. |
++| 47 | KYC email/WhatsApp verify SEND provider | KYC (`lib/kyc/verify-provider.ts`) — Phase C §3 | External Service | PENDING | Founder | `KYC_VERIFY_PROVIDER=console` (default — issues + stores a hashed code, does NOT deliver). `live` throws until a real email/SMS/WhatsApp service is wired | Chosen provider + creds (`KYC_VERIFY_PROVIDER=live`) | LAUNCH (before real verify) | Pre-launch | Flow + flag built; only delivery is config-gated. Open point §7. |
++| 48 | KYC documents private bucket | Supabase Storage `kyc-docs` — Phase C §3 | External Service | PENDING | Founder | Bucket created **private** (public:false) on first upload via `lib/storage/kyc-docs.ensureKycBucket`; access only via server-authorized short-lived signed URLs. No public URLs ever | Confirm the private bucket exists on the prod Supabase project | LAUNCH (before real uploads) | Pre-launch | Object paths stored AES-256-GCM-encrypted; owner/admin-only access; admin views reveal-logged. |
++| 49 | KYC address-proof document types | KYC (`lib/kyc/doc-types.ts`) — Phase C §3 | Content | PENDING | Founder | Placeholder list: Aadhaar / Driving licence / Voter ID / Passport | Founder-confirmed option list | LAUNCH | Pre-launch | Open point §7. |
++| 50 | Withdrawal application window | withdraw (`modules/wallet/withdrawal.ts`) — Phase C §4 · DR-001 | Configuration | PENDING | Founder | Apply **anytime** (default); payout **processing cycle = Monday**, manual payout within 24h → Tuesday (DR-001). Statuses Applied→In-Progress→Paid | Confirm anytime vs Monday-only | LAUNCH | Pre-launch | Open point §7 — anytime recommended. UPI optional (default). Real disbursement stays OFF (D-01). |
+ 
+ ---
+ 
+@@ -79,3 +83,4 @@
+ - 2026-07-05 — GPS-M5 §2.0 Guru engine: added #35 (Anthropic API key), #36 (Guru model + cost caps), #37 (Guru Hinglish system-prompt + state copy). Engine ships on `AI_PROVIDER=mock` (DR-029) with D-29 guardrail + server-enforced cost caps in both modes; parked for Fable Tier-A review.
+ - 2026-07-09 — Phase A Auth+Referral rework (DR-036/DR-038, supersedes DR-030): added #42 (no-code contact channels), #43 (password min-length policy), #44 (Phase A register/login/checkout copy — supersedes register half of #34). Referral code now MANDATORY to register; login gains password + OTP reset; earning gate wired to own confirmed purchase (DR-038). Parked for Fable Tier-A review.
+ - 2026-07-10 — Phase B Referral-Engine+Dashboard (DR-007/DR-038): B1 ACTIVATED the earning gate in the webhook (an upline earns only with their own PAID purchase — Tier-A). Surfacing (B2–B6): added #45 (commission-structure copy), #46 (affiliate labels). Network graphs + L1/L2/L3 tables (L1 exportable, L2/L3 masked+non-exportable) + wallet graph + rewards-structure page. Payouts stay OFF (D-01). Parked for Fable (B1) / Opus (B2–B6).
++- 2026-07-10 — Phase C KYC+Withdraw (DR-037/DR-025/DR-001): KYC expansion (contact verify flags, doc uploads to a PRIVATE bucket, PAN/account/doc-paths encrypted, admin reveal-logged) + withdraw lifecycle (Applied→In-Progress→Paid, min ₹500/max ₹25k, KYC+available+single-pending+payoutsEnabled gates). Added #47 (verify provider), #48 (private bucket), #49 (doc-type list), #50 (withdrawal window). Additive migration `20260710120000_kyc_phasec_expansion` (applied). **No real disbursement — D-01 OFF gate enforced at mark-paid.** Parked for Fable Tier-A.
+diff --git a/lib/admin/kyc.ts b/lib/admin/kyc.ts
+index e6160dc..b147a66 100644
+--- a/lib/admin/kyc.ts
++++ b/lib/admin/kyc.ts
+@@ -48,6 +48,14 @@ export interface KycReviewDetail {
+   ifsc: string | null;
+   holderName: string | null; // account-holder name is shown (not last-4 masked)
+   submittedAt: Date | null;
++  // Phase C additions — contact + verify flags, bank name, doc type, and which docs were uploaded.
++  email: string | null;
++  emailVerified: boolean;
++  whatsapp: string | null;
++  whatsappVerified: boolean;
++  bankName: string | null;
++  docType: string | null;
++  docs: { address: boolean; pan: boolean; bank: boolean };
+   history: KycDecisionRecord[];
+   decryptError: boolean; // true → PII could not be decrypted; render a safe error, hide fields
+ }
+@@ -55,6 +63,7 @@ export interface KycReviewDetail {
+ const KYC_AUDIT_ACTIONS = [
+   "KYC_SUBMITTED",
+   "KYC_VIEWED",
++  "KYC_DOC_VIEWED",
+   "KYC_APPROVED",
+   "KYC_REJECTED",
+ ];
+@@ -73,6 +82,15 @@ export async function getKycReviewDetail(
+       ifsc: true,
+       status: true,
+       submittedAt: true,
++      email: true,
++      emailVerifiedAt: true,
++      whatsapp: true,
++      whatsappVerifiedAt: true,
++      bankName: true,
++      docType: true,
++      addressDocEnc: true,
++      panDocEnc: true,
++      bankDocEnc: true,
+       user: { select: { phone: true } },
+     },
+   });
+@@ -113,6 +131,17 @@ export async function getKycReviewDetail(
+     ifsc: kyc.ifsc,
+     holderName,
+     submittedAt: kyc.submittedAt,
++    email: kyc.email,
++    emailVerified: !!kyc.emailVerifiedAt,
++    whatsapp: kyc.whatsapp,
++    whatsappVerified: !!kyc.whatsappVerifiedAt,
++    bankName: kyc.bankName,
++    docType: kyc.docType,
++    docs: {
++      address: !!kyc.addressDocEnc,
++      pan: !!kyc.panDocEnc,
++      bank: !!kyc.bankDocEnc,
++    },
+     decryptError,
+     history: history.map((h) => ({
+       action: h.action,
+diff --git a/lib/admin/withdrawals.ts b/lib/admin/withdrawals.ts
+index bad2402..2c07057 100644
+--- a/lib/admin/withdrawals.ts
++++ b/lib/admin/withdrawals.ts
+@@ -4,6 +4,7 @@
+ // domain PAYOUT TxSpec (idempotent) + flips the row + audits — all in ONE $transaction.
+ import { prisma } from "../prisma";
+ import { decryptPii, maskLast4 } from "../pii";
++import { payoutsEnabled } from "../env";
+ import type { AdminIdentity } from "../auth/admin";
+ import { recordAdminAction } from "./audit";
+ import { availableBalanceOf } from "../../modules/ledger/ledger";
+@@ -11,6 +12,7 @@ import { executeTxSpec } from "../../modules/ledger/persist";
+ import {
+   buildPayoutTxSpec,
+   canMarkWithdrawalPaid,
++  canMarkWithdrawalInProgress,
+ } from "../../modules/wallet/withdrawal";
+ 
+ export interface WithdrawalRow {
+@@ -169,6 +171,7 @@ export async function markWithdrawalPaid(
+       const available = availableBalanceOf(account?.entries ?? []);
+ 
+       const gate = canMarkWithdrawalPaid({
++        payoutsEnabled: payoutsEnabled(), // D-01: no payout executes while OFF
+         status: w.status as WithdrawalRow["status"],
+         kycApproved: kyc?.status === "APPROVED",
+         availableInPaise: available,
+@@ -210,6 +213,47 @@ export async function markWithdrawalPaid(
+   }
+ }
+ 
++export type InProgressResult = { ok: true } | { ok: false; error: string };
++
++/**
++ * Move an APPLIED withdrawal to IN_PROGRESS (payout run started — no money moves yet). Status +
++ * audit (WITHDRAWAL_IN_PROGRESS) commit in ONE $transaction. The PAYOUT ledger tx fires only later
++ * at Mark PAID (and only when payoutsEnabled).
++ */
++export async function markWithdrawalInProgress(
++  actor: AdminIdentity,
++  withdrawalId: string,
++): Promise<InProgressResult> {
++  try {
++    return await prisma.$transaction(async (tx) => {
++      const w = await tx.withdrawal.findUnique({
++        where: { id: withdrawalId },
++        select: { status: true },
++      });
++      if (!w) return { ok: false as const, error: "Withdrawal not found." };
++
++      const gate = canMarkWithdrawalInProgress({
++        status: w.status as WithdrawalRow["status"],
++      });
++      if (!gate.ok) return { ok: false as const, error: gate.message };
++
++      await tx.withdrawal.update({
++        where: { id: withdrawalId },
++        data: { status: "IN_PROGRESS" },
++      });
++      await recordAdminAction(tx, {
++        actor,
++        action: "WITHDRAWAL_IN_PROGRESS",
++        entity: "Withdrawal",
++        entityId: withdrawalId,
++      });
++      return { ok: true as const };
++    });
++  } catch {
++    return { ok: false, error: "Could not update. Please retry." };
++  }
++}
++
+ export type RejectResult = { ok: true } | { ok: false; error: string };
+ 
+ /**
+diff --git a/lib/kyc/doc-access.ts b/lib/kyc/doc-access.ts
+new file mode 100644
+index 0000000..71f463b
+--- /dev/null
++++ b/lib/kyc/doc-access.ts
+@@ -0,0 +1,23 @@
++// KYC document access resolution (Phase C §3). Decrypts the stored (encrypted) object path for a
++// doc kind. Callers MUST authorize the requester (owner or admin) BEFORE calling the signed-URL
++// helper. Returns null when there is no document or the ciphertext can't be decrypted (never leaks).
++import { prisma } from "../prisma";
++import { decryptPii } from "../pii";
++import { KYC_DOC_COLUMN, type KycDocKind } from "../storage/kyc-docs";
++
++export async function resolveKycDocPath(
++  userId: string,
++  kind: KycDocKind,
++): Promise<string | null> {
++  const kyc = await prisma.kyc.findUnique({
++    where: { userId },
++    select: { addressDocEnc: true, panDocEnc: true, bankDocEnc: true },
++  });
++  const enc = kyc?.[KYC_DOC_COLUMN[kind]];
++  if (!enc) return null;
++  try {
++    return decryptPii(enc);
++  } catch {
++    return null;
++  }
++}
+diff --git a/lib/kyc/doc-types.ts b/lib/kyc/doc-types.ts
+new file mode 100644
+index 0000000..d445e65
+--- /dev/null
++++ b/lib/kyc/doc-types.ts
+@@ -0,0 +1,12 @@
++// Address-proof document types (Phase C §3 · LAUNCH_CONFIG copy — open point §7). Placeholder list;
++// the founder confirms the final options. Values are stored verbatim in Kyc.docType.
++export const KYC_DOC_TYPES = [
++  "Aadhaar card",
++  "Driving licence",
++  "Voter ID",
++  "Passport",
++] as const;
++
++export function isKycDocType(v: string): boolean {
++  return (KYC_DOC_TYPES as readonly string[]).includes(v.trim());
++}
+diff --git a/lib/kyc/queries.ts b/lib/kyc/queries.ts
+index f6724a0..fc30b28 100644
+--- a/lib/kyc/queries.ts
++++ b/lib/kyc/queries.ts
+@@ -15,8 +15,32 @@ export interface KycView {
+   ifsc: string | null; // bank branch code — not secret PII, stored plaintext
+   holderName: string | null;
+   submittedAt: Date | null;
++  // Phase C additions (contact + verify + bank name + doc type + which docs are on file).
++  email: string | null;
++  emailVerified: boolean;
++  whatsapp: string | null;
++  whatsappVerified: boolean;
++  bankName: string | null;
++  docType: string | null;
++  docs: { address: boolean; pan: boolean; bank: boolean };
+ }
+ 
++const EMPTY_VIEW: KycView = {
++  uiStatus: "NOT_SUBMITTED",
++  panMasked: null,
++  accountMasked: null,
++  ifsc: null,
++  holderName: null,
++  submittedAt: null,
++  email: null,
++  emailVerified: false,
++  whatsapp: null,
++  whatsappVerified: false,
++  bankName: null,
++  docType: null,
++  docs: { address: false, pan: false, bank: false },
++};
++
+ export async function getKycView(userId: string): Promise<KycView> {
+   const kyc = await prisma.kyc.findUnique({
+     where: { userId },
+@@ -27,19 +51,19 @@ export async function getKycView(userId: string): Promise<KycView> {
+       ifsc: true,
+       status: true,
+       submittedAt: true,
++      email: true,
++      emailVerifiedAt: true,
++      whatsapp: true,
++      whatsappVerifiedAt: true,
++      bankName: true,
++      docType: true,
++      addressDocEnc: true,
++      panDocEnc: true,
++      bankDocEnc: true,
+     },
+   });
+ 
+-  if (!kyc) {
+-    return {
+-      uiStatus: "NOT_SUBMITTED",
+-      panMasked: null,
+-      accountMasked: null,
+-      ifsc: null,
+-      holderName: null,
+-      submittedAt: null,
+-    };
+-  }
++  if (!kyc) return EMPTY_VIEW;
+ 
+   return {
+     uiStatus: kycUiStatus(kyc.status),
+@@ -50,6 +74,17 @@ export async function getKycView(userId: string): Promise<KycView> {
+     ifsc: kyc.ifsc,
+     holderName: kyc.accountHolderEnc ? decryptPii(kyc.accountHolderEnc) : null,
+     submittedAt: kyc.submittedAt,
++    email: kyc.email,
++    emailVerified: !!kyc.emailVerifiedAt,
++    whatsapp: kyc.whatsapp,
++    whatsappVerified: !!kyc.whatsappVerifiedAt,
++    bankName: kyc.bankName,
++    docType: kyc.docType,
++    docs: {
++      address: !!kyc.addressDocEnc,
++      pan: !!kyc.panDocEnc,
++      bank: !!kyc.bankDocEnc,
++    },
+   };
+ }
+ 
+diff --git a/lib/kyc/verify-provider.ts b/lib/kyc/verify-provider.ts
+new file mode 100644
+index 0000000..22f1bdf
+--- /dev/null
++++ b/lib/kyc/verify-provider.ts
+@@ -0,0 +1,46 @@
++// KYC email/WhatsApp verification SEND provider (Phase C §3 · LAUNCH_CONFIG). The actual delivery
++// service is a Layer-2 decision — this file gates it. Default `console` is a no-op (dev logs a benign
++// line, NEVER the raw code or full target). `live` is intentionally not wired yet: selecting it
++// without configuration fails loudly rather than silently pretending to deliver.
++import type { VerifyChannel } from "../../modules/kyc/verify";
++
++export type KycVerifyProvider = "console" | "live";
++
++export function kycVerifyProviderName(): KycVerifyProvider {
++  const v = (process.env.KYC_VERIFY_PROVIDER || "console").toLowerCase();
++  if (v !== "console" && v !== "live")
++    throw new Error(
++      `Invalid KYC_VERIFY_PROVIDER: "${v}" (expected console|live)`,
++    );
++  return v;
++}
++
++function maskTarget(t: string): string {
++  // email → a***@domain ; number → last 4 only. Never log the full value.
++  if (t.includes("@")) {
++    const [u, d] = t.split("@");
++    return `${u.slice(0, 1)}***@${d}`;
++  }
++  return `••••${t.slice(-4)}`;
++}
++
++/** "Send" a verification code. Console provider never transmits (and never logs the code). */
++export async function sendVerificationCode(
++  channel: VerifyChannel,
++  target: string,
++  code: string,
++): Promise<void> {
++  if (!code) throw new Error("Missing verification code");
++  const provider = kycVerifyProviderName();
++  if (provider === "console") {
++    if (process.env.NODE_ENV !== "production")
++      console.log(
++        `[kyc-verify] ${channel} code issued for ${maskTarget(target)} (console provider — not delivered)`,
++      );
++    return;
++  }
++  // live: real email/SMS/WhatsApp service — LAUNCH_CONFIG, not built in Phase C.
++  throw new Error(
++    "KYC verify provider 'live' is not configured yet (LAUNCH_CONFIG).",
++  );
++}
+diff --git a/lib/kyc/verify.ts b/lib/kyc/verify.ts
+new file mode 100644
+index 0000000..21d8d16
+--- /dev/null
++++ b/lib/kyc/verify.ts
+@@ -0,0 +1,122 @@
++// Contact verification adapter (Phase C §3). Generates a short-lived 6-digit code, stores ONLY its
++// hash, "sends" it via the config-gated provider, and — on a correct code — stamps the verify flag
++// on the Kyc row (`emailVerifiedAt` / `whatsappVerifiedAt`). The raw code and full target never leave
++// the server and are never logged. Pure checks live in modules/kyc/verify.
++import { randomInt } from "node:crypto";
++import { prisma } from "../prisma";
++import {
++  hashVerificationCode,
++  checkVerification,
++  isValidEmail,
++  normalizeWhatsapp,
++  VERIFY_CODE_TTL_MS,
++  VERIFY_CODE_LENGTH,
++  type VerifyChannel,
++} from "../../modules/kyc/verify";
++import { sendVerificationCode } from "./verify-provider";
++
++export type VerifyResult = { ok: true } | { ok: false; error: string };
++
++/** Validate + normalize a target for a channel (email → lowercased; whatsapp → +91XXXXXXXXXX). */
++function normalizeTarget(channel: VerifyChannel, raw: string): string | null {
++  if (channel === "email") {
++    const e = raw.trim().toLowerCase();
++    return isValidEmail(e) ? e : null;
++  }
++  return normalizeWhatsapp(raw);
++}
++
++/** Issue a code for a channel/target, persist its hash, store the target on Kyc, and send it. */
++export async function startContactVerification(
++  userId: string,
++  channel: VerifyChannel,
++  rawTarget: string,
++): Promise<VerifyResult> {
++  const target = normalizeTarget(channel, rawTarget);
++  if (!target)
++    return {
++      ok: false,
++      error:
++        channel === "email"
++          ? "Enter a valid email."
++          : "Enter a valid 10-digit mobile.",
++    };
++
++  const code = String(randomInt(0, 10 ** VERIFY_CODE_LENGTH)).padStart(
++    VERIFY_CODE_LENGTH,
++    "0",
++  );
++  await prisma.contactVerification.create({
++    data: {
++      userId,
++      channel,
++      target,
++      codeHash: hashVerificationCode(code),
++      expiresAt: new Date(Date.now() + VERIFY_CODE_TTL_MS),
++    },
++  });
++  // Persist the (unverified) target on the KYC row so submit/admin see what's pending.
++  await prisma.kyc.upsert({
++    where: { userId },
++    create: {
++      userId,
++      ...(channel === "email" ? { email: target } : { whatsapp: target }),
++    },
++    update: channel === "email" ? { email: target } : { whatsapp: target },
++  });
++  await sendVerificationCode(channel, target, code);
++  return { ok: true };
++}
++
++/** Confirm a code. On success, stamps the verify flag on Kyc and consumes the code (single-use). */
++export async function confirmContactVerification(
++  userId: string,
++  channel: VerifyChannel,
++  rawTarget: string,
++  code: string,
++): Promise<VerifyResult> {
++  const target = normalizeTarget(channel, rawTarget);
++  if (!target) return { ok: false, error: "Invalid details." };
++
++  const rec = await prisma.contactVerification.findFirst({
++    where: { userId, channel, target, consumedAt: null },
++    orderBy: { createdAt: "desc" },
++    select: {
++      id: true,
++      codeHash: true,
++      target: true,
++      expiresAt: true,
++      consumedAt: true,
++    },
++  });
++  if (!rec)
++    return {
++      ok: false,
++      error: "No pending verification — request a new code.",
++    };
++
++  const verdict = checkVerification(rec, code, target, new Date());
++  if (!verdict.ok) return { ok: false, error: verdict.reason };
++
++  const now = new Date();
++  await prisma.$transaction(async (tx) => {
++    await tx.contactVerification.update({
++      where: { id: rec.id },
++      data: { consumedAt: now },
++    });
++    await tx.kyc.upsert({
++      where: { userId },
++      create: {
++        userId,
++        ...(channel === "email"
++          ? { email: target, emailVerifiedAt: now }
++          : { whatsapp: target, whatsappVerifiedAt: now }),
++      },
++      update:
++        channel === "email"
++          ? { emailVerifiedAt: now }
++          : { whatsappVerifiedAt: now },
++    });
++  });
++  return { ok: true };
++}
+diff --git a/lib/storage/kyc-docs.ts b/lib/storage/kyc-docs.ts
+new file mode 100644
+index 0000000..7243819
+--- /dev/null
++++ b/lib/storage/kyc-docs.ts
+@@ -0,0 +1,113 @@
++// KYC document storage (Phase C §3, PII). Documents live in a PRIVATE Supabase Storage bucket —
++// never a public URL. Access is server-authorized (owner or admin) and served via short-lived signed
++// URLs generated by the service-role client. The DB stores only the AES-256-GCM-encrypted object
++// path (Kyc.{address,pan,bank}DocEnc), so a DB leak alone never reveals a fetchable location.
++//
++// The pure parts (kinds, path shape, access rule) are unit-testable; the impure parts wrap the
++// service-role storage client. The bucket is created private on first use (idempotent).
++import { createSupabaseAdminClient } from "../supabase/admin";
++
++export const KYC_BUCKET = "kyc-docs"; // PRIVATE — created with public:false
++export const KYC_DOC_KINDS = ["address", "pan", "bank"] as const;
++export type KycDocKind = (typeof KYC_DOC_KINDS)[number];
++
++export function isKycDocKind(v: string): v is KycDocKind {
++  return (KYC_DOC_KINDS as readonly string[]).includes(v);
++}
++
++/** Which encrypted-path column on Kyc backs each doc kind. */
++export const KYC_DOC_COLUMN: Record<
++  KycDocKind,
++  "addressDocEnc" | "panDocEnc" | "bankDocEnc"
++> = {
++  address: "addressDocEnc",
++  pan: "panDocEnc",
++  bank: "bankDocEnc",
++};
++
++/** Object path inside the bucket. `rand` is injected so the pure shape is testable. */
++export function kycDocPath(
++  userId: string,
++  kind: KycDocKind,
++  ext: string,
++  rand: string,
++): string {
++  const safeExt =
++    ext
++      .replace(/[^a-z0-9]/gi, "")
++      .toLowerCase()
++      .slice(0, 5) || "bin";
++  return `${userId}/${kind}/${rand}.${safeExt}`;
++}
++
++/**
++ * PURE authorization rule: only the owner or an admin may access a KYC document. The requester's
++ * ownership/role is resolved by the caller (server) — this never trusts client input.
++ */
++export function canAccessKycDoc(input: {
++  requesterId: string | null;
++  ownerId: string;
++  isAdmin: boolean;
++}): boolean {
++  if (input.isAdmin) return true;
++  return input.requesterId != null && input.requesterId === input.ownerId;
++}
++
++const ALLOWED_CONTENT = new Set([
++  "image/jpeg",
++  "image/png",
++  "image/webp",
++  "application/pdf",
++]);
++export function isAllowedDocContentType(ct: string): boolean {
++  return ALLOWED_CONTENT.has(ct);
++}
++
++/** Create the private bucket if missing. Idempotent; safe to call before each upload. */
++export async function ensureKycBucket(): Promise<void> {
++  const admin = createSupabaseAdminClient();
++  const { data } = await admin.storage.getBucket(KYC_BUCKET);
++  if (data) return;
++  const { error } = await admin.storage.createBucket(KYC_BUCKET, {
++    public: false,
++  });
++  // A concurrent create races to "already exists" — treat that as success.
++  if (error && !/exist/i.test(error.message))
++    throw new Error(`KYC bucket: ${error.message}`);
++}
++
++/** Upload a document to the private bucket. Returns the object path (to be encrypted before storing). */
++export async function uploadKycDoc(input: {
++  userId: string;
++  kind: KycDocKind;
++  bytes: ArrayBuffer | Uint8Array;
++  contentType: string;
++  ext: string;
++  rand: string;
++}): Promise<string> {
++  await ensureKycBucket();
++  const admin = createSupabaseAdminClient();
++  const path = kycDocPath(input.userId, input.kind, input.ext, input.rand);
++  const { error } = await admin.storage
++    .from(KYC_BUCKET)
++    .upload(path, input.bytes, {
++      contentType: input.contentType,
++      upsert: true,
++    });
++  if (error) throw new Error(`KYC upload failed: ${error.message}`);
++  return path;
++}
++
++/** Short-lived signed URL for a private object (default 60s). Callers MUST authorize first. */
++export async function kycDocSignedUrl(
++  path: string,
++  expiresInSec = 60,
++): Promise<string> {
++  const admin = createSupabaseAdminClient();
++  const { data, error } = await admin.storage
++    .from(KYC_BUCKET)
++    .createSignedUrl(path, expiresInSec);
++  if (error || !data?.signedUrl)
++    throw new Error(`KYC signed URL failed: ${error?.message ?? "unknown"}`);
++  return data.signedUrl;
++}
+diff --git a/lib/wallet/queries.ts b/lib/wallet/queries.ts
+index 3f98749..6d5bc6a 100644
+--- a/lib/wallet/queries.ts
++++ b/lib/wallet/queries.ts
+@@ -172,7 +172,8 @@ export async function getWalletHistory(
+   const withdrawalItems: WalletHistoryItem[] = withdrawals.map((w) => ({
+     date: w.requestedAt,
+     kind: "WITHDRAWAL",
+-    label: `Withdrawal ${w.status.toLowerCase()}`,
++    // "APPLIED"→"applied", "IN_PROGRESS"→"in progress", "PAID"→"paid", "REJECTED"→"rejected"
++    label: `Withdrawal ${w.status.toLowerCase().replace(/_/g, " ")}`,
+     amountInPaise: -w.amountInPaise,
+   }));
+ 
+diff --git a/modules/kyc/verify.ts b/modules/kyc/verify.ts
+new file mode 100644
+index 0000000..107c53e
+--- /dev/null
++++ b/modules/kyc/verify.ts
+@@ -0,0 +1,55 @@
++// Contact verification (Phase C §3) — pure domain. Email / WhatsApp are verified with a short-lived
++// 6-digit code; only a SHA-256 hash of the code is ever stored. The SEND provider is LAUNCH_CONFIG
++// (Layer-2). No raw code and no PII is logged. These functions are framework/DB-free + unit-testable.
++import { createHash } from "node:crypto";
++
++export type VerifyChannel = "email" | "whatsapp";
++export const VERIFY_CODE_TTL_MS = 10 * 60 * 1000; // 10 minutes
++export const VERIFY_CODE_LENGTH = 6;
++
++/** SHA-256 hex of the (trimmed) code — what we persist. Never store the raw code. */
++export function hashVerificationCode(code: string): string {
++  return createHash("sha256").update(code.trim()).digest("hex");
++}
++
++const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
++export function isValidEmail(v: string): boolean {
++  return EMAIL_REGEX.test(v.trim());
++}
++
++/** Normalize an Indian WhatsApp number to +91XXXXXXXXXX, or null if it isn't 10 digits. */
++export function normalizeWhatsapp(v: string): string | null {
++  const digits = (v ?? "").replace(/\D/g, "");
++  const ten = digits.slice(-10);
++  return ten.length === 10 ? `+91${ten}` : null;
++}
++
++export interface StoredVerification {
++  codeHash: string;
++  target: string;
++  expiresAt: Date;
++  consumedAt: Date | null;
++}
++
++export type VerifyCheck = { ok: true } | { ok: false; reason: string };
++
++/**
++ * Pure decision for confirming a code against the stored record. Constant-ish: checks consumed →
++ * expiry → hash match. `target` must match the value the code was issued for.
++ */
++export function checkVerification(
++  rec: StoredVerification,
++  submittedCode: string,
++  submittedTarget: string,
++  now: Date,
++): VerifyCheck {
++  if (rec.consumedAt)
++    return { ok: false, reason: "This code has already been used." };
++  if (rec.expiresAt <= now)
++    return { ok: false, reason: "This code has expired." };
++  if (rec.target !== submittedTarget)
++    return { ok: false, reason: "This code was issued for a different value." };
++  if (hashVerificationCode(submittedCode) !== rec.codeHash)
++    return { ok: false, reason: "Incorrect code." };
++  return { ok: true };
++}
+diff --git a/modules/wallet/withdrawal.ts b/modules/wallet/withdrawal.ts
+index e88c200..b033a1f 100644
+--- a/modules/wallet/withdrawal.ts
++++ b/modules/wallet/withdrawal.ts
+@@ -75,11 +75,21 @@ export type PayoutMarkDecision =
+  * ledger idempotency). Balance moved below the amount since APPLIED → hard stop.
+  */
+ export function canMarkWithdrawalPaid(c: {
++  payoutsEnabled: boolean; // D-01: no real payout may execute while OFF
+   status: "APPLIED" | "IN_PROGRESS" | "PAID" | "REJECTED";
+   kycApproved: boolean;
+   availableInPaise: number;
+   amountInPaise: number;
+ }): PayoutMarkDecision {
++  // Hard D-01 gate (Phase C §0): the payout ledger tx must NOT fire while payouts are OFF, even for
++  // an admin. Defence in depth — requests can't even be created pre-flag (validateWithdrawal), but
++  // this guarantees "payoutsEnabled OFF ⇒ no payout executes" at the money-move site.
++  if (!c.payoutsEnabled)
++    return {
++      ok: false,
++      code: "PAYOUTS_DISABLED",
++      message: "Payouts are disabled until legal clearance (D-01).",
++    };
+   if (c.status === "PAID")
+     return { ok: false, code: "ALREADY_PAID", message: "Already marked paid." };
+   if (c.status === "REJECTED")
+@@ -104,6 +114,25 @@ export function canMarkWithdrawalPaid(c: {
+   return { ok: true };
+ }
+ 
++/** Applied → In Progress (the middle lifecycle step). Only an APPLIED request may enter processing. */
++export function canMarkWithdrawalInProgress(c: {
++  status: "APPLIED" | "IN_PROGRESS" | "PAID" | "REJECTED";
++}): PayoutMarkDecision {
++  if (c.status === "IN_PROGRESS")
++    return {
++      ok: false,
++      code: "ALREADY_IN_PROGRESS",
++      message: "Already in progress.",
++    };
++  if (c.status !== "APPLIED")
++    return {
++      ok: false,
++      code: "NOT_APPLIED",
++      message: "Only an applied request can move to In Progress.",
++    };
++  return { ok: true };
++}
++
+ /**
+  * The zero-sum PAYOUT ledger transaction for a marked withdrawal: debit the affiliate's wallet,
+  * credit the payout-clearing account. holdUntil is null (a payout is immediate, never held).
+diff --git a/prisma/migrations/20260710120000_kyc_phasec_expansion/migration.sql b/prisma/migrations/20260710120000_kyc_phasec_expansion/migration.sql
+new file mode 100644
+index 0000000..0ee42a7
+--- /dev/null
++++ b/prisma/migrations/20260710120000_kyc_phasec_expansion/migration.sql
+@@ -0,0 +1,44 @@
++-- Phase C (DR-037) — KYC expansion. ADDITIVE ONLY, idempotent. No drops, no data loss.
++-- New Kyc fields: contact email + verify flags, bank name, doc type, encrypted doc-object paths.
++-- New ContactVerification table backs the email/WhatsApp verify flow (RLS enabled, deny-all).
++
++-- ── Kyc: additive columns (all nullable) ────────────────────────────────────────────────────
++ALTER TABLE "Kyc" ADD COLUMN IF NOT EXISTS "email" TEXT;
++ALTER TABLE "Kyc" ADD COLUMN IF NOT EXISTS "emailVerifiedAt" TIMESTAMP(3);
++ALTER TABLE "Kyc" ADD COLUMN IF NOT EXISTS "whatsappVerifiedAt" TIMESTAMP(3);
++ALTER TABLE "Kyc" ADD COLUMN IF NOT EXISTS "bankName" TEXT;
++ALTER TABLE "Kyc" ADD COLUMN IF NOT EXISTS "docType" TEXT;
++ALTER TABLE "Kyc" ADD COLUMN IF NOT EXISTS "addressDocEnc" TEXT;
++ALTER TABLE "Kyc" ADD COLUMN IF NOT EXISTS "panDocEnc" TEXT;
++ALTER TABLE "Kyc" ADD COLUMN IF NOT EXISTS "bankDocEnc" TEXT;
++
++-- ── ContactVerification: new table ──────────────────────────────────────────────────────────
++CREATE TABLE IF NOT EXISTS "ContactVerification" (
++    "id"         TEXT NOT NULL,
++    "userId"     TEXT NOT NULL,
++    "channel"    TEXT NOT NULL,
++    "target"     TEXT NOT NULL,
++    "codeHash"   TEXT NOT NULL,
++    "expiresAt"  TIMESTAMP(3) NOT NULL,
++    "consumedAt" TIMESTAMP(3),
++    "createdAt"  TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    CONSTRAINT "ContactVerification_pkey" PRIMARY KEY ("id")
++);
++
++CREATE INDEX IF NOT EXISTS "ContactVerification_userId_channel_idx"
++    ON "ContactVerification"("userId", "channel");
++
++DO $$
++BEGIN
++    IF NOT EXISTS (
++        SELECT 1 FROM pg_constraint WHERE conname = 'ContactVerification_userId_fkey'
++    ) THEN
++        ALTER TABLE "ContactVerification"
++            ADD CONSTRAINT "ContactVerification_userId_fkey"
++            FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++    END IF;
++END $$;
++
++-- RLS: every new public table ships RLS ENABLED, deny-all (no policies). The app connects as the
++-- table owner and bypasses non-forced RLS; PostgREST/anon are denied. (CLAUDE.md golden rule 15.)
++ALTER TABLE "ContactVerification" ENABLE ROW LEVEL SECURITY;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 1c1d11d..46f9098 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -65,6 +65,7 @@ model User {
+   downlineEdges Referral[] @relation("Upline")
+   guruMessages  GuruMessage[]
+   emailLogs     EmailLog[]
++  contactVerifications ContactVerification[]
+ }
+ 
+ // ─────────────── Catalog / LMS ───────────────
+@@ -330,6 +331,31 @@ model Kyc {
+   status        KycStatus @default(DRAFT)
+   submittedAt   DateTime?
+   updatedAt     DateTime  @updatedAt
++  // Phase C (DR-037) additive expansion — all nullable, non-breaking.
++  email             String?               // contact email (verify flag below)
++  emailVerifiedAt   DateTime?             // set ONLY on a confirmed email verification
++  whatsappVerifiedAt DateTime?            // set ONLY on a confirmed WhatsApp verification
++  bankName          String?               // plaintext — not secret PII
++  docType           String?               // address-proof document type (LAUNCH_CONFIG option list)
++  // Private-bucket object paths, AES-256-GCM encrypted (Phase C §3 "any doc references → encrypted").
++  addressDocEnc     String?
++  panDocEnc         String?
++  bankDocEnc        String?
++}
++
++// Email / WhatsApp verification codes (Phase C §3). The SEND provider is LAUNCH_CONFIG (Layer-2);
++// this table backs the flow. Only a hash of the code is stored; the flag on Kyc is set on confirm.
++model ContactVerification {
++  id         String   @id @default(cuid())
++  userId     String
++  user       User     @relation(fields: [userId], references: [id])
++  channel    String                        // "email" | "whatsapp"
++  target     String                        // the email / number being verified
++  codeHash   String                        // sha-256 of the 6-digit code (never the raw code)
++  expiresAt  DateTime
++  consumedAt DateTime?
++  createdAt  DateTime @default(now())
++  @@index([userId, channel])
+ }
+ 
+ // ─────────────── CRM / Marketing ───────────────
+diff --git a/tests/admin-domain.test.ts b/tests/admin-domain.test.ts
+index 0d553df..d41e2ea 100644
+--- a/tests/admin-domain.test.ts
++++ b/tests/admin-domain.test.ts
+@@ -9,6 +9,7 @@ import {
+ } from "@/modules/admin/review";
+ import {
+   canMarkWithdrawalPaid,
++  canMarkWithdrawalInProgress,
+   buildPayoutTxSpec,
+   payoutIdempotencyKey,
+ } from "@/modules/wallet/withdrawal";
+@@ -101,6 +102,7 @@ describe("canPublishCourse", () => {
+ 
+ describe("canMarkWithdrawalPaid", () => {
+   const base = {
++    payoutsEnabled: true, // Phase C: D-01 gate (OFF case covered below)
+     status: "APPLIED" as const,
+     kycApproved: true,
+     availableInPaise: 100_000,
+@@ -109,6 +111,11 @@ describe("canMarkWithdrawalPaid", () => {
+   it("allows a valid APPLIED withdrawal", () => {
+     expect(canMarkWithdrawalPaid(base).ok).toBe(true);
+   });
++  it("refuses while payouts are disabled (D-01), before any other check", () => {
++    const r = canMarkWithdrawalPaid({ ...base, payoutsEnabled: false });
++    expect(r.ok).toBe(false);
++    if (!r.ok) expect(r.code).toBe("PAYOUTS_DISABLED");
++  });
+   it("hard-stops when the balance dropped below the amount", () => {
+     const r = canMarkWithdrawalPaid({ ...base, availableInPaise: 40_000 });
+     expect(r.ok).toBe(false);
+@@ -126,6 +133,21 @@ describe("canMarkWithdrawalPaid", () => {
+   });
+ });
+ 
++describe("canMarkWithdrawalInProgress (Applied → In Progress)", () => {
++  it("allows an APPLIED request to enter processing", () => {
++    expect(canMarkWithdrawalInProgress({ status: "APPLIED" }).ok).toBe(true);
++  });
++  it("rejects one already in progress", () => {
++    const r = canMarkWithdrawalInProgress({ status: "IN_PROGRESS" });
++    expect(r.ok).toBe(false);
++    if (!r.ok) expect(r.code).toBe("ALREADY_IN_PROGRESS");
++  });
++  it("rejects a PAID / REJECTED request", () => {
++    expect(canMarkWithdrawalInProgress({ status: "PAID" }).ok).toBe(false);
++    expect(canMarkWithdrawalInProgress({ status: "REJECTED" }).ok).toBe(false);
++  });
++});
++
+ describe("buildPayoutTxSpec", () => {
+   it("builds a balanced, idempotent PAYOUT: wallet debit ↔ clearing credit", () => {
+     const spec = buildPayoutTxSpec({
+diff --git a/tests/kyc-doc-route.test.ts b/tests/kyc-doc-route.test.ts
+new file mode 100644
+index 0000000..e7ee691
+--- /dev/null
++++ b/tests/kyc-doc-route.test.ts
+@@ -0,0 +1,64 @@
++// Phase C §3 — KYC document routes enforce access server-side (the "unauthorized fetch → 403/401"
++// acceptance). Auth is mocked; a rejected requester is refused BEFORE any storage/DB access.
++import { describe, it, expect, vi, beforeEach } from "vitest";
++
++const h = vi.hoisted(() => ({
++  getAdminUser: vi.fn(),
++  getCurrentUser: vi.fn(),
++  resolveKycDocPath: vi.fn(),
++}));
++
++vi.mock("@/lib/auth/admin", () => ({ getAdminUser: h.getAdminUser }));
++vi.mock("@/lib/auth/session", () => ({ getCurrentUser: h.getCurrentUser }));
++vi.mock("@/lib/kyc/doc-access", () => ({
++  resolveKycDocPath: h.resolveKycDocPath,
++}));
++
++import { GET as adminDoc } from "@/app/admin/kyc/[userId]/doc/[kind]/route";
++import { GET as ownerDoc } from "@/app/dashboard/earn/kyc/doc/[kind]/route";
++
++const req = new Request("http://localhost/x");
++
++beforeEach(() => {
++  vi.clearAllMocks();
++  h.resolveKycDocPath.mockResolvedValue(null);
++});
++
++describe("admin KYC doc route", () => {
++  it("non-admin → 403, no data read", async () => {
++    h.getAdminUser.mockResolvedValue(null);
++    const res = await adminDoc(req, {
++      params: Promise.resolve({ userId: "u1", kind: "pan" }),
++    });
++    expect(res.status).toBe(403);
++    expect(h.resolveKycDocPath).not.toHaveBeenCalled();
++  });
++
++  it("admin + invalid kind → 404", async () => {
++    h.getAdminUser.mockResolvedValue({ supabaseId: "a", email: "a@x.com" });
++    const res = await adminDoc(req, {
++      params: Promise.resolve({ userId: "u1", kind: "selfie" }),
++    });
++    expect(res.status).toBe(404);
++  });
++});
++
++describe("owner KYC doc route (self only)", () => {
++  it("unauthenticated → 401, no data read", async () => {
++    h.getCurrentUser.mockResolvedValue(null);
++    const res = await ownerDoc(req, {
++      params: Promise.resolve({ kind: "pan" }),
++    });
++    expect(res.status).toBe(401);
++    expect(h.resolveKycDocPath).not.toHaveBeenCalled();
++  });
++
++  it("authenticated + missing doc → 404 (only ever serves the caller's own file)", async () => {
++    h.getCurrentUser.mockResolvedValue({ id: "u1" });
++    const res = await ownerDoc(req, {
++      params: Promise.resolve({ kind: "pan" }),
++    });
++    expect(res.status).toBe(404);
++    expect(h.resolveKycDocPath).toHaveBeenCalledWith("u1", "pan");
++  });
++});
+diff --git a/tests/kyc-phasec.integration.test.ts b/tests/kyc-phasec.integration.test.ts
+new file mode 100644
+index 0000000..f948c8e
+--- /dev/null
++++ b/tests/kyc-phasec.integration.test.ts
+@@ -0,0 +1,131 @@
++// Phase C §6 (integration, live DB) — KYC encryption at rest + contact-verify flags + doc-path
++// decryption + KYC gating withdrawal. PII is stored as ciphertext and only ever surfaced masked.
++import { describe, it, expect, beforeAll } from "vitest";
++import { prisma } from "@/lib/prisma";
++import { encryptPii } from "@/lib/pii";
++import { getKycView, getKycStatus } from "@/lib/kyc/queries";
++import { resolveKycDocPath } from "@/lib/kyc/doc-access";
++import { confirmContactVerification } from "@/lib/kyc/verify";
++import { hashVerificationCode, VERIFY_CODE_TTL_MS } from "@/modules/kyc/verify";
++import { validateWithdrawal } from "@/modules/wallet/withdrawal";
++
++const HAS_DB = !!process.env.DATABASE_URL;
++const runId = String(Date.now()).slice(-8);
++let seq = 0;
++const uniquePhone = () =>
++  `+91${9_000_000_000 + ((Number(runId) + seq++) % 1_000_000_000)}`;
++
++async function makeUserWithKyc(kyc: Record<string, unknown>): Promise<string> {
++  const u = await prisma.user.create({
++    data: {
++      phone: uniquePhone(),
++      referralCode: `GK${runId}${seq}`.toUpperCase(),
++    },
++    select: { id: true },
++  });
++  await prisma.kyc.create({ data: { userId: u.id, ...kyc } });
++  return u.id;
++}
++
++describe.skipIf(!HAS_DB)("KYC Phase C (integration §6)", () => {
++  beforeAll(() => {
++    process.env.PII_ENCRYPTION_KEY = Buffer.alloc(32, 7).toString("base64");
++  });
++
++  it("PAN + account are stored as ciphertext and displayed masked (never in the clear)", async () => {
++    const userId = await makeUserWithKyc({
++      panEnc: encryptPii("ABCDE1234F"),
++      accountNoEnc: encryptPii("123456789012"),
++      accountHolderEnc: encryptPii("Asha Rao"),
++      ifsc: "SBIN0001234",
++      status: "SUBMITTED",
++      submittedAt: new Date(),
++    });
++
++    // Stored column is ciphertext (iv:tag:ct), NOT the raw value.
++    const raw = await prisma.kyc.findUniqueOrThrow({
++      where: { userId },
++      select: { panEnc: true, accountNoEnc: true },
++    });
++    expect(raw.panEnc).not.toContain("ABCDE1234F");
++    expect(raw.panEnc?.split(":")).toHaveLength(3);
++
++    const view = await getKycView(userId);
++    expect(view.panMasked).toBe("•••• 234F");
++    expect(view.accountMasked).toBe("•••• 9012");
++    expect(view.panMasked).not.toContain("ABCDE1"); // no full PAN
++  });
++
++  it("email verify flag is set ONLY on a correct code", async () => {
++    const target = `t${runId}@example.com`;
++    const userId = await makeUserWithKyc({ email: target });
++    await prisma.contactVerification.create({
++      data: {
++        userId,
++        channel: "email",
++        target,
++        codeHash: hashVerificationCode("654321"),
++        expiresAt: new Date(Date.now() + VERIFY_CODE_TTL_MS),
++      },
++    });
++
++    // Wrong code → flag stays null.
++    const bad = await confirmContactVerification(
++      userId,
++      "email",
++      target,
++      "000000",
++    );
++    expect(bad.ok).toBe(false);
++    expect((await getKycView(userId)).emailVerified).toBe(false);
++
++    // Correct code → flag set, code consumed (single-use).
++    const good = await confirmContactVerification(
++      userId,
++      "email",
++      target,
++      "654321",
++    );
++    expect(good.ok).toBe(true);
++    expect((await getKycView(userId)).emailVerified).toBe(true);
++
++    // Re-using the same code fails (already consumed).
++    const replay = await confirmContactVerification(
++      userId,
++      "email",
++      target,
++      "654321",
++    );
++    expect(replay.ok).toBe(false);
++  });
++
++  it("document object paths are encrypted at rest and decrypt server-side only", async () => {
++    const path = `${runId}/pan/secret.pdf`;
++    const userId = await makeUserWithKyc({ panDocEnc: encryptPii(path) });
++
++    const raw = await prisma.kyc.findUniqueOrThrow({
++      where: { userId },
++      select: { panDocEnc: true },
++    });
++    expect(raw.panDocEnc).not.toContain("secret.pdf"); // ciphertext, not the path
++    expect(await resolveKycDocPath(userId, "pan")).toBe(path); // server decrypts
++    expect((await getKycView(userId)).docs.pan).toBe(true);
++  });
++
++  it("a non-APPROVED KYC blocks withdrawal (KYC gate, §6)", async () => {
++    const userId = await makeUserWithKyc({
++      status: "SUBMITTED",
++      submittedAt: new Date(),
++    });
++    expect(await getKycStatus(userId)).toBe("SUBMITTED");
++    const check = validateWithdrawal({
++      payoutsEnabled: true, // isolate the KYC gate from the D-01 gate
++      kycStatus: "SUBMITTED",
++      hasPendingWithdrawal: false,
++      availableInPaise: 100_000,
++      amountInPaise: 50_000,
++    });
++    expect(check.ok).toBe(false);
++    expect(check.ok === false && check.code).toBe("KYC_REQUIRED");
++  });
++});
+diff --git a/tests/kyc-storage.test.ts b/tests/kyc-storage.test.ts
+new file mode 100644
+index 0000000..4103f37
+--- /dev/null
++++ b/tests/kyc-storage.test.ts
+@@ -0,0 +1,66 @@
++// Phase C §3 — KYC document storage pure helpers (no Supabase). The access rule is the security
++// invariant behind the private bucket + the 403 routes.
++import { describe, it, expect } from "vitest";
++import {
++  isKycDocKind,
++  kycDocPath,
++  canAccessKycDoc,
++  isAllowedDocContentType,
++  KYC_DOC_COLUMN,
++  KYC_DOC_KINDS,
++} from "@/lib/storage/kyc-docs";
++
++describe("doc kinds + path", () => {
++  it("recognises the three kinds only", () => {
++    expect(KYC_DOC_KINDS).toEqual(["address", "pan", "bank"]);
++    expect(isKycDocKind("pan")).toBe(true);
++    expect(isKycDocKind("selfie")).toBe(false);
++  });
++  it("path is namespaced by user + kind and sanitizes the extension", () => {
++    expect(kycDocPath("user1", "pan", "PDF", "abcd")).toBe(
++      "user1/pan/abcd.pdf",
++    );
++    expect(kycDocPath("user1", "address", "../evil", "r")).toBe(
++      "user1/address/r.evil",
++    );
++  });
++  it("maps each kind to its encrypted column", () => {
++    expect(KYC_DOC_COLUMN).toEqual({
++      address: "addressDocEnc",
++      pan: "panDocEnc",
++      bank: "bankDocEnc",
++    });
++  });
++});
++
++describe("canAccessKycDoc (the 403 rule)", () => {
++  it("owner may access their own doc", () => {
++    expect(
++      canAccessKycDoc({ requesterId: "u1", ownerId: "u1", isAdmin: false }),
++    ).toBe(true);
++  });
++  it("a different user may NOT access it", () => {
++    expect(
++      canAccessKycDoc({ requesterId: "u2", ownerId: "u1", isAdmin: false }),
++    ).toBe(false);
++  });
++  it("an unauthenticated requester may NOT access it", () => {
++    expect(
++      canAccessKycDoc({ requesterId: null, ownerId: "u1", isAdmin: false }),
++    ).toBe(false);
++  });
++  it("an admin may access any doc", () => {
++    expect(
++      canAccessKycDoc({ requesterId: "admin", ownerId: "u1", isAdmin: true }),
++    ).toBe(true);
++  });
++});
++
++describe("content-type allow-list", () => {
++  it("permits images + PDF, rejects others", () => {
++    expect(isAllowedDocContentType("image/png")).toBe(true);
++    expect(isAllowedDocContentType("application/pdf")).toBe(true);
++    expect(isAllowedDocContentType("text/html")).toBe(false);
++    expect(isAllowedDocContentType("application/octet-stream")).toBe(false);
++  });
++});
+diff --git a/tests/kyc-verify.test.ts b/tests/kyc-verify.test.ts
+new file mode 100644
+index 0000000..e4e500f
+--- /dev/null
++++ b/tests/kyc-verify.test.ts
+@@ -0,0 +1,77 @@
++// Phase C §3 — contact verification pure domain (no DB).
++import { describe, it, expect } from "vitest";
++import {
++  hashVerificationCode,
++  checkVerification,
++  isValidEmail,
++  normalizeWhatsapp,
++} from "@/modules/kyc/verify";
++
++const NOW = new Date("2026-07-10T12:00:00Z");
++const soon = new Date(NOW.getTime() + 60_000);
++const past = new Date(NOW.getTime() - 60_000);
++
++describe("hashVerificationCode", () => {
++  it("is deterministic and hides the raw code", () => {
++    expect(hashVerificationCode("123456")).toBe(
++      hashVerificationCode(" 123456 "),
++    );
++    expect(hashVerificationCode("123456")).not.toContain("123456");
++    expect(hashVerificationCode("123456")).not.toBe(
++      hashVerificationCode("000000"),
++    );
++  });
++});
++
++describe("checkVerification", () => {
++  const rec = (
++    over: Partial<{
++      codeHash: string;
++      target: string;
++      expiresAt: Date;
++      consumedAt: Date | null;
++    }> = {},
++  ) => ({
++    codeHash: hashVerificationCode("123456"),
++    target: "a@b.com",
++    expiresAt: soon,
++    consumedAt: null,
++    ...over,
++  });
++
++  it("accepts a correct, unexpired, unconsumed code for the right target", () => {
++    expect(checkVerification(rec(), "123456", "a@b.com", NOW).ok).toBe(true);
++  });
++  it("rejects a wrong code", () => {
++    const r = checkVerification(rec(), "000000", "a@b.com", NOW);
++    expect(r.ok).toBe(false);
++  });
++  it("rejects an expired code", () => {
++    expect(
++      checkVerification(rec({ expiresAt: past }), "123456", "a@b.com", NOW).ok,
++    ).toBe(false);
++  });
++  it("rejects an already-consumed code", () => {
++    expect(
++      checkVerification(rec({ consumedAt: past }), "123456", "a@b.com", NOW).ok,
++    ).toBe(false);
++  });
++  it("rejects a code issued for a different target", () => {
++    expect(checkVerification(rec(), "123456", "other@b.com", NOW).ok).toBe(
++      false,
++    );
++  });
++});
++
++describe("target validation", () => {
++  it("isValidEmail", () => {
++    expect(isValidEmail("x@y.com")).toBe(true);
++    expect(isValidEmail("nope")).toBe(false);
++    expect(isValidEmail("a@b")).toBe(false);
++  });
++  it("normalizeWhatsapp → +91XXXXXXXXXX or null", () => {
++    expect(normalizeWhatsapp("98765 43210")).toBe("+919876543210");
++    expect(normalizeWhatsapp("+91 9876543210")).toBe("+919876543210");
++    expect(normalizeWhatsapp("12345")).toBeNull();
++  });
++});
+diff --git a/tests/withdrawal-payout.integration.test.ts b/tests/withdrawal-payout.integration.test.ts
+index 7e976fd..93df0fe 100644
+--- a/tests/withdrawal-payout.integration.test.ts
++++ b/tests/withdrawal-payout.integration.test.ts
+@@ -2,7 +2,7 @@
+ // PAYOUT ledger tx (wallet debit ↔ clearing credit), flips the row, and audits WITHDRAWAL_PAID;
+ // a double-mark is idempotent (no second ledger tx); a balance drop hard-stops. runId prefix so
+ // purge-test-data catches the rows.
+-import { describe, it, expect, beforeAll } from "vitest";
++import { describe, it, expect, beforeAll, afterAll } from "vitest";
+ import { prisma } from "@/lib/prisma";
+ import { executeTxSpec } from "@/modules/ledger/persist";
+ import { markWithdrawalPaid, rejectWithdrawal } from "@/lib/admin/withdrawals";
+@@ -10,6 +10,7 @@ import { payoutIdempotencyKey } from "@/modules/wallet/withdrawal";
+ import { encryptPii } from "@/lib/pii";
+ 
+ const HAS_DB = !!process.env.DATABASE_URL;
++const PRIOR_PAYOUTS = process.env.AFFILIATE_PAYOUTS_ENABLED;
+ const runId = `m4wd${Date.now()}`;
+ const PAST = new Date(Date.now() - 60_000); // credit already available
+ const actor = { supabaseId: `admin_${runId}`, email: "admin@example.com" };
+@@ -74,6 +75,14 @@ describe.skipIf(!HAS_DB)("withdrawal payout marking (integration)", () => {
+   beforeAll(() => {
+     // Deterministic 32-byte AES key for the KYC PII roundtrip (the .env dev value is a placeholder).
+     process.env.PII_ENCRYPTION_KEY = Buffer.alloc(32, 3).toString("base64");
++    // Phase C: the payout ledger tx only fires when payouts are ON. These tests EXERCISE that path,
++    // so enable it here (and restore after). The D-01 OFF gate is covered separately below.
++    process.env.AFFILIATE_PAYOUTS_ENABLED = "true";
++  });
++  afterAll(() => {
++    if (PRIOR_PAYOUTS === undefined)
++      delete process.env.AFFILIATE_PAYOUTS_ENABLED;
++    else process.env.AFFILIATE_PAYOUTS_ENABLED = PRIOR_PAYOUTS;
+   });
+ 
+   it("Mark PAID executes a balanced PAYOUT ledger tx, flips the row, and audits", async () => {
+@@ -147,6 +156,32 @@ describe.skipIf(!HAS_DB)("withdrawal payout marking (integration)", () => {
+     expect(count).toBe(0); // no money moved
+   });
+ 
++  it("payoutsEnabled OFF ⇒ Mark PAID is refused and NO payout ledger tx executes (D-01, §6)", async () => {
++    const userId = await makeUser("E");
++    await creditWallet(userId, 80_000);
++    await approveKyc(userId);
++    const wid = await applyWithdrawal(userId, 50_000);
++
++    process.env.AFFILIATE_PAYOUTS_ENABLED = "false"; // flip OFF for this case only
++    try {
++      const res = await markWithdrawalPaid(actor, wid);
++      expect(res.ok).toBe(false);
++      if (!res.ok) expect(res.error).toMatch(/disabled|D-01/i);
++    } finally {
++      process.env.AFFILIATE_PAYOUTS_ENABLED = "true";
++    }
++
++    const count = await prisma.ledgerTransaction.count({
++      where: { idempotencyKey: payoutIdempotencyKey(wid) },
++    });
++    expect(count).toBe(0); // no money moved
++    const row = await prisma.withdrawal.findUniqueOrThrow({
++      where: { id: wid },
++      select: { status: true },
++    });
++    expect(row.status).toBe("APPLIED"); // untouched
++  });
++
+   it("reject leaves funds available and audits the reason (no ledger move)", async () => {
+     const userId = await makeUser("D");
+     await creditWallet(userId, 80_000);
