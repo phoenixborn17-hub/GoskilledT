@@ -195,6 +195,16 @@ async function executeAction(
       const chain = await fetchReferralChain(tx, order.userId);
       const uplines = resolveUplines(order.userId, chain);
       if (uplines.length === 0) return;
+      // ── DR-038 earning gate — DOCUMENTED HOOK (Phase B enforcement) ──────────────────────────
+      // The rule (canEarnCommission, modules/affiliate/eligibility.ts) is LOCKED and unit-tested in
+      // Phase A but NOT enforced here yet, so this Phase-A change does not regress the DR-023 money
+      // path. Phase B activates it by filtering uplines to those with their OWN confirmed purchase:
+      //   const eligible = [];
+      //   for (const hop of uplines)
+      //     if (canEarnCommission({ hasOwnConfirmedPurchase: (await tx.order.count({
+      //       where: { userId: hop.userId, status: "PAID" } })) > 0 })) eligible.push(hop);
+      //   // ...then buildCommissionTxns({ uplines: eligible }).
+      // (Mirrors lib/affiliate/eligibility.hasConfirmedPurchase, but reads inside this tx.)
       const specs = buildCommissionTxns({
         orderId: order.id,
         pkg: order.package.slug as PackageSlug,

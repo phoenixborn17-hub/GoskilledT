@@ -1,9 +1,11 @@
 "use client";
 import { useState } from "react";
+import { MessageCircle } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
 import { Card } from "../../components/ui/card";
+import type { ContactChannels } from "../../lib/config/contact";
 import {
   startCheckout,
   verifyCheckoutOtp,
@@ -16,22 +18,29 @@ interface CourseOption {
   status: string;
 }
 
-// ≤3 inputs before pay (DR-023): phone, OTP, and (Skill Builder only) a course choice.
+// Invite-only (DR-036): a valid referral code is MANDATORY before pay. It's pre-filled from the
+// affiliate's ?ref= link in the common path, so manual pre-pay inputs stay ≤3 (phone, OTP, + course
+// for Skill Builder). Password is deferred to /onboarding to keep the Razorpay step stable (§4.2).
 export function CheckoutForm({
   packageSlug,
   requiresCourseChoice,
   courses,
   referralCode,
+  contact,
 }: {
   packageSlug: "skill-builder" | "career-booster";
   requiresCourseChoice: boolean;
   courses: CourseOption[];
   referralCode: string | null;
+  contact: ContactChannels;
 }) {
   const selectable = courses.filter((c) => c.status === "PUBLISHED");
   const [step, setStep] = useState<"phone" | "otp" | "created">("phone");
   const [phone, setPhone] = useState("");
   const [token, setToken] = useState("");
+  const [refCode, setRefCode] = useState<string>(
+    (referralCode ?? "").toUpperCase().replace(/[^A-Z0-9]/g, ""),
+  );
   const [chosenCourseId, setChosenCourseId] = useState<string>(
     requiresCourseChoice ? (selectable[0]?.id ?? "") : "",
   );
@@ -45,7 +54,7 @@ export function CheckoutForm({
   const common = {
     packageSlug,
     chosenCourseId: requiresCourseChoice ? chosenCourseId : undefined,
-    referralCode: referralCode ?? undefined,
+    referralCode: refCode,
   };
 
   async function onSend(e: React.FormEvent) {
@@ -92,6 +101,37 @@ export function CheckoutForm({
             </div>
           )}
           <div>
+            <Label htmlFor="ref">Referral code</Label>
+            <Input
+              id="ref"
+              name="ref"
+              type="text"
+              autoComplete="off"
+              autoCapitalize="characters"
+              placeholder="e.g. GS1A2B3C4D"
+              value={refCode}
+              onChange={(e) =>
+                setRefCode(
+                  e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""),
+                )
+              }
+              maxLength={24}
+              required
+            />
+            <p className="mt-1 text-xs text-muted">
+              GoSkilled is invite-only. No code?{" "}
+              <a
+                href={contact.whatsappUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-semibold text-brand-deep hover:underline"
+              >
+                <MessageCircle className="h-3.5 w-3.5" aria-hidden />
+                Ask us on WhatsApp
+              </a>
+            </p>
+          </div>
+          <div>
             <Label htmlFor="phone">Mobile number</Label>
             <Input
               id="phone"
@@ -111,7 +151,7 @@ export function CheckoutForm({
               {error}
             </p>
           )}
-          <Button type="submit" disabled={busy}>
+          <Button type="submit" disabled={busy || refCode.length < 3}>
             {busy ? "Sending…" : "Continue to pay"}
           </Button>
           <p className="text-center text-xs text-muted">

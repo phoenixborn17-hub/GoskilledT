@@ -1,0 +1,2421 @@
+diff --git a/app/checkout/actions.ts b/app/checkout/actions.ts
+index 3e8b866..0bd1a15 100644
+--- a/app/checkout/actions.ts
++++ b/app/checkout/actions.ts
+@@ -9,17 +9,23 @@ import { phoneSchema } from "../../modules/payments/schemas";
+ import { getOtpProvider } from "../../lib/auth/otp";
+ import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
+ import { syncUser } from "../../lib/auth/user-sync";
++import { resolveSponsorByCode } from "../../lib/auth/sponsor";
+ import { startCheckout as placeOrder } from "../../lib/payments/checkout";
+ import { getPaymentProvider } from "../../lib/payments/provider";
+ import { track, anonId } from "../../lib/analytics/track";
+ 
+-// ≤3 inputs before pay: phone, package, optional course. No name/email here (DR-023).
++// Invite-only (DR-036/DR-038): a VALID referral code is MANDATORY before payment, in checkout too.
++// It usually arrives pre-filled from the affiliate's ?ref= link, so manual pre-pay inputs stay ≤3
++// (phone, OTP, + course for Skill Builder). Password is deferred to /onboarding to keep the Razorpay
++// step stable (§4.2). The money/webhook/ledger path is unchanged — enforcement lives in this adapter.
++const INVALID_CODE = "Enter a valid referral code to continue";
++
+ const startSchema = z
+   .object({
+     phone: phoneSchema,
+     packageSlug: z.enum(["skill-builder", "career-booster"]),
+     chosenCourseId: z.string().min(1).optional(),
+-    referralCode: z.string().trim().toUpperCase().optional(),
++    referralCode: z.string().trim().toUpperCase().min(3, INVALID_CODE),
+   })
+   .superRefine((v, ctx) => {
+     if (v.packageSlug === "skill-builder" && !v.chosenCourseId)
+@@ -38,7 +44,7 @@ const verifySchema = z.object({
+     .regex(/^\d{4,8}$/, "Enter the OTP"),
+   packageSlug: z.enum(["skill-builder", "career-booster"]),
+   chosenCourseId: z.string().min(1).optional(),
+-  referralCode: z.string().trim().toUpperCase().optional(),
++  referralCode: z.string().trim().toUpperCase().min(3, INVALID_CODE),
+ });
+ 
+ export type CheckoutActionResult = { ok: true } | { ok: false; error: string };
+@@ -62,6 +68,9 @@ export async function startCheckout(
+       ok: false,
+       error: parsed.error.issues[0]?.message ?? "Invalid details",
+     };
++  // Mandatory referral gate — a valid code (real sponsor) is required before we send an OTP or pay.
++  const sponsor = await resolveSponsorByCode(parsed.data.referralCode);
++  if (!sponsor) return { ok: false, error: INVALID_CODE };
+   const id = anonId(parsed.data.phone);
+   await track("begin_checkout", id, { package: parsed.data.packageSlug });
+   const rl = await checkOtpSendRate(parsed.data.phone);
+@@ -89,10 +98,14 @@ export async function verifyCheckoutOtp(
+     };
+   const data = parsed.data;
+ 
++  // Re-validate the mandatory code server-side (defence in depth — never trust the client).
++  const sponsor = await resolveSponsorByCode(data.referralCode);
++  if (!sponsor) return { ok: false, error: INVALID_CODE };
++
+   try {
+     // 1) Verify OTP → authenticated Supabase session (cookies set by the server client).
+     const { user } = await getOtpProvider().verifyOtp(data.phone, data.token);
+-    // 2) Sync our internal User (attribution from ?ref=).
++    // 2) Sync our internal User (attribution from the mandatory referral code).
+     await syncUser(user, data.referralCode);
+     // 3) Create Order + payment-provider order (mock or razorpay) via the Ticket 2 flow.
+     const provider = getPaymentProvider();
+diff --git a/app/checkout/checkout-form.tsx b/app/checkout/checkout-form.tsx
+index 7a5a6ed..5c34149 100644
+--- a/app/checkout/checkout-form.tsx
++++ b/app/checkout/checkout-form.tsx
+@@ -1,9 +1,11 @@
+ "use client";
+ import { useState } from "react";
++import { MessageCircle } from "lucide-react";
+ import { Button } from "../../components/ui/button";
+ import { Input } from "../../components/ui/input";
+ import { Label } from "../../components/ui/label";
+ import { Card } from "../../components/ui/card";
++import type { ContactChannels } from "../../lib/config/contact";
+ import {
+   startCheckout,
+   verifyCheckoutOtp,
+@@ -16,22 +18,29 @@ interface CourseOption {
+   status: string;
+ }
+ 
+-// ≤3 inputs before pay (DR-023): phone, OTP, and (Skill Builder only) a course choice.
++// Invite-only (DR-036): a valid referral code is MANDATORY before pay. It's pre-filled from the
++// affiliate's ?ref= link in the common path, so manual pre-pay inputs stay ≤3 (phone, OTP, + course
++// for Skill Builder). Password is deferred to /onboarding to keep the Razorpay step stable (§4.2).
+ export function CheckoutForm({
+   packageSlug,
+   requiresCourseChoice,
+   courses,
+   referralCode,
++  contact,
+ }: {
+   packageSlug: "skill-builder" | "career-booster";
+   requiresCourseChoice: boolean;
+   courses: CourseOption[];
+   referralCode: string | null;
++  contact: ContactChannels;
+ }) {
+   const selectable = courses.filter((c) => c.status === "PUBLISHED");
+   const [step, setStep] = useState<"phone" | "otp" | "created">("phone");
+   const [phone, setPhone] = useState("");
+   const [token, setToken] = useState("");
++  const [refCode, setRefCode] = useState<string>(
++    (referralCode ?? "").toUpperCase().replace(/[^A-Z0-9]/g, ""),
++  );
+   const [chosenCourseId, setChosenCourseId] = useState<string>(
+     requiresCourseChoice ? (selectable[0]?.id ?? "") : "",
+   );
+@@ -45,7 +54,7 @@ export function CheckoutForm({
+   const common = {
+     packageSlug,
+     chosenCourseId: requiresCourseChoice ? chosenCourseId : undefined,
+-    referralCode: referralCode ?? undefined,
++    referralCode: refCode,
+   };
+ 
+   async function onSend(e: React.FormEvent) {
+@@ -91,6 +100,37 @@ export function CheckoutForm({
+               </select>
+             </div>
+           )}
++          <div>
++            <Label htmlFor="ref">Referral code</Label>
++            <Input
++              id="ref"
++              name="ref"
++              type="text"
++              autoComplete="off"
++              autoCapitalize="characters"
++              placeholder="e.g. GS1A2B3C4D"
++              value={refCode}
++              onChange={(e) =>
++                setRefCode(
++                  e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""),
++                )
++              }
++              maxLength={24}
++              required
++            />
++            <p className="mt-1 text-xs text-muted">
++              GoSkilled is invite-only. No code?{" "}
++              <a
++                href={contact.whatsappUrl}
++                target="_blank"
++                rel="noopener noreferrer"
++                className="inline-flex items-center gap-1 font-semibold text-brand-deep hover:underline"
++              >
++                <MessageCircle className="h-3.5 w-3.5" aria-hidden />
++                Ask us on WhatsApp
++              </a>
++            </p>
++          </div>
+           <div>
+             <Label htmlFor="phone">Mobile number</Label>
+             <Input
+@@ -111,7 +151,7 @@ export function CheckoutForm({
+               {error}
+             </p>
+           )}
+-          <Button type="submit" disabled={busy}>
++          <Button type="submit" disabled={busy || refCode.length < 3}>
+             {busy ? "Sending…" : "Continue to pay"}
+           </Button>
+           <p className="text-center text-xs text-muted">
+diff --git a/app/checkout/page.tsx b/app/checkout/page.tsx
+index b387e6b..fbe7e8a 100644
+--- a/app/checkout/page.tsx
++++ b/app/checkout/page.tsx
+@@ -3,6 +3,7 @@
+ import type { Metadata } from "next";
+ import { prisma } from "../../lib/prisma";
+ import { formatINR } from "../../lib/money";
++import { contactChannels } from "../../lib/config/contact";
+ import { CheckoutForm } from "./checkout-form";
+ 
+ // Transactional page — keep out of search indexes (defence-in-depth beyond robots.txt).
+@@ -70,6 +71,9 @@ export default async function CheckoutPage({
+         requiresCourseChoice={pkg.slug === "skill-builder"}
+         courses={courses}
+         referralCode={ref ?? null}
++        contact={contactChannels(
++          "Hi! I'd like a GoSkilled referral code to buy a package.",
++        )}
+       />
+     </main>
+   );
+diff --git a/app/login/actions.ts b/app/login/actions.ts
+index 5d3b327..af72235 100644
+--- a/app/login/actions.ts
++++ b/app/login/actions.ts
+@@ -1,24 +1,50 @@
+-// Login server actions for returning users (Ticket 3, Task 3). Same Supabase OTP as checkout,
+-// without creating an order. On verify we sync the internal User and let the client redirect.
++// Login server actions (Phase A — DR-036). Primary path = mobile + PASSWORD. OTP is offered as an
++// alternative sign-in AND as password RESET (phone is the identity — no forgot-password email).
++// Supabase stays the single auth authority (DR-024); the staging OTP bypass works via getOtpProvider.
+ "use server";
+ import { z } from "zod";
+ import { phoneSchema } from "../../modules/payments/schemas";
+ import { getOtpProvider } from "../../lib/auth/otp";
+ import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
++import { checkLoginRate } from "../../lib/auth/login-rate-limit";
++import {
++  signInWithPassword,
++  setPasswordForCurrentUser,
++  passwordIssue,
++} from "../../lib/auth/password";
+ import { syncUser } from "../../lib/auth/user-sync";
+ import { readRefCookie } from "../../lib/auth/ref-cookie";
++import { postAuthRedirect } from "../../lib/auth/post-auth";
+ 
+ export type LoginResult = { ok: true } | { ok: false; error: string };
++export type LoginRedirectResult =
++  { ok: true; redirectTo: string } | { ok: false; error: string };
+ 
+ const sendSchema = z.object({ phone: phoneSchema });
+-const verifyLoginSchema = z.object({
++const nextField = z.string().optional();
++const otpToken = z
++  .string()
++  .trim()
++  .regex(/^\d{4,8}$/, "Enter the OTP");
++
++const passwordLoginSchema = z.object({
++  phone: phoneSchema,
++  password: z.string().min(1, "Enter your password"),
++  next: nextField,
++});
++const verifyOtpSchema = z.object({
+   phone: phoneSchema,
+-  token: z
+-    .string()
+-    .trim()
+-    .regex(/^\d{4,8}$/, "Enter the OTP"),
++  token: otpToken,
++  next: nextField,
++});
++const resetSchema = z.object({
++  phone: phoneSchema,
++  token: otpToken,
++  password: z.string().min(1, "Create a password"),
++  next: nextField,
+ });
+ 
++/** Send an OTP — used for BOTH the OTP sign-in alternative and starting a password reset. */
+ export async function sendLoginOtp(
+   input: z.input<typeof sendSchema>,
+ ): Promise<LoginResult> {
+@@ -41,10 +67,42 @@ export async function sendLoginOtp(
+   }
+ }
+ 
++/** Primary sign-in: mobile + password. Rate-limited (§6); generic error (no user-enumeration). */
++export async function loginWithPassword(
++  input: z.input<typeof passwordLoginSchema>,
++): Promise<LoginRedirectResult> {
++  const parsed = passwordLoginSchema.safeParse(input);
++  if (!parsed.success)
++    return {
++      ok: false,
++      error: parsed.error.issues[0]?.message ?? "Invalid details",
++    };
++  const rl = await checkLoginRate(parsed.data.phone);
++  if (!rl.ok) return { ok: false, error: rl.error };
++  try {
++    const { user } = await signInWithPassword(
++      parsed.data.phone,
++      parsed.data.password,
++    );
++    const synced = await syncUser(user, await readRefCookie());
++    return {
++      ok: true,
++      redirectTo: await postAuthRedirect(synced.id, parsed.data.next),
++    };
++  } catch (e) {
++    return {
++      ok: false,
++      error:
++        e instanceof Error ? e.message : "Incorrect mobile number or password",
++    };
++  }
++}
++
++/** Alternative sign-in via OTP (no password needed). Redirects via the single post-auth rule. */
+ export async function verifyLoginOtp(
+-  input: z.input<typeof verifyLoginSchema>,
+-): Promise<LoginResult> {
+-  const parsed = verifyLoginSchema.safeParse(input);
++  input: z.input<typeof verifyOtpSchema>,
++): Promise<LoginRedirectResult> {
++  const parsed = verifyOtpSchema.safeParse(input);
+   if (!parsed.success)
+     return {
+       ok: false,
+@@ -55,12 +113,46 @@ export async function verifyLoginOtp(
+       parsed.data.phone,
+       parsed.data.token,
+     );
+-    // First-touch ref capture also applies at /login (DR-030 §2): a genuinely new user who lands
+-    // here with ?ref= is attributed; returning users keep their original upline (syncUser never
+-    // overwrites an existing attribution).
+-    await syncUser(user, await readRefCookie());
+-    return { ok: true };
++    // First-touch ref capture still applies (a genuinely new user landing here with ?ref=);
++    // syncUser never overwrites an existing attribution.
++    const synced = await syncUser(user, await readRefCookie());
++    return {
++      ok: true,
++      redirectTo: await postAuthRedirect(synced.id, parsed.data.next),
++    };
+   } catch (e) {
+     return { ok: false, error: e instanceof Error ? e.message : "Invalid OTP" };
+   }
+ }
++
++/** Password reset (§4.3): verify OTP → set a new password → signed in. No email link — phone is identity. */
++export async function resetPasswordWithOtp(
++  input: z.input<typeof resetSchema>,
++): Promise<LoginRedirectResult> {
++  const parsed = resetSchema.safeParse(input);
++  if (!parsed.success)
++    return {
++      ok: false,
++      error: parsed.error.issues[0]?.message ?? "Invalid details",
++    };
++  const pwIssue = passwordIssue(parsed.data.password);
++  if (pwIssue) return { ok: false, error: pwIssue };
++  try {
++    // OTP verify establishes the session → updateUser sets the new password on THIS user.
++    const { user } = await getOtpProvider().verifyOtp(
++      parsed.data.phone,
++      parsed.data.token,
++    );
++    await setPasswordForCurrentUser(parsed.data.password);
++    const synced = await syncUser(user, await readRefCookie());
++    return {
++      ok: true,
++      redirectTo: await postAuthRedirect(synced.id, parsed.data.next),
++    };
++  } catch (e) {
++    return {
++      ok: false,
++      error: e instanceof Error ? e.message : "Could not reset your password",
++    };
++  }
++}
+diff --git a/app/login/login-form.tsx b/app/login/login-form.tsx
+index 074e052..19af45d 100644
+--- a/app/login/login-form.tsx
++++ b/app/login/login-form.tsx
+@@ -1,4 +1,7 @@
+ "use client";
++// Login form (Phase A — DR-036). Primary: mobile + password. Two alternatives, both via OTP:
++//   • "OTP instead" — passwordless sign-in.
++//   • "Forgot password" — verify OTP, then set a new password (no email link; phone is identity).
+ import { useState } from "react";
+ import Link from "next/link";
+ import { useSearchParams } from "next/navigation";
+@@ -7,110 +10,265 @@ import { FormField } from "../../components/ui/form-field";
+ import { Alert } from "../../components/ui/alert";
+ import { Card, CardTitle, CardDescription } from "../../components/ui/card";
+ import { OtpInput } from "../../components/ui/otp-input";
+-import { sendLoginOtp, verifyLoginOtp } from "./actions";
++import {
++  sendLoginOtp,
++  loginWithPassword,
++  verifyLoginOtp,
++  resetPasswordWithOtp,
++} from "./actions";
++
++type Mode = "password" | "otp" | "reset";
+ 
+ export function LoginForm() {
+-  const nextParam = useSearchParams().get("next");
+-  const [step, setStep] = useState<"phone" | "otp" | "done">("phone");
++  const nextParam = useSearchParams().get("next") ?? undefined;
++  const [mode, setMode] = useState<Mode>("password");
++  const [otpSent, setOtpSent] = useState(false); // for otp/reset: has the code been sent?
+   const [phone, setPhone] = useState("");
++  const [password, setPassword] = useState("");
+   const [token, setToken] = useState("");
+   const [error, setError] = useState<string | null>(null);
+   const [busy, setBusy] = useState(false);
+ 
+-  async function onSend(e: React.FormEvent) {
++  function go(next: Mode) {
++    setMode(next);
++    setOtpSent(false);
++    setToken("");
++    setPassword("");
++    setError(null);
++  }
++
++  function done(
++    res: { ok: true; redirectTo: string } | { ok: false; error: string },
++  ) {
++    if (res.ok) window.location.assign(res.redirectTo);
++    else setError(res.error);
++  }
++
++  async function onPasswordLogin(e: React.FormEvent) {
+     e.preventDefault();
+     setBusy(true);
+     setError(null);
+-    const res = await sendLoginOtp({ phone });
++    const res = await loginWithPassword({ phone, password, next: nextParam });
+     setBusy(false);
+-    if (res.ok) {
+-      setToken("");
+-      setStep("otp");
+-    } else setError(res.error);
++    done(res);
+   }
+ 
+-  async function submitOtp(code: string) {
++  async function onSendOtp(e: React.FormEvent) {
++    e.preventDefault();
+     setBusy(true);
+     setError(null);
+-    const res = await verifyLoginOtp({ phone, token: code });
++    const res = await sendLoginOtp({ phone });
+     setBusy(false);
+     if (!res.ok) return setError(res.error);
+-    if (nextParam) window.location.assign(nextParam);
+-    else setStep("done");
++    setToken("");
++    setOtpSent(true);
+   }
+ 
++  async function onVerifyOtp(code: string) {
++    setBusy(true);
++    setError(null);
++    const res = await verifyLoginOtp({ phone, token: code, next: nextParam });
++    setBusy(false);
++    done(res);
++  }
++
++  async function onReset(e: React.FormEvent) {
++    e.preventDefault();
++    setBusy(true);
++    setError(null);
++    const res = await resetPasswordWithOtp({
++      phone,
++      token,
++      password,
++      next: nextParam,
++    });
++    setBusy(false);
++    done(res);
++  }
++
++  const phoneField = (
++    <FormField
++      label="Mobile number"
++      id="phone"
++      name="phone"
++      type="tel"
++      inputMode="numeric"
++      autoComplete="tel"
++      placeholder="10-digit mobile"
++      value={phone}
++      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
++      maxLength={10}
++      required
++    />
++  );
++
+   return (
+     <Card>
+-      <CardTitle>Welcome back</CardTitle>
+-      <CardDescription>Log in with your mobile number.</CardDescription>
+-
+-      {step === "phone" && (
+-        <form onSubmit={onSend} className="mt-6 space-y-4">
+-          <FormField
+-            label="Mobile number"
+-            id="phone"
+-            name="phone"
+-            type="tel"
+-            inputMode="numeric"
+-            autoComplete="tel"
+-            placeholder="10-digit mobile"
+-            value={phone}
+-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+-            maxLength={10}
+-            required
+-          />
+-          {error && <Alert variant="error">{error}</Alert>}
+-          <Button type="submit" loading={busy}>
+-            Send OTP
+-          </Button>
+-          <p className="text-center text-sm text-muted">
+-            New here?{" "}
+-            <Link href="/register" className="font-semibold text-brand">
+-              Register free
+-            </Link>
+-          </p>
+-        </form>
++      {/* ── Primary: password sign-in ─────────────────────────────────────── */}
++      {mode === "password" && (
++        <>
++          <CardTitle>Welcome back</CardTitle>
++          <CardDescription>
++            Log in with your mobile number and password.
++          </CardDescription>
++          <form onSubmit={onPasswordLogin} className="mt-6 space-y-4">
++            {phoneField}
++            <FormField
++              label="Password"
++              id="password"
++              name="password"
++              type="password"
++              autoComplete="current-password"
++              placeholder="Your password"
++              value={password}
++              onChange={(e) => setPassword(e.target.value)}
++              required
++            />
++            {error && <Alert variant="error">{error}</Alert>}
++            <Button
++              type="submit"
++              loading={busy}
++              disabled={phone.length < 10 || password.length < 1}
++            >
++              Log in
++            </Button>
++            <div className="flex items-center justify-between text-sm">
++              <button
++                type="button"
++                onClick={() => go("otp")}
++                className="font-semibold text-brand hover:underline"
++              >
++                Sign in with OTP
++              </button>
++              <button
++                type="button"
++                onClick={() => go("reset")}
++                className="font-semibold text-muted hover:underline"
++              >
++                Forgot password?
++              </button>
++            </div>
++            <p className="text-center text-sm text-muted">
++              New here?{" "}
++              <Link href="/register" className="font-semibold text-brand">
++                Register with a code
++              </Link>
++            </p>
++          </form>
++        </>
+       )}
+ 
+-      {step === "otp" && (
+-        <div className="mt-6 space-y-4">
+-          <FormField label="Enter OTP" id="otp" hint={`Sent to +91 ${phone}`}>
+-            <OtpInput
+-              id="otp"
+-              value={token}
+-              onChange={setToken}
+-              onComplete={submitOtp}
+-              disabled={busy}
+-              autoFocus
+-            />
+-          </FormField>
+-          {error && <Alert variant="error">{error}</Alert>}
+-          <Button
+-            type="button"
+-            onClick={() => submitOtp(token)}
+-            loading={busy}
+-            disabled={token.length < 4}
+-          >
+-            Verify &amp; log in
+-          </Button>
+-          <Button
+-            type="button"
+-            variant="ghost"
+-            onClick={() => {
+-              setStep("phone");
+-              setError(null);
+-            }}
+-          >
+-            Change number
+-          </Button>
+-        </div>
++      {/* ── Alternative: passwordless OTP sign-in ─────────────────────────── */}
++      {mode === "otp" && (
++        <>
++          <CardTitle>Sign in with OTP</CardTitle>
++          <CardDescription>
++            We&apos;ll text a one-time code to your mobile number.
++          </CardDescription>
++          {!otpSent ? (
++            <form onSubmit={onSendOtp} className="mt-6 space-y-4">
++              {phoneField}
++              {error && <Alert variant="error">{error}</Alert>}
++              <Button type="submit" loading={busy} disabled={phone.length < 10}>
++                Send OTP
++              </Button>
++              <BackToPassword onClick={() => go("password")} />
++            </form>
++          ) : (
++            <div className="mt-6 space-y-4">
++              <FormField
++                label="Enter OTP"
++                id="otp"
++                hint={`Sent to +91 ${phone}`}
++              >
++                <OtpInput
++                  id="otp"
++                  value={token}
++                  onChange={setToken}
++                  onComplete={onVerifyOtp}
++                  disabled={busy}
++                  autoFocus
++                />
++              </FormField>
++              {error && <Alert variant="error">{error}</Alert>}
++              <Button
++                type="button"
++                onClick={() => onVerifyOtp(token)}
++                loading={busy}
++                disabled={token.length < 4}
++              >
++                Verify &amp; log in
++              </Button>
++              <BackToPassword onClick={() => go("password")} />
++            </div>
++          )}
++        </>
+       )}
+ 
+-      {step === "done" && (
+-        <p className="mt-6 text-sm font-medium text-brand">
+-          You&apos;re signed in ✓
+-        </p>
++      {/* ── Reset: verify OTP, then set a new password ────────────────────── */}
++      {mode === "reset" && (
++        <>
++          <CardTitle>Reset your password</CardTitle>
++          <CardDescription>
++            Verify your mobile number with an OTP, then set a new password.
++          </CardDescription>
++          {!otpSent ? (
++            <form onSubmit={onSendOtp} className="mt-6 space-y-4">
++              {phoneField}
++              {error && <Alert variant="error">{error}</Alert>}
++              <Button type="submit" loading={busy} disabled={phone.length < 10}>
++                Send OTP
++              </Button>
++              <BackToPassword onClick={() => go("password")} />
++            </form>
++          ) : (
++            <form onSubmit={onReset} className="mt-6 space-y-4">
++              <FormField
++                label="Enter OTP"
++                id="otp"
++                hint={`Sent to +91 ${phone}`}
++              >
++                <OtpInput
++                  id="otp"
++                  value={token}
++                  onChange={setToken}
++                  disabled={busy}
++                  autoFocus
++                />
++              </FormField>
++              <FormField
++                label="New password"
++                id="new-password"
++                name="new-password"
++                type="password"
++                autoComplete="new-password"
++                placeholder="At least 8 characters"
++                value={password}
++                onChange={(e) => setPassword(e.target.value)}
++                minLength={8}
++                required
++              />
++              {error && <Alert variant="error">{error}</Alert>}
++              <Button
++                type="submit"
++                loading={busy}
++                disabled={token.length < 4 || password.length < 8}
++              >
++                Set new password &amp; log in
++              </Button>
++              <BackToPassword onClick={() => go("password")} />
++            </form>
++          )}
++        </>
+       )}
+     </Card>
+   );
+ }
++
++function BackToPassword({ onClick }: { onClick: () => void }) {
++  return (
++    <Button type="button" variant="ghost" onClick={onClick}>
++      Back to password login
++    </Button>
++  );
++}
+diff --git a/app/login/page.tsx b/app/login/page.tsx
+index 8c0703b..d636021 100644
+--- a/app/login/page.tsx
++++ b/app/login/page.tsx
+@@ -5,7 +5,7 @@ import { pageMetadata } from "../../lib/seo";
+ export const metadata = pageMetadata({
+   title: "Log in",
+   description:
+-    "Log in to GoSkilled with your mobile number and a one-time password (OTP).",
++    "Log in to GoSkilled with your mobile number and password, or sign in with a one-time code (OTP).",
+   path: "/login",
+ });
+ 
+diff --git a/app/register/actions.ts b/app/register/actions.ts
+index 78191fd..4659b48 100644
+--- a/app/register/actions.ts
++++ b/app/register/actions.ts
+@@ -1,33 +1,64 @@
+-// Registration server actions (DR-030 §3). FREE account creation, decoupled from purchase. Same
+-// Supabase OTP + syncUser as login/checkout — the auth BACKEND is explicitly unchanged (DR-030).
+-// This adapter is thin: verify OTP → read first-touch ref cookie → syncUser (attribution) →
+-// auto-enroll Lesson 0 → route to the one-time /welcome (or straight to the Hub for returning users).
++// Registration server actions (Phase A — DR-036/DR-038). Invite-only: a VALID referral code is
++// MANDATORY before anything happens. Flow: validate code → collect mobile+password(+name) → OTP →
++// create the Supabase phone+password user → get-or-create our User with referredById = sponsor.
++// Auth backend stays Supabase (DR-024); the staging OTP bypass is used transparently via getOtpProvider.
+ "use server";
+ import { z } from "zod";
+ import { phoneSchema } from "../../modules/payments/schemas";
+ import { getOtpProvider } from "../../lib/auth/otp";
+ import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
+ import { syncUser } from "../../lib/auth/user-sync";
+-import { readRefCookie } from "../../lib/auth/ref-cookie";
++import { resolveSponsorByCode } from "../../lib/auth/sponsor";
++import {
++  passwordIssue,
++  setPasswordForCurrentUser,
++} from "../../lib/auth/password";
+ import { ensureGettingStartedEnrollment } from "../../lib/lms/getting-started";
++import { postAuthRedirect } from "../../lib/auth/post-auth";
+ import { prisma } from "../../lib/prisma";
+ import { track } from "../../lib/analytics/track";
+ 
+ export type SendResult = { ok: true } | { ok: false; error: string };
+ export type RegisterResult =
+   { ok: true; redirectTo: string } | { ok: false; error: string };
++export type ValidateCodeResult =
++  { ok: true; sponsorFirstName: string | null } | { ok: false; error: string };
+ 
+-const sendSchema = z.object({ phone: phoneSchema });
++// One generic message for empty AND unknown codes — never reveals which codes exist (§6).
++const INVALID_CODE = "Enter a valid referral code";
++
++const codeSchema = z.string().trim().min(1).max(24);
++const passwordField = z.string().min(1, "Create a password");
++
++const sendSchema = z.object({
++  phone: phoneSchema,
++  referralCode: codeSchema,
++  password: passwordField,
++});
+ const verifySchema = z.object({
+   phone: phoneSchema,
+   token: z
+     .string()
+     .trim()
+     .regex(/^\d{4,8}$/, "Enter the OTP"),
+-  // Optional single name field (DR-030 §2 — "aap kya sunna pasand karoge?"). Email is NOT asked here.
++  referralCode: codeSchema,
++  password: passwordField,
++  // Optional single name field (Blueprint §3). Email is NOT asked here.
+   name: z.string().trim().max(80).optional(),
+ });
+ 
++/**
++ * Step 1 gate: resolve a manually-entered referral code (the register page validates a `?ref=`
++ * code itself). Returns the sponsor's first name for a warm "Invited by …", or a generic error.
++ */
++export async function validateReferralCode(
++  rawCode: string,
++): Promise<ValidateCodeResult> {
++  const sponsor = await resolveSponsorByCode(rawCode);
++  if (!sponsor) return { ok: false, error: INVALID_CODE };
++  return { ok: true, sponsorFirstName: sponsor.firstName };
++}
++
+ export async function sendRegisterOtp(
+   input: z.input<typeof sendSchema>,
+ ): Promise<SendResult> {
+@@ -35,8 +66,14 @@ export async function sendRegisterOtp(
+   if (!parsed.success)
+     return {
+       ok: false,
+-      error: parsed.error.issues[0]?.message ?? "Invalid phone",
++      error: parsed.error.issues[0]?.message ?? "Invalid details",
+     };
++  // Re-validate the mandatory code server-side — never trust the client (§6). No valid code → no SMS.
++  const sponsor = await resolveSponsorByCode(parsed.data.referralCode);
++  if (!sponsor) return { ok: false, error: INVALID_CODE };
++  const pwIssue = passwordIssue(parsed.data.password);
++  if (pwIssue) return { ok: false, error: pwIssue };
++
+   const rl = await checkOtpSendRate(parsed.data.phone);
+   if (!rl.ok) return { ok: false, error: rl.error };
+   try {
+@@ -60,6 +97,13 @@ export async function verifyRegisterOtp(
+       error: parsed.error.issues[0]?.message ?? "Invalid OTP",
+     };
+ 
++  // The referral code is MANDATORY and re-validated here (defence in depth — a tampered client
++  // could skip step 1). No sponsor → refuse to create the account.
++  const sponsor = await resolveSponsorByCode(parsed.data.referralCode);
++  if (!sponsor) return { ok: false, error: INVALID_CODE };
++  const pwIssue = passwordIssue(parsed.data.password);
++  if (pwIssue) return { ok: false, error: pwIssue };
++
+   try {
+     const { user } = await getOtpProvider().verifyOtp(
+       parsed.data.phone,
+@@ -72,10 +116,13 @@ export async function verifyRegisterOtp(
+       select: { name: true, welcomeSeenAt: true },
+     });
+ 
+-    // First-touch attribution: cookie ref wins; syncUser's first-sync-wins + self-referral block
+-    // do the rest. Returning users keep their original attribution (syncUser never overwrites).
+-    const refCode = await readRefCookie();
+-    const synced = await syncUser(user, refCode);
++    // OTP verify established the session → set the chosen password on this Supabase user.
++    await setPasswordForCurrentUser(parsed.data.password);
++
++    // The mandatory code IS the attribution for a new registration. syncUser resolves it to
++    // referredById on create; for a pre-existing phone row it fills referral only if it had none
++    // (first-touch preserved — a returning user keeps their original upline).
++    const synced = await syncUser(user, parsed.data.referralCode);
+ 
+     // Optional name from the register form — set only if we don't already have one.
+     const name = parsed.data.name?.trim();
+@@ -83,7 +130,7 @@ export async function verifyRegisterOtp(
+       await prisma.user.update({ where: { id: synced.id }, data: { name } });
+     }
+ 
+-    // Auto-enroll Lesson 0 (DR-030 §5). Best-effort — a hiccup must never fail the signup.
++    // Auto-enroll Lesson 0. Best-effort — a hiccup must never fail the signup.
+     try {
+       await ensureGettingStartedEnrollment(synced.id);
+     } catch {
+@@ -97,9 +144,8 @@ export async function verifyRegisterOtp(
+       });
+     }
+ 
+-    // One-time /welcome for new accounts; returning users who've seen it go straight to the Hub.
+-    const seenWelcome = existing?.welcomeSeenAt ?? null;
+-    return { ok: true, redirectTo: seenWelcome ? "/dashboard" : "/welcome" };
++    // Single post-auth redirect (§4.5): new accounts → one-time /welcome; returning → Hub.
++    return { ok: true, redirectTo: await postAuthRedirect(synced.id) };
+   } catch (e) {
+     return { ok: false, error: e instanceof Error ? e.message : "Invalid OTP" };
+   }
+diff --git a/app/register/page.tsx b/app/register/page.tsx
+index 4b33b72..6bfd37d 100644
+--- a/app/register/page.tsx
++++ b/app/register/page.tsx
+@@ -1,21 +1,46 @@
+ import { Suspense } from "react";
+ import Link from "next/link";
+ import { RegisterForm } from "./register-form";
++import { resolveSponsorByCode } from "../../lib/auth/sponsor";
++import { readRefCookie } from "../../lib/auth/ref-cookie";
++import { contactChannels } from "../../lib/config/contact";
+ import { pageMetadata } from "../../lib/seo";
+ 
+-// Public + indexable (DR-030 §3). Minimal SEO; final copy is a LAUNCH_CONFIG slot.
++// Public + indexable. Invite-only (DR-036): a valid referral code is required to register — the
++// no-code state points visitors to a referrer/support. Final copy is a LAUNCH_CONFIG slot.
+ export const metadata = pageMetadata({
+-  title: "Register free — GoSkilled",
++  title: "Register — GoSkilled",
+   description:
+-    "Create your free GoSkilled account with your mobile number and a one-time password. No passwords, ever. Start learning in minutes.",
++    "GoSkilled is invite-only. Register with a referral code, your mobile number and a password to start learning.",
+   path: "/register",
+ });
+ 
+-export default function RegisterPage() {
++export const dynamic = "force-dynamic";
++
++export default async function RegisterPage({
++  searchParams,
++}: {
++  searchParams: Promise<{ ref?: string }>;
++}) {
++  const { ref } = await searchParams;
++  // Resolve the referral code from ?ref=, falling back to the first-touch cookie (DR-030 §2) so an
++  // affiliate link followed by header navigation (which drops the query) still auto-opens the form
++  // on the details step with a warm "Invited by …". Absent/invalid → the no-code + manual-entry state.
++  const initialCode = ref?.trim() || (await readRefCookie()) || "";
++  const sponsor = initialCode ? await resolveSponsorByCode(initialCode) : null;
++  const contact = contactChannels(
++    "Hi! I'd like a GoSkilled referral code to register.",
++  );
++
+   return (
+     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
+       <Suspense>
+-        <RegisterForm />
++        <RegisterForm
++          initialCode={initialCode}
++          initialValid={!!sponsor}
++          initialSponsorFirstName={sponsor?.firstName ?? null}
++          contact={contact}
++        />
+       </Suspense>
+       <p className="mt-6 text-center text-sm text-muted">
+         Already have an account?{" "}
+diff --git a/app/register/register-form.tsx b/app/register/register-form.tsx
+index 5c2f4d4..af81cd7 100644
+--- a/app/register/register-form.tsx
++++ b/app/register/register-form.tsx
+@@ -1,40 +1,76 @@
+ "use client";
+-// Registration form (DR-030 §3). Two steps: phone (+ optional name) → segmented OTP. Uses the
+-// shared OtpInput so the code-entry experience matches login everywhere. No passwords, ever.
++// Registration form (Phase A — DR-036). Three steps: referral code (gate) → mobile+password(+name)
++// → OTP. Invite-only: without a valid code the form stays blocked and the "contact for a code"
++// state (§4.4) is shown. Uses the shared OtpInput so code entry matches login everywhere.
+ import { useState } from "react";
++import { MessageCircle, Mail } from "lucide-react";
+ import { Button } from "../../components/ui/button";
+ import { FormField } from "../../components/ui/form-field";
+ import { Alert } from "../../components/ui/alert";
+ import { Card, CardTitle, CardDescription } from "../../components/ui/card";
+ import { OtpInput } from "../../components/ui/otp-input";
+-import { sendRegisterOtp, verifyRegisterOtp } from "./actions";
++import type { ContactChannels } from "../../lib/config/contact";
++import {
++  validateReferralCode,
++  sendRegisterOtp,
++  verifyRegisterOtp,
++} from "./actions";
+ 
+-export function RegisterForm() {
+-  const [step, setStep] = useState<"phone" | "otp">("phone");
+-  const [phone, setPhone] = useState("");
++type Step = "code" | "details" | "otp";
++
++export function RegisterForm({
++  initialCode,
++  initialValid,
++  initialSponsorFirstName,
++  contact,
++}: {
++  initialCode: string;
++  initialValid: boolean;
++  initialSponsorFirstName: string | null;
++  contact: ContactChannels;
++}) {
++  const [step, setStep] = useState<Step>(initialValid ? "details" : "code");
++  const [code, setCode] = useState(initialCode);
++  const [sponsor, setSponsor] = useState<string | null>(
++    initialValid ? initialSponsorFirstName : null,
++  );
+   const [name, setName] = useState("");
++  const [phone, setPhone] = useState("");
++  const [password, setPassword] = useState("");
+   const [token, setToken] = useState("");
+   const [error, setError] = useState<string | null>(null);
+   const [busy, setBusy] = useState(false);
+ 
+-  async function onSend(e: React.FormEvent) {
++  async function onValidateCode(e: React.FormEvent) {
++    e.preventDefault();
++    setBusy(true);
++    setError(null);
++    const res = await validateReferralCode(code);
++    setBusy(false);
++    if (!res.ok) return setError(res.error);
++    setSponsor(res.sponsorFirstName);
++    setStep("details");
++  }
++
++  async function onSendOtp(e: React.FormEvent) {
+     e.preventDefault();
+     setBusy(true);
+     setError(null);
+-    const res = await sendRegisterOtp({ phone });
++    const res = await sendRegisterOtp({ phone, referralCode: code, password });
+     setBusy(false);
+-    if (res.ok) {
+-      setToken("");
+-      setStep("otp");
+-    } else setError(res.error);
++    if (!res.ok) return setError(res.error);
++    setToken("");
++    setStep("otp");
+   }
+ 
+-  async function submitOtp(code: string) {
++  async function submitOtp(otp: string) {
+     setBusy(true);
+     setError(null);
+     const res = await verifyRegisterOtp({
+       phone,
+-      token: code,
++      token: otp,
++      referralCode: code,
++      password,
+       name: name.trim() || undefined,
+     });
+     setBusy(false);
+@@ -44,82 +80,180 @@ export function RegisterForm() {
+ 
+   return (
+     <Card>
+-      <CardTitle>Create your free account</CardTitle>
+-      <CardDescription>
+-        Just your mobile number — no passwords, ever. You&apos;re part of the
+-        Founding Batch.
+-      </CardDescription>
++      {step === "code" && (
++        <>
++          <CardTitle>You&apos;re invited to GoSkilled</CardTitle>
++          <CardDescription>
++            GoSkilled is invite-only. Enter the referral code from whoever
++            invited you to get started.
++          </CardDescription>
++          <form onSubmit={onValidateCode} className="mt-6 space-y-4">
++            <FormField
++              label="Referral code"
++              id="ref"
++              name="ref"
++              autoComplete="off"
++              autoCapitalize="characters"
++              placeholder="e.g. GS1A2B3C4D"
++              value={code}
++              onChange={(e) =>
++                setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))
++              }
++              maxLength={24}
++              required
++            />
++            {error && <Alert variant="error">{error}</Alert>}
++            <Button type="submit" loading={busy} disabled={code.length < 3}>
++              Continue
++            </Button>
++          </form>
++          <NoCodeContact contact={contact} />
++        </>
++      )}
+ 
+-      {step === "phone" && (
+-        <form onSubmit={onSend} className="mt-6 space-y-4">
+-          <FormField
+-            label="What should we call you? (optional)"
+-            id="name"
+-            name="name"
+-            type="text"
+-            autoComplete="given-name"
+-            placeholder="Your name"
+-            value={name}
+-            onChange={(e) => setName(e.target.value)}
+-            maxLength={80}
+-          />
+-          <FormField
+-            label="Mobile number"
+-            id="phone"
+-            name="phone"
+-            type="tel"
+-            inputMode="numeric"
+-            autoComplete="tel"
+-            placeholder="10-digit mobile"
+-            value={phone}
+-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+-            maxLength={10}
+-            required
+-          />
+-          {error && <Alert variant="error">{error}</Alert>}
+-          <Button type="submit" loading={busy}>
+-            Create free account
+-          </Button>
+-        </form>
++      {step === "details" && (
++        <>
++          <CardTitle>Create your account</CardTitle>
++          <CardDescription>
++            {sponsor ? `Invited by ${sponsor}. ` : ""}You&apos;re part of the
++            Founding Batch.
++          </CardDescription>
++          <form onSubmit={onSendOtp} className="mt-6 space-y-4">
++            <FormField
++              label="What should we call you? (optional)"
++              id="name"
++              name="name"
++              type="text"
++              autoComplete="given-name"
++              placeholder="Your name"
++              value={name}
++              onChange={(e) => setName(e.target.value)}
++              maxLength={80}
++            />
++            <FormField
++              label="Mobile number"
++              id="phone"
++              name="phone"
++              type="tel"
++              inputMode="numeric"
++              autoComplete="tel"
++              placeholder="10-digit mobile"
++              value={phone}
++              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
++              maxLength={10}
++              required
++            />
++            <FormField
++              label="Create a password"
++              id="password"
++              name="password"
++              type="password"
++              autoComplete="new-password"
++              placeholder="At least 8 characters"
++              hint="You'll use your mobile number and this password to log in."
++              value={password}
++              onChange={(e) => setPassword(e.target.value)}
++              minLength={8}
++              required
++            />
++            {error && <Alert variant="error">{error}</Alert>}
++            <Button
++              type="submit"
++              loading={busy}
++              disabled={phone.length < 10 || password.length < 8}
++            >
++              Send OTP
++            </Button>
++            <Button
++              type="button"
++              variant="ghost"
++              onClick={() => {
++                setStep("code");
++                setError(null);
++              }}
++            >
++              Use a different code
++            </Button>
++          </form>
++        </>
+       )}
+ 
+       {step === "otp" && (
+-        <div className="mt-6 space-y-4">
+-          <FormField
+-            label="Enter the OTP"
+-            id="otp"
+-            hint={`Sent to +91 ${phone}`}
+-          >
+-            <OtpInput
++        <>
++          <CardTitle>Verify your number</CardTitle>
++          <CardDescription>
++            Enter the one-time code we sent to finish creating your account.
++          </CardDescription>
++          <div className="mt-6 space-y-4">
++            <FormField
++              label="Enter the OTP"
+               id="otp"
+-              value={token}
+-              onChange={setToken}
+-              onComplete={submitOtp}
+-              disabled={busy}
+-              autoFocus
+-            />
+-          </FormField>
+-          {error && <Alert variant="error">{error}</Alert>}
+-          <Button
+-            type="button"
+-            onClick={() => submitOtp(token)}
+-            loading={busy}
+-            disabled={token.length < 4}
+-          >
+-            Verify &amp; continue
+-          </Button>
+-          <Button
+-            type="button"
+-            variant="ghost"
+-            onClick={() => {
+-              setStep("phone");
+-              setError(null);
+-            }}
+-          >
+-            Change number
+-          </Button>
+-        </div>
++              hint={`Sent to +91 ${phone}`}
++            >
++              <OtpInput
++                id="otp"
++                value={token}
++                onChange={setToken}
++                onComplete={submitOtp}
++                disabled={busy}
++                autoFocus
++              />
++            </FormField>
++            {error && <Alert variant="error">{error}</Alert>}
++            <Button
++              type="button"
++              onClick={() => submitOtp(token)}
++              loading={busy}
++              disabled={token.length < 4}
++            >
++              Verify &amp; create account
++            </Button>
++            <Button
++              type="button"
++              variant="ghost"
++              onClick={() => {
++                setStep("details");
++                setError(null);
++              }}
++            >
++              Change details
++            </Button>
++          </div>
++        </>
+       )}
+     </Card>
+   );
+ }
++
++/** The invite-only "no referral code" help panel (§4.4). Channels are LAUNCH_CONFIG (Layer-2). */
++function NoCodeContact({ contact }: { contact: ContactChannels }) {
++  return (
++    <div className="mt-6 rounded-xl border border-charcoal/10 bg-brand/5 p-4">
++      <p className="text-sm font-semibold text-charcoal">
++        Don&apos;t have a code?
++      </p>
++      <p className="mt-1 text-sm text-muted">
++        Ask whoever told you about GoSkilled for their referral code — or reach
++        out and we&apos;ll help you get one.
++      </p>
++      <div className="mt-3 flex flex-col gap-2">
++        <a
++          href={contact.whatsappUrl}
++          target="_blank"
++          rel="noopener noreferrer"
++          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-deep hover:underline"
++        >
++          <MessageCircle className="h-4 w-4" aria-hidden />
++          Chat on WhatsApp
++        </a>
++        <a
++          href={`mailto:${contact.email}?subject=${encodeURIComponent("GoSkilled referral code request")}`}
++          className="inline-flex items-center gap-2 text-sm font-semibold text-brand-deep hover:underline"
++        >
++          <Mail className="h-4 w-4" aria-hidden />
++          {contact.email}
++        </a>
++      </div>
++    </div>
++  );
++}
+diff --git a/docs/LAUNCH_CONFIG.md b/docs/LAUNCH_CONFIG.md
+index 822bb04..a39d906 100644
+--- a/docs/LAUNCH_CONFIG.md
++++ b/docs/LAUNCH_CONFIG.md
+@@ -62,6 +62,9 @@
+ | 39 | Welcome + certificate-ready email copy | email (notifications) — GPS-M5 §2.4 | Content | PENDING | Founder | Placeholder Hinglish copy in `lib/email/notifications.ts` (welcome + cert-ready) via the shared premium template (`lib/email/template.ts`) — D-29-safe, unsubscribe on every email | Founder-approved email voice | LAUNCH | Pre-launch | Warm belonging/pride tone; zero income framing. |
+ | 40 | PWA app icon | pwa (GPS-M5 §2.5) | Content | PENDING | Founder | Placeholder green "G" mark generated at `public/icons/icon-{192,512,maskable-512}.png`; manifest installable | Founder logo/icon asset (192 + 512 + maskable) | OPTIONAL | Pre/post-launch | Swap the PNGs; manifest + install already wired. |
+ | 41 | `EMAIL_UNSUBSCRIBE_SECRET` (unsubscribe-link HMAC key) | email (notifications) — polish-1 | Configuration | PENDING | Founder | Dev derives from `DATABASE_URL`; **prod REQUIRES a dedicated value — app throws at boot without it** (`lib/env.ts` + `lib/email/unsubscribe-token.ts`) | Strong random value set in prod env | LAUNCH | Pre-launch | Tie to the email-live flip (LC #22): set alongside the Resend key. Removed the silent DB/empty fallback (DR-031 security hardening) so rotating `DATABASE_URL` can't break outstanding unsubscribe links. |
++| 42 | No-code contact channels (invite-only "no referral code" state) | `/register`, `/checkout` (Phase A §4.4) | External Service | PENDING | Founder | WhatsApp + email in `lib/config/contact.ts` — defaults mirror `/contact` and are marked `REPLACE: temp` (`wa.me/918572887888`, `goskilled.in@gmail.com`); overridable via `NEXT_PUBLIC_SUPPORT_WHATSAPP` / `NEXT_PUBLIC_SUPPORT_EMAIL` | Founder-confirmed support WhatsApp + email | LAUNCH | Pre-launch | DR-036 invite-only gate points code-less visitors here. Real reachable channels (not fabricated); confirm/replace before go-live. Reconcile with `/contact` (#same values). |
++| 43 | Password policy — minimum length | auth (`lib/auth/password.ts`) — Phase A §6 | Configuration | FINAL* | Founder | Min 8 chars (DR-036 §6); override via `MIN_PASSWORD_LENGTH` (floored at 8) | Same unless founder raises it | LAUNCH | — | *Safe default live in code + server-enforced on register/reset. Supabase hashes/stores the password (DR-024 — no `passwordHash` column). |
++| 44 | Register / Login / Checkout — Phase A copy | `/register`, `/login`, `/checkout` (DR-036) | Content | PENDING | Founder | Placeholder Hinglish copy live + clearly non-final: invite-only headings, "Invited by {name}", no-code panel, password + OTP-reset labels, checkout referral-code hint. SEO title now "Register — GoSkilled" (was "Register free") | Founder-approved copy set | LAUNCH | Pre-launch | Supersedes the register half of #34 (DR-030 open-registration → DR-036 invite-only). D-29 floor applies — no income language anywhere. |
+ 
+ ---
+ 
+@@ -72,3 +75,4 @@
+ - 2026-07-04 — GPS-M2 Day-0 delta built (DR-030): #10 slot BUILT (Getting-Started course + Lesson 0, mock video), #14 Hub certificate-preview placeholder wired, #34 added (register/welcome copy). #17 pre-D-01 earn copy now also drives the Hub Earn card.
+ - 2026-07-05 — GPS-M4 (Admin) build: #32 FINAL (`accountHolderEnc` migration); #30 review queue + #27 webinar scheduling + #18 flag ceremony + #21 OTP throttle engineering complete (remaining items are founder/legal/creds); #10 Lesson-0 video slot now editable via catalog CRUD; #1 runtime gate `D01_LEGAL_CLEARED` wired. Tier-A surfaces (KYC/withdrawals/settings/schema) parked for Fable review.
+ - 2026-07-05 — GPS-M5 §2.0 Guru engine: added #35 (Anthropic API key), #36 (Guru model + cost caps), #37 (Guru Hinglish system-prompt + state copy). Engine ships on `AI_PROVIDER=mock` (DR-029) with D-29 guardrail + server-enforced cost caps in both modes; parked for Fable Tier-A review.
++- 2026-07-09 — Phase A Auth+Referral rework (DR-036/DR-038, supersedes DR-030): added #42 (no-code contact channels), #43 (password min-length policy), #44 (Phase A register/login/checkout copy — supersedes register half of #34). Referral code now MANDATORY to register; login gains password + OTP reset; earning gate wired to own confirmed purchase (DR-038). Parked for Fable Tier-A review.
+diff --git a/e2e/auth-journey.spec.ts b/e2e/auth-journey.spec.ts
+new file mode 100644
+index 0000000..8e61f26
+--- /dev/null
++++ b/e2e/auth-journey.spec.ts
+@@ -0,0 +1,57 @@
++import { test, expect } from "@playwright/test";
++
++// Phase A §4.5 — the full "Get-Started → register(valid code) → OTP → welcome → Lesson 0 → dashboard"
++// journey, plus login → dashboard. This WRITES to Supabase + the DB and needs the staging OTP bypass
++// active (any phone + STAGING_OTP_CODE, no SMS), so it is DISABLED by default and only runs against a
++// staging deployment. Enable by setting:
++//   E2E_JOURNEY_REF   — a REAL, existing sponsor referral code on the target env (mandatory gate)
++//   STAGING_OTP_CODE  — the fixed bypass code (defaults to 123456)
++// Run: E2E_JOURNEY_REF=GS... npx playwright test e2e/auth-journey.spec.ts
++const REF = process.env.E2E_JOURNEY_REF;
++const OTP = process.env.STAGING_OTP_CODE || "123456";
++// A fresh 10-digit-ish phone per run so we always exercise the NEW-account path (→ /welcome).
++const PHONE = `9${String(Date.now()).slice(-9)}`;
++const PASSWORD = "PhaseAe2e!pass";
++
++test.describe("auth journey (staging only — writes)", () => {
++  test.skip(
++    !REF,
++    "Set E2E_JOURNEY_REF to a real sponsor code to run the write journey.",
++  );
++
++  test("register with a valid code → OTP → welcome → dashboard, then password login → dashboard", async ({
++    page,
++  }) => {
++    // 1) Land via an affiliate link (carries ?ref) — the form opens on the details step.
++    await page.goto(`/register?ref=${REF}`);
++    await expect(page.getByLabel(/Mobile number/i)).toBeVisible();
++
++    // 2) Provide mobile + password → send OTP.
++    await page.getByLabel(/Mobile number/i).fill(PHONE);
++    await page.getByLabel(/Create a password/i).fill(PASSWORD);
++    await page.getByRole("button", { name: /Send OTP/i }).click();
++
++    // 3) Enter the staging bypass code (segmented OtpInput → type digits).
++    await expect(page.getByText(/Sent to \+91/i)).toBeVisible();
++    for (const d of OTP) await page.keyboard.type(d);
++
++    // 4) New account → the one-time welcome moment.
++    await expect(page).toHaveURL(/\/welcome$/);
++    await expect(page.getByText(/Founding Batch/i)).toBeVisible();
++
++    // 5) Start Lesson 0 → the LMS player (or the Hub if Lesson 0 is unseeded).
++    await page
++      .getByRole("button", { name: /(start|intro|begin)/i })
++      .first()
++      .click();
++    await expect(page).toHaveURL(/\/dashboard/);
++
++    // 6) Log out is out of scope; assert the password login path independently.
++    await page.context().clearCookies();
++    await page.goto("/login");
++    await page.getByLabel(/Mobile number/i).fill(PHONE);
++    await page.getByLabel(/^Password$/i).fill(PASSWORD);
++    await page.getByRole("button", { name: /^Log in$/i }).click();
++    await expect(page).toHaveURL(/\/dashboard/); // returning user → straight to the Hub
++  });
++});
+diff --git a/e2e/auth-surfaces.spec.ts b/e2e/auth-surfaces.spec.ts
+new file mode 100644
+index 0000000..7f2f836
+--- /dev/null
++++ b/e2e/auth-surfaces.spec.ts
+@@ -0,0 +1,47 @@
++import { test, expect } from "@playwright/test";
++
++// Read-only coverage of the Phase A (DR-036) auth surfaces. No form submissions → no DB writes to
++// the shared Supabase (integration writes are un-cleanable there). Proves the invite-only register
++// gate, the no-code "contact us" state, and the login password + OTP/reset affordances all render.
++
++test.describe("auth surfaces (Phase A, read-only)", () => {
++  test("register opens on the referral-code gate with a no-code contact path", async ({
++    page,
++  }) => {
++    await page.goto("/register");
++    await expect(page.getByText(/invite-only/i)).toBeVisible();
++    await expect(page.getByLabel(/Referral code/i)).toBeVisible();
++    // No-code "Contact company" state (§4.4).
++    await expect(page.getByText(/Don't have a code\?/i)).toBeVisible();
++    await expect(page.getByRole("link", { name: /WhatsApp/i })).toBeVisible();
++  });
++
++  test("an invalid ?ref keeps the visitor on the code gate (no enumeration leak)", async ({
++    page,
++  }) => {
++    await page.goto("/register?ref=GSDOESNOTEXIST");
++    await expect(page.getByLabel(/Referral code/i)).toBeVisible();
++    // It must NOT jump to the details step (that only happens for a resolved sponsor).
++    await expect(page.getByLabel(/Create a password/i)).toHaveCount(0);
++  });
++
++  test("login shows password sign-in plus OTP and reset alternatives", async ({
++    page,
++  }) => {
++    await page.goto("/login");
++    await expect(page.getByLabel(/Mobile number/i)).toBeVisible();
++    await expect(page.getByLabel(/^Password$/i)).toBeVisible();
++    await expect(
++      page.getByRole("button", { name: /Sign in with OTP/i }),
++    ).toBeVisible();
++    await expect(
++      page.getByRole("button", { name: /Forgot password\?/i }),
++    ).toBeVisible();
++
++    // The reset affordance switches into the OTP-reset mode.
++    await page.getByRole("button", { name: /Forgot password\?/i }).click();
++    await expect(
++      page.getByRole("heading", { name: /Reset your password/i }),
++    ).toBeVisible();
++  });
++});
+diff --git a/lib/affiliate/eligibility.ts b/lib/affiliate/eligibility.ts
+new file mode 100644
+index 0000000..a02ec78
+--- /dev/null
++++ b/lib/affiliate/eligibility.ts
+@@ -0,0 +1,23 @@
++// DR-038 earning-eligibility adapter (DB-backed). Derives "has this user made their OWN confirmed
++// purchase?" from real Orders — no new column, no fabricated state (D-29). Consumed by the
++// commission engine's Phase-B gate (documented hook in lib/payments/webhook.ts CREDIT_COMMISSIONS)
++// and directly by any surface that needs to show/act on affiliate earning-eligibility.
++import { prisma } from "../prisma";
++import { canEarnCommission } from "../../modules/affiliate/eligibility";
++
++/**
++ * DR-038: true iff the user has ≥1 confirmed (PAID) order — i.e. their own purchase is complete.
++ * "Confirmed" = Order.status "PAID" (the only state set by a Razorpay-verified webhook, Golden Rule 2).
++ * REFUNDED orders do not count (status flips away from PAID on refund) — a refunded buyer is not eligible.
++ */
++export async function hasConfirmedPurchase(userId: string): Promise<boolean> {
++  const paid = await prisma.order.count({ where: { userId, status: "PAID" } });
++  return paid > 0;
++}
++
++/** DR-038 composed gate: may this affiliate earn commission on a downline's purchase? */
++export async function isEligibleToEarn(userId: string): Promise<boolean> {
++  return canEarnCommission({
++    hasOwnConfirmedPurchase: await hasConfirmedPurchase(userId),
++  });
++}
+diff --git a/lib/auth/login-rate-limit.ts b/lib/auth/login-rate-limit.ts
+new file mode 100644
+index 0000000..b548252
+--- /dev/null
++++ b/lib/auth/login-rate-limit.ts
+@@ -0,0 +1,48 @@
++// Login-attempt throttle (DR-036 §6). Password sign-in is an online-guessing surface, so we
++// rate-limit BY PHONE (stops brute-forcing one victim's account → backoff) AND BY IP (blunts
++// credential-stuffing from one source), via the shared in-memory limiter. OTP sends have their own
++// throttle (otp-rate-limit.ts); this guards the password path. Pure `evaluateLoginAttempt` is
++// unit-testable; `checkLoginRate` resolves the request IP.
++import { rateLimit } from "../rate-limit";
++import { clientIp } from "./otp-rate-limit";
++
++const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
++const PER_PHONE_MAX = 5; // a real user needs 1–2 tries; 5 then backs off (offer OTP instead)
++const PER_IP_MAX = 20; // several users behind one NAT still fine; blunts stuffing
++
++export type LoginRateCheck = { ok: true } | { ok: false; error: string };
++
++/** Pure throttle decision over the shared limiter — testable without a request context. */
++export function evaluateLoginAttempt(
++  ip: string,
++  phone: string,
++  now: number = Date.now(),
++): LoginRateCheck {
++  const byPhone = rateLimit(
++    `login:phone:${phone}`,
++    { windowMs: WINDOW_MS, max: PER_PHONE_MAX },
++    now,
++  );
++  if (!byPhone.ok)
++    return {
++      ok: false,
++      error:
++        "Too many attempts for this number. Wait a few minutes or sign in with OTP.",
++    };
++  const byIp = rateLimit(
++    `login:ip:${ip}`,
++    { windowMs: WINDOW_MS, max: PER_IP_MAX },
++    now,
++  );
++  if (!byIp.ok)
++    return {
++      ok: false,
++      error: "Too many login attempts. Please try again in a few minutes.",
++    };
++  return { ok: true };
++}
++
++/** Throttle a password login attempt for `phone` from the current request's IP. Call BEFORE sign-in. */
++export async function checkLoginRate(phone: string): Promise<LoginRateCheck> {
++  return evaluateLoginAttempt(await clientIp(), phone);
++}
+diff --git a/lib/auth/password.ts b/lib/auth/password.ts
+new file mode 100644
+index 0000000..4504c67
+--- /dev/null
++++ b/lib/auth/password.ts
+@@ -0,0 +1,54 @@
++// Phone + password auth (DR-036). Supabase Auth stays the single identity authority (DR-024) —
++// passwords are hashed/stored BY SUPABASE, never in our tables (no passwordHash column). These
++// helpers wrap the cookie-bound server client so sessions/cookies behave exactly like the OTP path.
++// Passwords are NEVER logged (§6): errors are generic and carry no credential material.
++import { createSupabaseServerClient } from "../supabase/server";
++import type { User } from "@supabase/supabase-js";
++
++const e164 = (phone: string) => `+91${phone}`;
++
++/** Password policy (§6): min 8 chars, configurable via MIN_PASSWORD_LENGTH (LAUNCH_CONFIG). */
++export function minPasswordLength(): number {
++  const raw = Number(process.env.MIN_PASSWORD_LENGTH);
++  return Number.isInteger(raw) && raw >= 8 ? raw : 8;
++}
++
++/** Pure policy check → a human message, or null when the password is acceptable. Unit-testable. */
++export function passwordIssue(password: string): string | null {
++  const min = minPasswordLength();
++  if (typeof password !== "string" || password.length < min)
++    return `Password must be at least ${min} characters`;
++  return null;
++}
++
++/**
++ * Sign in with mobile + password → mints a real Supabase session on the cookie-bound server client
++ * (sets auth cookies, same as the OTP path). Generic error on any failure — never reveals whether
++ * the number exists vs. the password was wrong (no user-enumeration, §6).
++ */
++export async function signInWithPassword(
++  phone: string,
++  password: string,
++): Promise<{ user: User }> {
++  const supabase = await createSupabaseServerClient();
++  const { data, error } = await supabase.auth.signInWithPassword({
++    phone: e164(phone),
++    password,
++  });
++  if (error || !data.user)
++    throw new Error("Incorrect mobile number or password");
++  return { user: data.user };
++}
++
++/**
++ * Set/replace the password on the CURRENT authenticated session. Called right after an OTP verify
++ * (registration sets the chosen password; the reset flow replaces it) — the OTP verify has already
++ * established the session, so updateUser mutates the right user. Requires an active session.
++ */
++export async function setPasswordForCurrentUser(
++  password: string,
++): Promise<void> {
++  const supabase = await createSupabaseServerClient();
++  const { error } = await supabase.auth.updateUser({ password });
++  if (error) throw new Error("Could not set your password. Please try again.");
++}
+diff --git a/lib/auth/post-auth.ts b/lib/auth/post-auth.ts
+new file mode 100644
+index 0000000..ab1c11c
+--- /dev/null
++++ b/lib/auth/post-auth.ts
+@@ -0,0 +1,30 @@
++// Single source of truth for where a user lands after authentication (Phase A §4.5 — the founder's
++// headline broken-flow fix). New accounts (never saw /welcome) → the one-time welcome moment;
++// everyone else → the Hub. Applied identically after register-verify, password login, OTP login and
++// checkout-onboarding so the "Get-Started → welcome → dashboard" journey has ZERO dead ends.
++import { prisma } from "../prisma";
++
++const WELCOME = "/welcome";
++const DASHBOARD = "/dashboard";
++
++/** Only same-origin absolute paths are honoured as a post-login `next` (blocks open-redirects). */
++export function safeNext(next: string | null | undefined): string | null {
++  if (!next) return null;
++  // Must be a root-relative path and NOT a protocol-relative "//host" escape.
++  if (!next.startsWith("/") || next.startsWith("//")) return null;
++  return next;
++}
++
++/** The canonical post-auth destination for a synced internal user id. */
++export async function postAuthRedirect(
++  userId: string,
++  next?: string | null,
++): Promise<string> {
++  const safe = safeNext(next);
++  if (safe) return safe; // honour an explicit, validated deep-link (e.g. a bounced /dashboard/xyz)
++  const u = await prisma.user.findUnique({
++    where: { id: userId },
++    select: { welcomeSeenAt: true },
++  });
++  return u?.welcomeSeenAt ? DASHBOARD : WELCOME;
++}
+diff --git a/lib/auth/sponsor.ts b/lib/auth/sponsor.ts
+new file mode 100644
+index 0000000..2ef7401
+--- /dev/null
++++ b/lib/auth/sponsor.ts
+@@ -0,0 +1,36 @@
++// Referral-code → sponsor resolution (DR-036/DR-038). The referral code is MANDATORY for every new
++// registration, so this is the gate that decides whether the register form may proceed. Security:
++// a miss returns null with NO signal about which codes exist (no user-enumeration — §6); callers
++// surface a single generic "Enter a valid referral code" error for both "empty" and "not found".
++import { prisma } from "../prisma";
++
++export interface Sponsor {
++  id: string;
++  /** First name only, for a warm "Invited by Rahul" — never the sponsor's phone/email (privacy §5). */
++  firstName: string | null;
++}
++
++/** Normalize a raw code to the referralCode shape (GS + hex, upper-cased). Junk/empty → null. */
++export function normalizeReferralCode(
++  raw: string | null | undefined,
++): string | null {
++  const cleaned = (raw ?? "")
++    .trim()
++    .toUpperCase()
++    .replace(/[^A-Z0-9]/g, "");
++  return cleaned.length >= 3 && cleaned.length <= 24 ? cleaned : null;
++}
++
++/** Resolve a referral code to its sponsor, or null on any miss (empty / malformed / not found). */
++export async function resolveSponsorByCode(
++  rawCode: string | null | undefined,
++): Promise<Sponsor | null> {
++  const code = normalizeReferralCode(rawCode);
++  if (!code) return null;
++  const u = await prisma.user.findUnique({
++    where: { referralCode: code },
++    select: { id: true, name: true },
++  });
++  if (!u) return null;
++  return { id: u.id, firstName: u.name?.trim().split(/\s+/)[0] || null };
++}
+diff --git a/lib/config/contact.ts b/lib/config/contact.ts
+new file mode 100644
+index 0000000..7807c6d
+--- /dev/null
++++ b/lib/config/contact.ts
+@@ -0,0 +1,25 @@
++// Support contact channels for the invite-only "no referral code" state (Phase A §4.4) and other
++// support surfaces. Layer-2 (DR-029): these are LAUNCH_CONFIG slots — defaults mirror /contact and
++// are marked REPLACE until the founder confirms. NEXT_PUBLIC_ so client components can render them.
++// Not fabricated data — real reachable channels, config-overridable before go-live.
++
++const WHATSAPP_DIGITS =
++  process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace(/\D/g, "") ||
++  "918572887888"; // REPLACE: temp (LAUNCH_CONFIG)
++const EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "goskilled.in@gmail.com"; // REPLACE: temp (LAUNCH_CONFIG)
++
++export interface ContactChannels {
++  whatsappUrl: string;
++  whatsappDisplay: string;
++  email: string;
++}
++
++/** Build the contact channels; optional `prefillText` pre-fills the WhatsApp message. */
++export function contactChannels(prefillText?: string): ContactChannels {
++  const query = prefillText ? `?text=${encodeURIComponent(prefillText)}` : "";
++  return {
++    whatsappUrl: `https://wa.me/${WHATSAPP_DIGITS}${query}`,
++    whatsappDisplay: `+${WHATSAPP_DIGITS}`,
++    email: EMAIL,
++  };
++}
+diff --git a/lib/env.ts b/lib/env.ts
+index 0f9ff3f..5bac10c 100644
+--- a/lib/env.ts
++++ b/lib/env.ts
+@@ -45,6 +45,10 @@ export const EnvSchema = z
+     APP_ENV: z.enum(["development", "staging", "production"]).optional(),
+     AFFILIATE_PAYOUTS_ENABLED: z.enum(["true", "false"]).optional(),
+     D01_LEGAL_CLEARED: z.enum(["true", "false"]).optional(), // LC #1 gate for the payout-flag ceremony
++    // Phase A (DR-036) auth. Password min length (default 8) + invite-only "no code" contact channels.
++    MIN_PASSWORD_LENGTH: z.string().optional(), // parsed in lib/auth/password.ts (>=8 or default 8)
++    NEXT_PUBLIC_SUPPORT_WHATSAPP: z.string().optional(), // LAUNCH_CONFIG: no-code contact
++    NEXT_PUBLIC_SUPPORT_EMAIL: z.string().optional(), // LAUNCH_CONFIG: no-code contact
+ 
+     // Provider secrets (conditionally required below)
+     RAZORPAY_KEY_ID: z.string().optional(),
+diff --git a/lib/payments/webhook.ts b/lib/payments/webhook.ts
+index ff7db79..aa87e1d 100644
+--- a/lib/payments/webhook.ts
++++ b/lib/payments/webhook.ts
+@@ -195,6 +195,16 @@ async function executeAction(
+       const chain = await fetchReferralChain(tx, order.userId);
+       const uplines = resolveUplines(order.userId, chain);
+       if (uplines.length === 0) return;
++      // ── DR-038 earning gate — DOCUMENTED HOOK (Phase B enforcement) ──────────────────────────
++      // The rule (canEarnCommission, modules/affiliate/eligibility.ts) is LOCKED and unit-tested in
++      // Phase A but NOT enforced here yet, so this Phase-A change does not regress the DR-023 money
++      // path. Phase B activates it by filtering uplines to those with their OWN confirmed purchase:
++      //   const eligible = [];
++      //   for (const hop of uplines)
++      //     if (canEarnCommission({ hasOwnConfirmedPurchase: (await tx.order.count({
++      //       where: { userId: hop.userId, status: "PAID" } })) > 0 })) eligible.push(hop);
++      //   // ...then buildCommissionTxns({ uplines: eligible }).
++      // (Mirrors lib/affiliate/eligibility.hasConfirmedPurchase, but reads inside this tx.)
+       const specs = buildCommissionTxns({
+         orderId: order.id,
+         pkg: order.package.slug as PackageSlug,
+diff --git a/modules/affiliate/eligibility.ts b/modules/affiliate/eligibility.ts
+new file mode 100644
+index 0000000..94839c7
+--- /dev/null
++++ b/modules/affiliate/eligibility.ts
+@@ -0,0 +1,18 @@
++// DR-038 earning gate (pure rule). A referral link or a free registration ALONE never earns:
++// an affiliate earns commission on a downline's purchase ONLY if the affiliate has made their
++// OWN confirmed purchase. This module states the rule as a pure, unit-testable predicate; the
++// DB-backed input (`hasConfirmedPurchase`) is supplied by the adapter in lib/affiliate/eligibility.ts.
++//
++// Phase A scope: the rule is LOCKED + unit-tested here and wired as a DOCUMENTED HOOK at the
++// commission-credit site (lib/payments/webhook.ts → CREDIT_COMMISSIONS). FULL enforcement — filtering
++// ineligible uplines out of the live credit — is Phase B, so the DR-023 money path is unchanged now.
++
++export interface EarningEligibilityInput {
++  /** Does this affiliate have ≥1 of their OWN confirmed (paid) purchases? */
++  hasOwnConfirmedPurchase: boolean;
++}
++
++/** DR-038: an affiliate may earn commission on a downline purchase iff they've purchased themselves. */
++export function canEarnCommission(input: EarningEligibilityInput): boolean {
++  return input.hasOwnConfirmedPurchase;
++}
+diff --git a/tests/checkout-referral-gate.test.ts b/tests/checkout-referral-gate.test.ts
+new file mode 100644
+index 0000000..a9510fb
+--- /dev/null
++++ b/tests/checkout-referral-gate.test.ts
+@@ -0,0 +1,91 @@
++// Phase A (DR-036/DR-038 · DR-023) — checkout referral gate. A valid referral code is MANDATORY
++// before an OTP is sent or an order is placed. The money/webhook/ledger path itself is UNCHANGED
++// (covered by tests/checkout-mock.integration.test.ts); here we prove the adapter-level gate.
++import { describe, it, expect, vi, beforeEach } from "vitest";
++
++const h = vi.hoisted(() => ({
++  resolveSponsorByCode: vi.fn(),
++  sendOtp: vi.fn(),
++  verifyOtp: vi.fn(),
++  checkOtpSendRate: vi.fn(),
++  syncUser: vi.fn(),
++  placeOrder: vi.fn(),
++  getPaymentProvider: vi.fn(),
++  track: vi.fn(),
++  anonId: vi.fn(),
++}));
++
++vi.mock("@/lib/auth/sponsor", () => ({
++  resolveSponsorByCode: h.resolveSponsorByCode,
++}));
++vi.mock("@/lib/auth/otp", () => ({
++  getOtpProvider: () => ({ sendOtp: h.sendOtp, verifyOtp: h.verifyOtp }),
++}));
++vi.mock("@/lib/auth/otp-rate-limit", () => ({
++  checkOtpSendRate: h.checkOtpSendRate,
++}));
++vi.mock("@/lib/auth/user-sync", () => ({ syncUser: h.syncUser }));
++vi.mock("@/lib/payments/checkout", () => ({ startCheckout: h.placeOrder }));
++vi.mock("@/lib/payments/provider", () => ({
++  getPaymentProvider: h.getPaymentProvider,
++}));
++vi.mock("@/lib/analytics/track", () => ({ track: h.track, anonId: h.anonId }));
++
++import { startCheckout, verifyCheckoutOtp } from "@/app/checkout/actions";
++
++const PHONE = "9812345678";
++
++beforeEach(() => {
++  vi.clearAllMocks();
++  h.checkOtpSendRate.mockResolvedValue({ ok: true });
++  h.anonId.mockReturnValue("anon-1");
++  h.sendOtp.mockResolvedValue(undefined);
++});
++
++describe("§8.6 checkout mandatory referral code", () => {
++  it("startCheckout with no code → Zod-blocked, no OTP sent", async () => {
++    const res = await startCheckout({
++      phone: PHONE,
++      packageSlug: "career-booster",
++      referralCode: "",
++    });
++    expect(res.ok).toBe(false);
++    expect(h.sendOtp).not.toHaveBeenCalled();
++  });
++
++  it("startCheckout with an unknown code → generic block before OTP", async () => {
++    h.resolveSponsorByCode.mockResolvedValue(null);
++    const res = await startCheckout({
++      phone: PHONE,
++      packageSlug: "career-booster",
++      referralCode: "GSBADCODE",
++    });
++    expect(res.ok).toBe(false);
++    if (!res.ok) expect(res.error).toMatch(/valid referral code/i);
++    expect(h.sendOtp).not.toHaveBeenCalled();
++  });
++
++  it("startCheckout with a valid code → OTP sent (money path proceeds)", async () => {
++    h.resolveSponsorByCode.mockResolvedValue({ id: "s1", firstName: "Rahul" });
++    const res = await startCheckout({
++      phone: PHONE,
++      packageSlug: "career-booster",
++      referralCode: "GS1A2B3C4D",
++    });
++    expect(res.ok).toBe(true);
++    expect(h.sendOtp).toHaveBeenCalledWith(PHONE);
++  });
++
++  it("verifyCheckoutOtp with an unknown code never verifies OTP or places an order", async () => {
++    h.resolveSponsorByCode.mockResolvedValue(null);
++    const res = await verifyCheckoutOtp({
++      phone: PHONE,
++      token: "123456",
++      packageSlug: "career-booster",
++      referralCode: "GSBADCODE",
++    });
++    expect(res.ok).toBe(false);
++    expect(h.verifyOtp).not.toHaveBeenCalled();
++    expect(h.placeOrder).not.toHaveBeenCalled();
++  });
++});
+diff --git a/tests/earning-eligibility.test.ts b/tests/earning-eligibility.test.ts
+new file mode 100644
+index 0000000..e42b0c5
+--- /dev/null
++++ b/tests/earning-eligibility.test.ts
+@@ -0,0 +1,90 @@
++// Phase A (DR-038) — the earning gate. A referral link/registration ALONE never earns; an affiliate
++// earns on a downline purchase ONLY with their OWN confirmed (PAID) purchase. Pure rule + DB adapter.
++// This is acceptance test §8.9: a sponsor with no confirmed purchase is NOT eligible to earn.
++import { describe, it, expect, beforeAll } from "vitest";
++import { prisma } from "@/lib/prisma";
++import { canEarnCommission } from "@/modules/affiliate/eligibility";
++import {
++  hasConfirmedPurchase,
++  isEligibleToEarn,
++} from "@/lib/affiliate/eligibility";
++
++const HAS_DB = !!process.env.DATABASE_URL;
++const runId = String(Date.now()).slice(-8);
++
++describe("canEarnCommission (pure DR-038 rule)", () => {
++  it("earns ONLY with an own confirmed purchase", () => {
++    expect(canEarnCommission({ hasOwnConfirmedPurchase: false })).toBe(false);
++    expect(canEarnCommission({ hasOwnConfirmedPurchase: true })).toBe(true);
++  });
++});
++
++describe.skipIf(!HAS_DB)("earning eligibility (integration §8.9)", () => {
++  let pkgId: string;
++  let sponsorNoPurchase: string;
++  let sponsorPaid: string;
++
++  beforeAll(async () => {
++    const pkg = await prisma.package.upsert({
++      where: { slug: "career-booster" },
++      update: {},
++      create: {
++        slug: "career-booster",
++        name: "Career Booster",
++        priceInPaise: 219900,
++        includesFutureCourses: true,
++        isActive: true,
++      },
++      select: { id: true },
++    });
++    pkgId = pkg.id;
++
++    const a = await prisma.user.create({
++      data: {
++        supabaseId: `sb_elig_a_${runId}`,
++        phone: `+9197${runId}01`,
++        referralCode: `GSELIGA${runId}`,
++      },
++      select: { id: true },
++    });
++    const b = await prisma.user.create({
++      data: {
++        supabaseId: `sb_elig_b_${runId}`,
++        phone: `+9197${runId}02`,
++        referralCode: `GSELIGB${runId}`,
++      },
++      select: { id: true },
++    });
++    sponsorNoPurchase = a.id;
++    sponsorPaid = b.id;
++
++    // Sponsor B completes their OWN purchase (PAID). Sponsor A never buys.
++    await prisma.order.create({
++      data: {
++        userId: sponsorPaid,
++        packageId: pkgId,
++        amountInPaise: 219900,
++        status: "PAID",
++      },
++    });
++    // A non-PAID order for A must NOT count as a confirmed purchase.
++    await prisma.order.create({
++      data: {
++        userId: sponsorNoPurchase,
++        packageId: pkgId,
++        amountInPaise: 219900,
++        status: "CREATED",
++      },
++    });
++  });
++
++  it("a sponsor with NO confirmed purchase is not eligible to earn", async () => {
++    expect(await hasConfirmedPurchase(sponsorNoPurchase)).toBe(false);
++    expect(await isEligibleToEarn(sponsorNoPurchase)).toBe(false);
++  });
++
++  it("a sponsor WITH a confirmed (PAID) purchase is eligible to earn", async () => {
++    expect(await hasConfirmedPurchase(sponsorPaid)).toBe(true);
++    expect(await isEligibleToEarn(sponsorPaid)).toBe(true);
++  });
++});
+diff --git a/tests/login-actions.test.ts b/tests/login-actions.test.ts
+new file mode 100644
+index 0000000..dc7822b
+--- /dev/null
++++ b/tests/login-actions.test.ts
+@@ -0,0 +1,149 @@
++// Phase A (DR-036) — /login server actions. Password sign-in (§8.4), OTP sign-in, and OTP-based
++// password reset (§8.5). Supabase / DB / SMS boundaries mocked so adapter logic runs deterministically.
++import { describe, it, expect, vi, beforeEach } from "vitest";
++
++const h = vi.hoisted(() => ({
++  signInWithPassword: vi.fn(),
++  setPasswordForCurrentUser: vi.fn(),
++  sendOtp: vi.fn(),
++  verifyOtp: vi.fn(),
++  checkOtpSendRate: vi.fn(),
++  checkLoginRate: vi.fn(),
++  syncUser: vi.fn(),
++  readRefCookie: vi.fn(),
++  postAuthRedirect: vi.fn(),
++}));
++
++vi.mock("@/lib/auth/password", () => ({
++  signInWithPassword: h.signInWithPassword,
++  setPasswordForCurrentUser: h.setPasswordForCurrentUser,
++  passwordIssue: (pw: string) =>
++    typeof pw === "string" && pw.length >= 8
++      ? null
++      : "Password must be at least 8 characters",
++}));
++vi.mock("@/lib/auth/otp", () => ({
++  getOtpProvider: () => ({ sendOtp: h.sendOtp, verifyOtp: h.verifyOtp }),
++}));
++vi.mock("@/lib/auth/otp-rate-limit", () => ({
++  checkOtpSendRate: h.checkOtpSendRate,
++}));
++vi.mock("@/lib/auth/login-rate-limit", () => ({
++  checkLoginRate: h.checkLoginRate,
++}));
++vi.mock("@/lib/auth/user-sync", () => ({ syncUser: h.syncUser }));
++vi.mock("@/lib/auth/ref-cookie", () => ({ readRefCookie: h.readRefCookie }));
++vi.mock("@/lib/auth/post-auth", () => ({
++  postAuthRedirect: h.postAuthRedirect,
++}));
++
++import {
++  loginWithPassword,
++  verifyLoginOtp,
++  resetPasswordWithOtp,
++} from "@/app/login/actions";
++
++const PHONE = "9812345678";
++
++beforeEach(() => {
++  vi.clearAllMocks();
++  h.checkLoginRate.mockResolvedValue({ ok: true });
++  h.checkOtpSendRate.mockResolvedValue({ ok: true });
++  h.readRefCookie.mockResolvedValue(undefined);
++  h.syncUser.mockResolvedValue({
++    id: "u-1",
++    referredById: null,
++    referralCode: "GSX",
++  });
++  h.postAuthRedirect.mockResolvedValue("/dashboard");
++});
++
++describe("§8.4 password login", () => {
++  it("valid password → synced + redirected via the single post-auth rule", async () => {
++    h.signInWithPassword.mockResolvedValue({
++      user: { id: "sb-1", phone: `+91${PHONE}` },
++    });
++    const res = await loginWithPassword({
++      phone: PHONE,
++      password: "hunter2pass",
++    });
++    expect(res.ok).toBe(true);
++    if (res.ok) expect(res.redirectTo).toBe("/dashboard");
++    expect(h.postAuthRedirect).toHaveBeenCalledWith("u-1", undefined);
++  });
++
++  it("wrong password → generic error, rate-limited path", async () => {
++    h.signInWithPassword.mockRejectedValue(
++      new Error("Incorrect mobile number or password"),
++    );
++    const res = await loginWithPassword({
++      phone: PHONE,
++      password: "wrongpass1",
++    });
++    expect(res.ok).toBe(false);
++    if (!res.ok) expect(res.error).toMatch(/incorrect/i);
++  });
++
++  it("rate-limited → blocked before hitting Supabase", async () => {
++    h.checkLoginRate.mockResolvedValue({
++      ok: false,
++      error: "Too many attempts",
++    });
++    const res = await loginWithPassword({
++      phone: PHONE,
++      password: "hunter2pass",
++    });
++    expect(res.ok).toBe(false);
++    expect(h.signInWithPassword).not.toHaveBeenCalled();
++  });
++
++  it("honours a safe next; a bounced deep-link flows through postAuthRedirect", async () => {
++    h.signInWithPassword.mockResolvedValue({
++      user: { id: "sb-1", phone: `+91${PHONE}` },
++    });
++    h.postAuthRedirect.mockResolvedValue("/dashboard/earn");
++    const res = await loginWithPassword({
++      phone: PHONE,
++      password: "hunter2pass",
++      next: "/dashboard/earn",
++    });
++    expect(res.ok).toBe(true);
++    expect(h.postAuthRedirect).toHaveBeenCalledWith("u-1", "/dashboard/earn");
++  });
++});
++
++describe("OTP alternative sign-in", () => {
++  it("valid OTP → synced + redirected", async () => {
++    h.verifyOtp.mockResolvedValue({
++      user: { id: "sb-2", phone: `+91${PHONE}` },
++    });
++    const res = await verifyLoginOtp({ phone: PHONE, token: "123456" });
++    expect(res.ok).toBe(true);
++    if (res.ok) expect(res.redirectTo).toBe("/dashboard");
++  });
++});
++
++describe("§8.5 password reset via OTP", () => {
++  it("verify OTP → set new password → signed in + redirected", async () => {
++    h.verifyOtp.mockResolvedValue({
++      user: { id: "sb-3", phone: `+91${PHONE}` },
++    });
++    const res = await resetPasswordWithOtp({
++      phone: PHONE,
++      token: "123456",
++      password: "brandnew123",
++    });
++    expect(res.ok).toBe(true);
++    expect(h.setPasswordForCurrentUser).toHaveBeenCalledWith("brandnew123");
++  });
++
++  it("rejects a weak new password before verifying OTP", async () => {
++    const res = await resetPasswordWithOtp({
++      phone: PHONE,
++      token: "123456",
++      password: "short",
++    });
++    expect(res.ok).toBe(false);
++    expect(h.verifyOtp).not.toHaveBeenCalled();
++  });
++});
+diff --git a/tests/login-rate-limit.test.ts b/tests/login-rate-limit.test.ts
+new file mode 100644
+index 0000000..d653997
+--- /dev/null
++++ b/tests/login-rate-limit.test.ts
+@@ -0,0 +1,46 @@
++// Phase A (DR-036 §6) — password-login attempt throttle. Pure decision over the shared limiter.
++import { describe, it, expect, beforeEach } from "vitest";
++import { evaluateLoginAttempt } from "@/lib/auth/login-rate-limit";
++import { __resetRateLimits } from "@/lib/rate-limit";
++
++const NOW = 2_000_000;
++
++describe("evaluateLoginAttempt", () => {
++  beforeEach(() => __resetRateLimits());
++
++  it("allows the first attempt", () => {
++    expect(evaluateLoginAttempt("1.1.1.1", "9000000001", NOW).ok).toBe(true);
++  });
++
++  it("backs off a single phone after 5 attempts in the window", () => {
++    const ip = "1.1.1.1";
++    const phone = "9000000002";
++    for (let i = 0; i < 5; i++)
++      expect(evaluateLoginAttempt(ip, phone, NOW + i).ok).toBe(true);
++    const blocked = evaluateLoginAttempt(ip, phone, NOW + 6);
++    expect(blocked.ok).toBe(false);
++    if (!blocked.ok) expect(blocked.error).toMatch(/this number|otp/i);
++  });
++
++  it("throttles a single IP after 20 attempts across different phones", () => {
++    const ip = "2.2.2.2";
++    for (let i = 0; i < 20; i++)
++      expect(
++        evaluateLoginAttempt(ip, `90000${String(i).padStart(5, "0")}`, NOW + i)
++          .ok,
++      ).toBe(true);
++    const blocked = evaluateLoginAttempt(ip, "9111111111", NOW + 21);
++    expect(blocked.ok).toBe(false);
++    if (!blocked.ok) expect(blocked.error).toMatch(/too many/i);
++  });
++
++  it("recovers after the window elapses", () => {
++    const ip = "3.3.3.3";
++    const phone = "9000000003";
++    for (let i = 0; i < 5; i++) evaluateLoginAttempt(ip, phone, NOW + i);
++    expect(evaluateLoginAttempt(ip, phone, NOW + 6).ok).toBe(false);
++    expect(evaluateLoginAttempt(ip, phone, NOW + 10 * 60 * 1000 + 1).ok).toBe(
++      true,
++    );
++  });
++});
+diff --git a/tests/password-policy.test.ts b/tests/password-policy.test.ts
+new file mode 100644
+index 0000000..c380c88
+--- /dev/null
++++ b/tests/password-policy.test.ts
+@@ -0,0 +1,33 @@
++// Phase A (DR-036 §6) — password policy. Pure, no Supabase, no request context.
++import { describe, it, expect, afterEach } from "vitest";
++import { passwordIssue, minPasswordLength } from "@/lib/auth/password";
++
++const ENV = process.env as Record<string, string | undefined>;
++
++afterEach(() => {
++  delete ENV.MIN_PASSWORD_LENGTH;
++});
++
++describe("password policy", () => {
++  it("defaults to a minimum of 8 characters", () => {
++    expect(minPasswordLength()).toBe(8);
++    expect(passwordIssue("1234567")).toMatch(/at least 8/i);
++    expect(passwordIssue("12345678")).toBeNull();
++  });
++
++  it("honours a configured MIN_PASSWORD_LENGTH (LAUNCH_CONFIG) when >= 8", () => {
++    ENV.MIN_PASSWORD_LENGTH = "12";
++    expect(minPasswordLength()).toBe(12);
++    expect(passwordIssue("12345678")).toMatch(/at least 12/i);
++    expect(passwordIssue("123456789012")).toBeNull();
++  });
++
++  it("never drops below the 8-char floor even if misconfigured lower", () => {
++    ENV.MIN_PASSWORD_LENGTH = "4";
++    expect(minPasswordLength()).toBe(8);
++  });
++
++  it("rejects non-strings defensively", () => {
++    expect(passwordIssue(undefined as unknown as string)).toMatch(/at least/i);
++  });
++});
+diff --git a/tests/post-auth-redirect.test.ts b/tests/post-auth-redirect.test.ts
+new file mode 100644
+index 0000000..c594e93
+--- /dev/null
++++ b/tests/post-auth-redirect.test.ts
+@@ -0,0 +1,25 @@
++// Phase A (§4.5) — the single post-auth redirect rule + open-redirect guard.
++// safeNext is pure; postAuthRedirect's DB branch is covered by the register/login action tests.
++import { describe, it, expect } from "vitest";
++import { safeNext } from "@/lib/auth/post-auth";
++
++describe("safeNext (open-redirect guard)", () => {
++  it("honours a same-origin absolute path", () => {
++    expect(safeNext("/dashboard/earn")).toBe("/dashboard/earn");
++  });
++
++  it("rejects protocol-relative //host escapes", () => {
++    expect(safeNext("//evil.com")).toBeNull();
++  });
++
++  it("rejects absolute URLs and non-rooted paths", () => {
++    expect(safeNext("https://evil.com")).toBeNull();
++    expect(safeNext("dashboard")).toBeNull();
++  });
++
++  it("treats empty/absent as no next", () => {
++    expect(safeNext(null)).toBeNull();
++    expect(safeNext(undefined)).toBeNull();
++    expect(safeNext("")).toBeNull();
++  });
++});
+diff --git a/tests/referral-sponsor.test.ts b/tests/referral-sponsor.test.ts
+new file mode 100644
+index 0000000..9a6e70c
+--- /dev/null
++++ b/tests/referral-sponsor.test.ts
+@@ -0,0 +1,45 @@
++// Phase A (DR-036) — referral-code normalization (pure) + sponsor resolution (integration).
++import { describe, it, expect } from "vitest";
++import { prisma } from "@/lib/prisma";
++import {
++  normalizeReferralCode,
++  resolveSponsorByCode,
++} from "@/lib/auth/sponsor";
++
++const HAS_DB = !!process.env.DATABASE_URL;
++const runId = String(Date.now()).slice(-8);
++
++describe("normalizeReferralCode", () => {
++  it("upper-cases and strips non-alphanumerics", () => {
++    expect(normalizeReferralCode(" gs1a2b ")).toBe("GS1A2B");
++    expect(normalizeReferralCode("gs-1a2b3c")).toBe("GS1A2B3C");
++  });
++  it("rejects empty / too-short / too-long", () => {
++    expect(normalizeReferralCode("")).toBeNull();
++    expect(normalizeReferralCode("ab")).toBeNull();
++    expect(normalizeReferralCode("G".repeat(25))).toBeNull();
++    expect(normalizeReferralCode(null)).toBeNull();
++  });
++});
++
++describe.skipIf(!HAS_DB)("resolveSponsorByCode (integration)", () => {
++  it("resolves a real code to its sponsor id + first name; unknown → null (no enumeration)", async () => {
++    const code = `GS${runId}A`.toUpperCase();
++    const sponsor = await prisma.user.create({
++      data: {
++        supabaseId: `sb_spon_${runId}`,
++        phone: `+9198${runId}01`,
++        name: "Rahul Sharma",
++        referralCode: code,
++      },
++      select: { id: true },
++    });
++
++    const hit = await resolveSponsorByCode(code.toLowerCase()); // case-insensitive
++    expect(hit?.id).toBe(sponsor.id);
++    expect(hit?.firstName).toBe("Rahul"); // first name only (privacy §5)
++
++    expect(await resolveSponsorByCode("GSZZZNONE")).toBeNull();
++    expect(await resolveSponsorByCode("")).toBeNull();
++  });
++});
+diff --git a/tests/register-actions.test.ts b/tests/register-actions.test.ts
+new file mode 100644
+index 0000000..c7c8b23
+--- /dev/null
++++ b/tests/register-actions.test.ts
+@@ -0,0 +1,181 @@
++// Phase A (DR-036/DR-038) — /register server actions. Referral-code gate + password enforcement +
++// single post-auth redirect. Supabase / DB / SMS boundaries are mocked so the ADAPTER LOGIC is
++// exercised deterministically (no live project, no SMS). Covers acceptance tests §8.1–§8.3.
++import { describe, it, expect, vi, beforeEach } from "vitest";
++
++const h = vi.hoisted(() => ({
++  resolveSponsorByCode: vi.fn(),
++  sendOtp: vi.fn(),
++  verifyOtp: vi.fn(),
++  checkOtpSendRate: vi.fn(),
++  setPasswordForCurrentUser: vi.fn(),
++  syncUser: vi.fn(),
++  ensureGettingStartedEnrollment: vi.fn(),
++  postAuthRedirect: vi.fn(),
++  findUnique: vi.fn(),
++  update: vi.fn(),
++  track: vi.fn(),
++}));
++
++vi.mock("@/lib/auth/sponsor", () => ({
++  resolveSponsorByCode: h.resolveSponsorByCode,
++}));
++vi.mock("@/lib/auth/otp", () => ({
++  getOtpProvider: () => ({ sendOtp: h.sendOtp, verifyOtp: h.verifyOtp }),
++}));
++vi.mock("@/lib/auth/otp-rate-limit", () => ({
++  checkOtpSendRate: h.checkOtpSendRate,
++}));
++vi.mock("@/lib/auth/password", () => ({
++  passwordIssue: (pw: string) =>
++    typeof pw === "string" && pw.length >= 8
++      ? null
++      : "Password must be at least 8 characters",
++  setPasswordForCurrentUser: h.setPasswordForCurrentUser,
++}));
++vi.mock("@/lib/auth/user-sync", () => ({ syncUser: h.syncUser }));
++vi.mock("@/lib/lms/getting-started", () => ({
++  ensureGettingStartedEnrollment: h.ensureGettingStartedEnrollment,
++}));
++vi.mock("@/lib/auth/post-auth", () => ({
++  postAuthRedirect: h.postAuthRedirect,
++}));
++vi.mock("@/lib/prisma", () => ({
++  prisma: { user: { findUnique: h.findUnique, update: h.update } },
++}));
++vi.mock("@/lib/analytics/track", () => ({ track: h.track }));
++
++import {
++  validateReferralCode,
++  sendRegisterOtp,
++  verifyRegisterOtp,
++} from "@/app/register/actions";
++
++const PHONE = "9812345678";
++const CODE = "GS1A2B3C4D";
++const PW = "hunter2pass";
++
++beforeEach(() => {
++  vi.clearAllMocks();
++  h.checkOtpSendRate.mockResolvedValue({ ok: true });
++  h.sendOtp.mockResolvedValue(undefined);
++  h.verifyOtp.mockResolvedValue({
++    user: { id: "sb-new-1", phone: `+91${PHONE}` },
++  });
++  h.setPasswordForCurrentUser.mockResolvedValue(undefined);
++  h.syncUser.mockResolvedValue({
++    id: "u-1",
++    referredById: "sponsor-1",
++    referralCode: "GSXXXX",
++  });
++  h.ensureGettingStartedEnrollment.mockResolvedValue(undefined);
++  h.postAuthRedirect.mockResolvedValue("/welcome");
++  h.findUnique.mockResolvedValue(null); // brand-new account
++});
++
++describe("§8.1 register without a code → blocked", () => {
++  it("sendRegisterOtp with empty code never sends an OTP", async () => {
++    const res = await sendRegisterOtp({
++      phone: PHONE,
++      referralCode: "",
++      password: PW,
++    });
++    expect(res.ok).toBe(false);
++    expect(h.sendOtp).not.toHaveBeenCalled();
++    expect(h.resolveSponsorByCode).not.toHaveBeenCalled(); // Zod blocks before any lookup
++  });
++});
++
++describe("§8.2 invalid code → generic block", () => {
++  it("sendRegisterOtp with an unknown code is refused with a generic error, no OTP", async () => {
++    h.resolveSponsorByCode.mockResolvedValue(null);
++    const res = await sendRegisterOtp({
++      phone: PHONE,
++      referralCode: "GSBADCODE",
++      password: PW,
++    });
++    expect(res.ok).toBe(false);
++    if (!res.ok) expect(res.error).toMatch(/valid referral code/i);
++    expect(h.sendOtp).not.toHaveBeenCalled();
++  });
++
++  it("verifyRegisterOtp with an unknown code never verifies OTP or creates an account", async () => {
++    h.resolveSponsorByCode.mockResolvedValue(null);
++    const res = await verifyRegisterOtp({
++      phone: PHONE,
++      token: "123456",
++      referralCode: "GSBADCODE",
++      password: PW,
++    });
++    expect(res.ok).toBe(false);
++    expect(h.verifyOtp).not.toHaveBeenCalled();
++    expect(h.setPasswordForCurrentUser).not.toHaveBeenCalled();
++  });
++
++  it("validateReferralCode surfaces sponsor first name on hit, generic error on miss", async () => {
++    h.resolveSponsorByCode.mockResolvedValueOnce({
++      id: "s1",
++      firstName: "Rahul",
++    });
++    expect(await validateReferralCode(CODE)).toEqual({
++      ok: true,
++      sponsorFirstName: "Rahul",
++    });
++    h.resolveSponsorByCode.mockResolvedValueOnce(null);
++    const miss = await validateReferralCode("GSNOPE");
++    expect(miss.ok).toBe(false);
++  });
++});
++
++describe("weak password → blocked before SMS / account", () => {
++  it("sendRegisterOtp refuses a short password (valid code) without sending OTP", async () => {
++    h.resolveSponsorByCode.mockResolvedValue({ id: "s1", firstName: "Rahul" });
++    const res = await sendRegisterOtp({
++      phone: PHONE,
++      referralCode: CODE,
++      password: "short",
++    });
++    expect(res.ok).toBe(false);
++    if (!res.ok) expect(res.error).toMatch(/at least 8/i);
++    expect(h.sendOtp).not.toHaveBeenCalled();
++  });
++});
++
++describe("§8.3 valid code → account created, attributed, → welcome", () => {
++  it("sendRegisterOtp with a valid code + password sends the OTP", async () => {
++    h.resolveSponsorByCode.mockResolvedValue({ id: "s1", firstName: "Rahul" });
++    const res = await sendRegisterOtp({
++      phone: PHONE,
++      referralCode: CODE,
++      password: PW,
++    });
++    expect(res.ok).toBe(true);
++    expect(h.sendOtp).toHaveBeenCalledWith(PHONE);
++  });
++
++  it("verifyRegisterOtp sets password, syncs with the code, and redirects new users to /welcome", async () => {
++    h.resolveSponsorByCode.mockResolvedValue({
++      id: "sponsor-1",
++      firstName: "Rahul",
++    });
++    const res = await verifyRegisterOtp({
++      phone: PHONE,
++      token: "123456",
++      referralCode: CODE,
++      password: PW,
++      name: "Asha",
++    });
++    expect(res.ok).toBe(true);
++    if (res.ok) expect(res.redirectTo).toBe("/welcome");
++    expect(h.setPasswordForCurrentUser).toHaveBeenCalledWith(PW);
++    expect(h.syncUser).toHaveBeenCalledWith(
++      expect.objectContaining({ id: "sb-new-1" }),
++      CODE,
++    );
++    expect(h.track).toHaveBeenCalledWith(
++      "account_created",
++      "u-1",
++      expect.objectContaining({ ref_attributed: true }),
++    );
++  });
++});
