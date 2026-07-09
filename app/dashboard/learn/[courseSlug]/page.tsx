@@ -74,7 +74,9 @@ export default async function CoursePlayerPage({
       </div>
 
       <div className="grid gap-6 md:grid-cols-[1fr,18rem]">
-        <div>
+        {/* min-w-0: grid items default to min-width:auto, so the <video>'s intrinsic min-content
+            width couldn't shrink below the 360px column → ~6px horizontal overflow (QA-01). */}
+        <div className="min-w-0">
           {playback ? (
             <LessonPlayer
               courseSlug={courseSlug}
@@ -119,7 +121,7 @@ export default async function CoursePlayerPage({
           )}
         </div>
 
-        <aside aria-label="Lessons" className="space-y-4">
+        <aside aria-label="Lessons" className="min-w-0 space-y-4">
           {view.modules.map((m) => (
             <div key={m.id}>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">

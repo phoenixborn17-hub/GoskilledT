@@ -53,6 +53,12 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${sora.variable} ${inter.variable} ${devanagari.variable}`}
+      // QA-01 hydration fix: next/font injects the font-variable classNames on <html> and browser
+      // extensions mutate <html>/<body> attributes before React hydrates, so the html element's OWN
+      // attributes can legitimately differ SSR→client (a dev-mode next/font artifact — the QA harness
+      // runs `npm run dev`). This is the Next.js/React-documented remedy and is scoped to <html>'s
+      // attributes only (one level deep): child mismatches still warn, so real bugs are never masked.
+      suppressHydrationWarning
     >
       <body className="min-h-dvh bg-offwhite font-body text-charcoal antialiased">
         <StagingBanner />
