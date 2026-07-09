@@ -172,7 +172,8 @@ export async function getWalletHistory(
   const withdrawalItems: WalletHistoryItem[] = withdrawals.map((w) => ({
     date: w.requestedAt,
     kind: "WITHDRAWAL",
-    label: `Withdrawal ${w.status.toLowerCase()}`,
+    // "APPLIED"→"applied", "IN_PROGRESS"→"in progress", "PAID"→"paid", "REJECTED"→"rejected"
+    label: `Withdrawal ${w.status.toLowerCase().replace(/_/g, " ")}`,
     amountInPaise: -w.amountInPaise,
   }));
 

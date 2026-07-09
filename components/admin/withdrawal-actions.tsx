@@ -6,21 +6,33 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   markPaidAction,
+  markInProgressAction,
   rejectWithdrawalAction,
 } from "../../app/admin/withdrawals/actions";
 
 export function WithdrawalActions({
   withdrawalId,
   canMark,
+  status,
 }: {
   withdrawalId: string;
   canMark: boolean;
+  status: "APPLIED" | "IN_PROGRESS" | "PAID" | "REJECTED";
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [mode, setMode] = useState<"idle" | "rejecting">("idle");
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
+
+  async function onStart() {
+    setBusy(true);
+    setError(null);
+    const res = await markInProgressAction(withdrawalId);
+    setBusy(false);
+    if (res.ok) router.refresh();
+    else setError(res.error);
+  }
 
   async function onMarkPaid() {
     if (
@@ -49,6 +61,15 @@ export function WithdrawalActions({
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap justify-end gap-2">
+        {status === "APPLIED" && (
+          <button
+            onClick={onStart}
+            disabled={busy}
+            className="rounded-lg border border-charcoal/20 px-3 py-1.5 text-xs font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
+          >
+            {busy ? "…" : "Start processing"}
+          </button>
+        )}
         <button
           onClick={onMarkPaid}
           disabled={busy || !canMark}

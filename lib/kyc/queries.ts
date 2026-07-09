@@ -15,7 +15,31 @@ export interface KycView {
   ifsc: string | null; // bank branch code — not secret PII, stored plaintext
   holderName: string | null;
   submittedAt: Date | null;
+  // Phase C additions (contact + verify + bank name + doc type + which docs are on file).
+  email: string | null;
+  emailVerified: boolean;
+  whatsapp: string | null;
+  whatsappVerified: boolean;
+  bankName: string | null;
+  docType: string | null;
+  docs: { address: boolean; pan: boolean; bank: boolean };
 }
+
+const EMPTY_VIEW: KycView = {
+  uiStatus: "NOT_SUBMITTED",
+  panMasked: null,
+  accountMasked: null,
+  ifsc: null,
+  holderName: null,
+  submittedAt: null,
+  email: null,
+  emailVerified: false,
+  whatsapp: null,
+  whatsappVerified: false,
+  bankName: null,
+  docType: null,
+  docs: { address: false, pan: false, bank: false },
+};
 
 export async function getKycView(userId: string): Promise<KycView> {
   const kyc = await prisma.kyc.findUnique({
@@ -27,19 +51,19 @@ export async function getKycView(userId: string): Promise<KycView> {
       ifsc: true,
       status: true,
       submittedAt: true,
+      email: true,
+      emailVerifiedAt: true,
+      whatsapp: true,
+      whatsappVerifiedAt: true,
+      bankName: true,
+      docType: true,
+      addressDocEnc: true,
+      panDocEnc: true,
+      bankDocEnc: true,
     },
   });
 
-  if (!kyc) {
-    return {
-      uiStatus: "NOT_SUBMITTED",
-      panMasked: null,
-      accountMasked: null,
-      ifsc: null,
-      holderName: null,
-      submittedAt: null,
-    };
-  }
+  if (!kyc) return EMPTY_VIEW;
 
   return {
     uiStatus: kycUiStatus(kyc.status),
@@ -50,6 +74,17 @@ export async function getKycView(userId: string): Promise<KycView> {
     ifsc: kyc.ifsc,
     holderName: kyc.accountHolderEnc ? decryptPii(kyc.accountHolderEnc) : null,
     submittedAt: kyc.submittedAt,
+    email: kyc.email,
+    emailVerified: !!kyc.emailVerifiedAt,
+    whatsapp: kyc.whatsapp,
+    whatsappVerified: !!kyc.whatsappVerifiedAt,
+    bankName: kyc.bankName,
+    docType: kyc.docType,
+    docs: {
+      address: !!kyc.addressDocEnc,
+      pan: !!kyc.panDocEnc,
+      bank: !!kyc.bankDocEnc,
+    },
   };
 }
 

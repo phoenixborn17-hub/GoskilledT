@@ -62,6 +62,15 @@ export default async function KycDetailPage({
       ) : (
         <Card className="space-y-4">
           <dl className="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-2 text-sm">
+            <dt className="text-muted">Email</dt>
+            <dd className="font-semibold">
+              {detail.email ?? "—"} <VerifyTag ok={detail.emailVerified} />
+            </dd>
+            <dt className="text-muted">WhatsApp</dt>
+            <dd className="font-semibold">
+              {detail.whatsapp ?? "—"}{" "}
+              <VerifyTag ok={detail.whatsappVerified} />
+            </dd>
             <dt className="text-muted">PAN</dt>
             <dd className="font-mono font-semibold">
               {detail.panMasked ?? "—"}
@@ -72,11 +81,45 @@ export default async function KycDetailPage({
             </dd>
             <dt className="text-muted">Account holder name</dt>
             <dd className="font-semibold">{detail.holderName ?? "—"}</dd>
+            <dt className="text-muted">Bank name</dt>
+            <dd className="font-semibold">{detail.bankName ?? "—"}</dd>
             <dt className="text-muted">IFSC</dt>
             <dd className="font-mono font-semibold">{detail.ifsc ?? "—"}</dd>
+            <dt className="text-muted">Address doc</dt>
+            <dd>{detail.docType ?? "—"}</dd>
             <dt className="text-muted">Submitted</dt>
             <dd>{fmtDateTime(detail.submittedAt)}</dd>
           </dl>
+
+          {/* Documents — each open is reveal-logged (KYC_DOC_VIEWED) by the admin route. */}
+          <div className="border-t border-charcoal/10 pt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+              Documents
+            </p>
+            <div className="flex flex-wrap gap-2 text-sm">
+              {(["pan", "address", "bank"] as const).map((kind) =>
+                detail.docs[kind] ? (
+                  <a
+                    key={kind}
+                    href={`/admin/kyc/${detail.userId}/doc/${kind}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="rounded-lg border border-charcoal/20 px-3 py-1.5 font-semibold text-charcoal hover:bg-charcoal/5"
+                  >
+                    View {kind} doc
+                  </a>
+                ) : (
+                  <span
+                    key={kind}
+                    className="rounded-lg bg-charcoal/5 px-3 py-1.5 text-muted"
+                  >
+                    No {kind} doc
+                  </span>
+                ),
+              )}
+            </div>
+          </div>
+
           <div className="border-t border-charcoal/10 pt-4">
             <KycReveal userId={detail.userId} />
           </div>
@@ -112,5 +155,13 @@ export default async function KycDetailPage({
         )}
       </Card>
     </section>
+  );
+}
+
+function VerifyTag({ ok }: { ok: boolean }) {
+  return ok ? (
+    <span className="text-xs font-semibold text-brand">✓ verified</span>
+  ) : (
+    <span className="text-xs text-muted">unverified</span>
   );
 }

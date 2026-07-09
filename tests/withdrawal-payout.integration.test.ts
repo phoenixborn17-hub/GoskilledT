@@ -2,7 +2,7 @@
 // PAYOUT ledger tx (wallet debit ↔ clearing credit), flips the row, and audits WITHDRAWAL_PAID;
 // a double-mark is idempotent (no second ledger tx); a balance drop hard-stops. runId prefix so
 // purge-test-data catches the rows.
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
 import { executeTxSpec } from "@/modules/ledger/persist";
 import { markWithdrawalPaid, rejectWithdrawal } from "@/lib/admin/withdrawals";
@@ -10,6 +10,7 @@ import { payoutIdempotencyKey } from "@/modules/wallet/withdrawal";
 import { encryptPii } from "@/lib/pii";
 
 const HAS_DB = !!process.env.DATABASE_URL;
+const PRIOR_PAYOUTS = process.env.AFFILIATE_PAYOUTS_ENABLED;
 const runId = `m4wd${Date.now()}`;
 const PAST = new Date(Date.now() - 60_000); // credit already available
 const actor = { supabaseId: `admin_${runId}`, email: "admin@example.com" };
@@ -74,6 +75,14 @@ describe.skipIf(!HAS_DB)("withdrawal payout marking (integration)", () => {
   beforeAll(() => {
     // Deterministic 32-byte AES key for the KYC PII roundtrip (the .env dev value is a placeholder).
     process.env.PII_ENCRYPTION_KEY = Buffer.alloc(32, 3).toString("base64");
+    // Phase C: the payout ledger tx only fires when payouts are ON. These tests EXERCISE that path,
+    // so enable it here (and restore after). The D-01 OFF gate is covered separately below.
+    process.env.AFFILIATE_PAYOUTS_ENABLED = "true";
+  });
+  afterAll(() => {
+    if (PRIOR_PAYOUTS === undefined)
+      delete process.env.AFFILIATE_PAYOUTS_ENABLED;
+    else process.env.AFFILIATE_PAYOUTS_ENABLED = PRIOR_PAYOUTS;
   });
 
   it("Mark PAID executes a balanced PAYOUT ledger tx, flips the row, and audits", async () => {
@@ -145,6 +154,32 @@ describe.skipIf(!HAS_DB)("withdrawal payout marking (integration)", () => {
       where: { idempotencyKey: payoutIdempotencyKey(wid) },
     });
     expect(count).toBe(0); // no money moved
+  });
+
+  it("payoutsEnabled OFF ⇒ Mark PAID is refused and NO payout ledger tx executes (D-01, §6)", async () => {
+    const userId = await makeUser("E");
+    await creditWallet(userId, 80_000);
+    await approveKyc(userId);
+    const wid = await applyWithdrawal(userId, 50_000);
+
+    process.env.AFFILIATE_PAYOUTS_ENABLED = "false"; // flip OFF for this case only
+    try {
+      const res = await markWithdrawalPaid(actor, wid);
+      expect(res.ok).toBe(false);
+      if (!res.ok) expect(res.error).toMatch(/disabled|D-01/i);
+    } finally {
+      process.env.AFFILIATE_PAYOUTS_ENABLED = "true";
+    }
+
+    const count = await prisma.ledgerTransaction.count({
+      where: { idempotencyKey: payoutIdempotencyKey(wid) },
+    });
+    expect(count).toBe(0); // no money moved
+    const row = await prisma.withdrawal.findUniqueOrThrow({
+      where: { id: wid },
+      select: { status: true },
+    });
+    expect(row.status).toBe("APPLIED"); // untouched
   });
 
   it("reject leaves funds available and audits the reason (no ledger move)", async () => {

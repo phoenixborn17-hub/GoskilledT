@@ -75,11 +75,21 @@ export type PayoutMarkDecision =
  * ledger idempotency). Balance moved below the amount since APPLIED → hard stop.
  */
 export function canMarkWithdrawalPaid(c: {
+  payoutsEnabled: boolean; // D-01: no real payout may execute while OFF
   status: "APPLIED" | "IN_PROGRESS" | "PAID" | "REJECTED";
   kycApproved: boolean;
   availableInPaise: number;
   amountInPaise: number;
 }): PayoutMarkDecision {
+  // Hard D-01 gate (Phase C §0): the payout ledger tx must NOT fire while payouts are OFF, even for
+  // an admin. Defence in depth — requests can't even be created pre-flag (validateWithdrawal), but
+  // this guarantees "payoutsEnabled OFF ⇒ no payout executes" at the money-move site.
+  if (!c.payoutsEnabled)
+    return {
+      ok: false,
+      code: "PAYOUTS_DISABLED",
+      message: "Payouts are disabled until legal clearance (D-01).",
+    };
   if (c.status === "PAID")
     return { ok: false, code: "ALREADY_PAID", message: "Already marked paid." };
   if (c.status === "REJECTED")
@@ -100,6 +110,25 @@ export function canMarkWithdrawalPaid(c: {
       code: "BALANCE_CHANGED",
       message:
         "Available balance is now below the requested amount — re-review before paying.",
+    };
+  return { ok: true };
+}
+
+/** Applied → In Progress (the middle lifecycle step). Only an APPLIED request may enter processing. */
+export function canMarkWithdrawalInProgress(c: {
+  status: "APPLIED" | "IN_PROGRESS" | "PAID" | "REJECTED";
+}): PayoutMarkDecision {
+  if (c.status === "IN_PROGRESS")
+    return {
+      ok: false,
+      code: "ALREADY_IN_PROGRESS",
+      message: "Already in progress.",
+    };
+  if (c.status !== "APPLIED")
+    return {
+      ok: false,
+      code: "NOT_APPLIED",
+      message: "Only an applied request can move to In Progress.",
     };
   return { ok: true };
 }

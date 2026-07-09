@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getAdminUser } from "../../../lib/auth/admin";
 import {
   markWithdrawalPaid,
+  markWithdrawalInProgress,
   rejectWithdrawal,
 } from "../../../lib/admin/withdrawals";
 
@@ -23,6 +24,21 @@ export async function markPaidAction(
   revalidatePath("/admin/withdrawals");
   revalidatePath("/admin");
   return { ok: true, idempotent: res.idempotent };
+}
+
+export type SimpleResult = { ok: true } | { ok: false; error: string };
+
+export async function markInProgressAction(
+  withdrawalId: string,
+): Promise<SimpleResult> {
+  const admin = await getAdminUser();
+  if (!admin) return { ok: false, error: "Not authorized" };
+  if (!withdrawalId) return { ok: false, error: "Missing withdrawal" };
+  const res = await markWithdrawalInProgress(admin, withdrawalId);
+  if (!res.ok) return res;
+  revalidatePath("/admin/withdrawals");
+  revalidatePath("/admin");
+  return { ok: true };
 }
 
 const rejectSchema = z.object({

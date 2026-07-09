@@ -102,10 +102,17 @@ async function KycBody({ userId }: { userId: string }) {
       )}
       <Card>
         <div className="mb-4 flex items-center justify-between">
-          <CardTitle className="text-base">Your bank details</CardTitle>
+          <CardTitle className="text-base">Your KYC details</CardTitle>
           <Badge variant="muted">Encrypted</Badge>
         </div>
-        <KycForm />
+        <KycForm
+          initial={{
+            email: kyc.email,
+            emailVerified: kyc.emailVerified,
+            whatsapp: kyc.whatsapp,
+            whatsappVerified: kyc.whatsappVerified,
+          }}
+        />
       </Card>
       <StoreNote />
     </>
