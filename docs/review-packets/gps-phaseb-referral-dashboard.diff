@@ -1,0 +1,1887 @@
+diff --git a/app/dashboard/earn/commission-structure/page.tsx b/app/dashboard/earn/commission-structure/page.tsx
+new file mode 100644
+index 0000000..02b184f
+--- /dev/null
++++ b/app/dashboard/earn/commission-structure/page.tsx
+@@ -0,0 +1,73 @@
++// Commission-structure page (Phase B / B5). Shows the fixed DR-007 3-level reward structure for both
++// packages. Compliance-safe (learning-first, no income guarantees — D-29). Gated behind the payouts
++// flag (D-01): until the programme is legally live we don't publish reward amounts — the same pending
++// state the other money surfaces use.
++import { payoutsEnabled } from "../../../../lib/env";
++import { formatINR } from "../../../../lib/money";
++import {
++  commissionStructure,
++  COMMISSION_STRUCTURE_COPY,
++} from "../../../../lib/affiliate/commission-structure";
++import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
++import { levelLabel } from "../../../../lib/affiliate/labels";
++import {
++  Card,
++  CardTitle,
++  CardDescription,
++} from "../../../../components/ui/card";
++
++export const dynamic = "force-dynamic";
++
++export default function CommissionStructurePage() {
++  const rows = commissionStructure();
++
++  return (
++    <section aria-labelledby="cs-heading" className="space-y-6">
++      <h1 id="cs-heading" className="font-heading text-2xl font-bold">
++        {COMMISSION_STRUCTURE_COPY.heading}
++      </h1>
++
++      {!payoutsEnabled() ? (
++        <Card className="bg-gold/10">
++          <CardTitle>{AFFILIATE_COPY.moneyPendingHeading}</CardTitle>
++          <CardDescription>{AFFILIATE_COPY.moneyPendingBody}</CardDescription>
++        </Card>
++      ) : (
++        <>
++          <p className="max-w-prose text-sm text-muted">
++            {COMMISSION_STRUCTURE_COPY.intro}
++          </p>
++
++          <div className="space-y-4">
++            {rows.map((row) => (
++              <Card key={row.slug} className="space-y-3">
++                <div className="flex items-baseline justify-between gap-3">
++                  <CardTitle className="text-base">{row.name}</CardTitle>
++                  <span className="text-sm text-muted">
++                    up to {formatINR(row.totalInPaise)} / purchase
++                  </span>
++                </div>
++                <dl className="grid grid-cols-3 gap-2 text-center">
++                  {row.levels.map((l) => (
++                    <div key={l.level} className="rounded-xl bg-gold/10 p-3">
++                      <dt className="text-xs font-medium text-charcoal/60">
++                        {levelLabel(l.level)}
++                      </dt>
++                      <dd className="font-heading text-lg font-bold text-charcoal">
++                        {formatINR(l.amountInPaise)}
++                      </dd>
++                    </div>
++                  ))}
++                </dl>
++              </Card>
++            ))}
++          </div>
++
++          <p className="max-w-prose text-xs text-muted">
++            {COMMISSION_STRUCTURE_COPY.disclaimer}
++          </p>
++        </>
++      )}
++    </section>
++  );
++}
+diff --git a/app/dashboard/earn/network/export/route.ts b/app/dashboard/earn/network/export/route.ts
+new file mode 100644
+index 0000000..6224a5e
+--- /dev/null
++++ b/app/dashboard/earn/network/export/route.ts
+@@ -0,0 +1,51 @@
++// L1 referral export (Phase B / B3). ONLY Level 1 is exportable — L2/L3 are refused server-side
++// (DR-038 privacy). Authorized to the signed-in user, scoped to THEIR own network, rate-limited.
++// Mirrors the admin audit-export route pattern.
++import { NextResponse, type NextRequest } from "next/server";
++import { getCurrentUser } from "../../../../../lib/auth/session";
++import { getL1Export, l1ToCsv } from "../../../../../lib/affiliate/network";
++import { rateLimit } from "../../../../../lib/rate-limit";
++
++export const dynamic = "force-dynamic";
++
++export async function GET(request: NextRequest) {
++  const user = await getCurrentUser();
++  if (!user) return new NextResponse("Not authorized", { status: 401 });
++
++  const sp = request.nextUrl.searchParams;
++  // DR-038: only Level 1 may be exported. Any other level is refused HERE, server-side — the UI
++  // never offers an L2/L3 export, and this is the enforcing backstop.
++  const level = sp.get("level") ?? "1";
++  if (level !== "1")
++    return new NextResponse("Only Level 1 is exportable.", { status: 403 });
++
++  // Per-user rate-limit — an export reads real mobile numbers; keep it modest.
++  const rl = rateLimit(`network-export:${user.id}`, {
++    windowMs: 10 * 60 * 1000,
++    max: 5,
++  });
++  if (!rl.ok)
++    return new NextResponse("Too many exports. Please try again shortly.", {
++      status: 429,
++    });
++
++  const range = sp.get("range");
++  const from =
++    range === "30d"
++      ? new Date(Date.now() - 30 * 864e5)
++      : range === "90d"
++        ? new Date(Date.now() - 90 * 864e5)
++        : undefined;
++  const pkgParam = sp.get("pkg");
++  const packageSlug = pkgParam && pkgParam !== "all" ? pkgParam : undefined;
++
++  const rows = await getL1Export(user.id, { from, packageSlug });
++  const csv = l1ToCsv(rows);
++  return new NextResponse(csv, {
++    headers: {
++      "Content-Type": "text/csv; charset=utf-8",
++      "Content-Disposition": 'attachment; filename="my-network-level-1.csv"',
++      "Cache-Control": "no-store",
++    },
++  });
++}
+diff --git a/app/dashboard/earn/network/page.tsx b/app/dashboard/earn/network/page.tsx
+new file mode 100644
+index 0000000..cb61c51
+--- /dev/null
++++ b/app/dashboard/earn/network/page.tsx
+@@ -0,0 +1,283 @@
++// My Network (Phase B / B2 + B3). Server component. The 3-level referral tables with date + package
++// filters, plus a network-growth graph (date + level filter). Privacy is enforced in the read
++// (lib/affiliate/network.ts): L1 shows first name + masked mobile + packages and is exportable;
++// L2/L3 show joined date only and are never exportable. Safe in BOTH flag states (no ₹ here).
++import Link from "next/link";
++import { Download } from "lucide-react";
++import { getCurrentUser } from "../../../../lib/auth/session";
++import { prisma } from "../../../../lib/prisma";
++import { getReferralNetwork } from "../../../../lib/affiliate/network";
++import {
++  cumulativeByBucket,
++  type Bucket,
++} from "../../../../lib/affiliate/analytics";
++import { AFFILIATE_LABELS, levelLabel } from "../../../../lib/affiliate/labels";
++import { MiniChart } from "../../../../components/affiliate/mini-chart";
++import { Card, CardTitle } from "../../../../components/ui/card";
++
++export const dynamic = "force-dynamic";
++
++type Range = "30d" | "90d" | "all";
++type LevelFilter = "all" | "1" | "2" | "3";
++
++function fromForRange(range: Range, now: Date): Date | undefined {
++  if (range === "30d") return new Date(now.getTime() - 30 * 864e5);
++  if (range === "90d") return new Date(now.getTime() - 90 * 864e5);
++  return undefined;
++}
++
++function formatDate(d: Date): string {
++  return new Intl.DateTimeFormat("en-IN", {
++    dateStyle: "medium",
++    timeZone: "Asia/Kolkata",
++  }).format(d);
++}
++
++function qs(params: Record<string, string>): string {
++  const clean = Object.fromEntries(
++    Object.entries(params).filter(([, v]) => v && v !== "all"),
++  );
++  const s = new URLSearchParams(clean).toString();
++  return s ? `?${s}` : "";
++}
++
++export default async function NetworkPage({
++  searchParams,
++}: {
++  searchParams: Promise<{ range?: string; pkg?: string; level?: string }>;
++}) {
++  const user = await getCurrentUser();
++  const sp = await searchParams;
++  const range: Range =
++    sp.range === "30d" || sp.range === "90d" ? sp.range : "all";
++  const level: LevelFilter =
++    sp.level === "1" || sp.level === "2" || sp.level === "3" ? sp.level : "all";
++  const pkg = sp.pkg && sp.pkg !== "all" ? sp.pkg : undefined;
++  const now = new Date();
++  const from = fromForRange(range, now);
++
++  const [net, packages] = await Promise.all([
++    getReferralNetwork(user!.id, { from, packageSlug: pkg }),
++    prisma.package.findMany({
++      where: { isActive: true },
++      select: { slug: true, name: true },
++    }),
++  ]);
++
++  // Network-growth graph, derived from the SAME filtered rows (consistent with the tables).
++  const graphDates = (
++    level === "1"
++      ? net.l1
++      : level === "2"
++        ? net.l2
++        : level === "3"
++          ? net.l3
++          : [...net.l1, ...net.l2, ...net.l3]
++  ).map((r) => ({ date: r.joinedAt, value: 1 }));
++  const bucket: Bucket = range === "all" ? "month" : "day";
++  const series = cumulativeByBucket(graphDates, bucket);
++
++  const base = { range, pkg: pkg ?? "all", level };
++
++  return (
++    <section aria-labelledby="network-heading" className="space-y-6">
++      <h1 id="network-heading" className="font-heading text-2xl font-bold">
++        {AFFILIATE_LABELS.networkSection}
++      </h1>
++
++      {/* Filters — plain links (zero JS). Date range + package + graph level. */}
++      <div className="space-y-3">
++        <ChipRow label="Period">
++          {(["30d", "90d", "all"] as Range[]).map((r) => (
++            <Chip
++              key={r}
++              active={range === r}
++              href={`/dashboard/earn/network${qs({ ...base, range: r })}`}
++            >
++              {r === "all" ? "All time" : r === "30d" ? "30 days" : "90 days"}
++            </Chip>
++          ))}
++        </ChipRow>
++        <ChipRow label="Graph level">
++          {(["all", "1", "2", "3"] as LevelFilter[]).map((l) => (
++            <Chip
++              key={l}
++              active={level === l}
++              href={`/dashboard/earn/network${qs({ ...base, level: l })}`}
++            >
++              {l === "all" ? "All levels" : levelLabel(Number(l) as 1 | 2 | 3)}
++            </Chip>
++          ))}
++        </ChipRow>
++        {packages.length > 0 && (
++          <ChipRow label="Package">
++            <Chip
++              active={!pkg}
++              href={`/dashboard/earn/network${qs({ ...base, pkg: "all" })}`}
++            >
++              All
++            </Chip>
++            {packages.map((p) => (
++              <Chip
++                key={p.slug}
++                active={pkg === p.slug}
++                href={`/dashboard/earn/network${qs({ ...base, pkg: p.slug })}`}
++              >
++                {p.name}
++              </Chip>
++            ))}
++          </ChipRow>
++        )}
++      </div>
++
++      {/* Network-growth graph */}
++      <Card className="space-y-2">
++        <CardTitle className="text-base">
++          {AFFILIATE_LABELS.networkGraph}
++        </CardTitle>
++        <MiniChart
++          points={series}
++          kind="line"
++          format={(n) => `${n} member${n === 1 ? "" : "s"}`}
++          empty="No one has joined your network in this period yet."
++        />
++      </Card>
++
++      {/* Level 1 — full rows + export */}
++      <Card className="space-y-3">
++        <div className="flex items-center justify-between gap-3">
++          <CardTitle className="text-base">
++            {levelLabel(1)} · {net.counts.l1}
++          </CardTitle>
++          {net.counts.l1 > 0 && (
++            <Link
++              href={`/dashboard/earn/network/export${qs({ ...base, level: "1" })}`}
++              className="press inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-1.5 text-sm font-semibold text-charcoal"
++              prefetch={false}
++            >
++              <Download className="h-4 w-4" aria-hidden /> Export CSV
++            </Link>
++          )}
++        </div>
++        {net.l1.length === 0 ? (
++          <EmptyRow>No direct invites in this period yet.</EmptyRow>
++        ) : (
++          <div className="overflow-x-auto">
++            <table className="w-full text-sm">
++              <thead>
++                <tr className="text-left text-xs uppercase tracking-wide text-muted">
++                  <th className="py-2 pr-3 font-medium">Name</th>
++                  <th className="py-2 pr-3 font-medium">Mobile</th>
++                  <th className="py-2 pr-3 font-medium">Joined</th>
++                  <th className="py-2 font-medium">Packages</th>
++                </tr>
++              </thead>
++              <tbody className="divide-y divide-charcoal/5">
++                {net.l1.map((r, i) => (
++                  <tr key={i}>
++                    <td className="py-2 pr-3 font-medium text-charcoal">
++                      {r.firstName || "GoSkilled learner"}
++                    </td>
++                    <td className="py-2 pr-3 text-muted">
++                      {r.mobileMasked ?? "—"}
++                    </td>
++                    <td className="py-2 pr-3 text-muted">
++                      {formatDate(r.joinedAt)}
++                    </td>
++                    <td className="py-2 text-muted">
++                      {r.packages.length ? r.packages.join(", ") : "—"}
++                    </td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          </div>
++        )}
++      </Card>
++
++      {/* Level 2 & 3 — joined date only, never exportable (privacy) */}
++      {([2, 3] as const).map((lvl) => {
++        const rows = lvl === 2 ? net.l2 : net.l3;
++        const count = lvl === 2 ? net.counts.l2 : net.counts.l3;
++        return (
++          <Card key={lvl} className="space-y-3">
++            <CardTitle className="text-base">
++              {levelLabel(lvl)} · {count}
++            </CardTitle>
++            {rows.length === 0 ? (
++              <EmptyRow>
++                No {levelLabel(lvl)} members in this period yet.
++              </EmptyRow>
++            ) : (
++              <ul className="divide-y divide-charcoal/5 text-sm">
++                {rows.map((r, i) => (
++                  <li key={i} className="flex justify-between gap-3 py-2">
++                    <span className="text-charcoal">GoSkilled learner</span>
++                    <span className="text-muted">
++                      joined {formatDate(r.joinedAt)}
++                    </span>
++                  </li>
++                ))}
++              </ul>
++            )}
++            <p className="text-xs text-muted">
++              To protect people you didn&apos;t invite directly,{" "}
++              {levelLabel(lvl)} shows join dates only — no names, no mobile
++              numbers — and can&apos;t be exported.
++            </p>
++          </Card>
++        );
++      })}
++    </section>
++  );
++}
++
++function ChipRow({
++  label,
++  children,
++}: {
++  label: string;
++  children: React.ReactNode;
++}) {
++  return (
++    <div className="flex flex-wrap items-center gap-2">
++      <span className="text-xs font-medium uppercase tracking-wide text-muted">
++        {label}
++      </span>
++      {children}
++    </div>
++  );
++}
++
++function Chip({
++  active,
++  href,
++  children,
++}: {
++  active: boolean;
++  href: string;
++  children: React.ReactNode;
++}) {
++  return (
++    <Link
++      href={href}
++      aria-current={active ? "true" : undefined}
++      className={
++        "press shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors " +
++        (active
++          ? "bg-charcoal text-white"
++          : "bg-charcoal/5 text-charcoal/70 hover:bg-charcoal/10")
++      }
++    >
++      {children}
++    </Link>
++  );
++}
++
++function EmptyRow({ children }: { children: React.ReactNode }) {
++  return (
++    <p className="rounded-xl bg-charcoal/5 p-4 text-sm text-muted">
++      {children}
++    </p>
++  );
++}
+diff --git a/app/dashboard/earn/page.tsx b/app/dashboard/earn/page.tsx
+index 66047b0..21158b6 100644
+--- a/app/dashboard/earn/page.tsx
++++ b/app/dashboard/earn/page.tsx
+@@ -9,8 +9,15 @@ import { siteUrl } from "../../../lib/seo";
+ import { formatINR } from "../../../lib/money";
+ import { getReferralTree } from "../../../lib/affiliate/referrals";
+ import { getWalletSummaryFor } from "../../../lib/wallet/queries";
++import {
++  getEarningSeriesData,
++  getPaymentsReceivedData,
++} from "../../../lib/affiliate/graph-queries";
++import { sumByBucket } from "../../../lib/affiliate/analytics";
+ import { AFFILIATE_COPY } from "../../../lib/affiliate/copy";
++import { AFFILIATE_LABELS } from "../../../lib/affiliate/labels";
+ import { ShareBlock } from "../../../components/affiliate/share-block";
++import { MiniChart } from "../../../components/affiliate/mini-chart";
+ import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
+ import { Button } from "../../../components/ui/button";
+ 
+@@ -98,7 +105,13 @@ async function PostFlag({
+   shareUrl: string;
+   inviteCount: number;
+ }) {
+-  const summary = await getWalletSummaryFor(userId);
++  const [summary, earningData, paymentsData] = await Promise.all([
++    getWalletSummaryFor(userId),
++    getEarningSeriesData(userId),
++    getPaymentsReceivedData(userId),
++  ]);
++  const earningSeries = sumByBucket(earningData, "month");
++  const paymentsSeries = sumByBucket(paymentsData, "month");
+   return (
+     <div className="space-y-5">
+       <Card className="bg-gold/10">
+@@ -126,6 +139,30 @@ async function PostFlag({
+         </div>
+       </Card>
+ 
++      {/* B2 — earnings + payments-received graphs (derived from the ledger; honest empty states). */}
++      <Card className="space-y-2">
++        <CardTitle className="text-base">
++          {AFFILIATE_LABELS.earningGraph}
++        </CardTitle>
++        <MiniChart
++          points={earningSeries}
++          kind="bar"
++          format={(n) => formatINR(n)}
++          empty="No commissions credited yet — they'll show here as your network buys."
++        />
++      </Card>
++      <Card className="space-y-2">
++        <CardTitle className="text-base">
++          {AFFILIATE_LABELS.paymentsGraph}
++        </CardTitle>
++        <MiniChart
++          points={paymentsSeries}
++          kind="bar"
++          format={(n) => formatINR(n)}
++          empty="No payments received yet."
++        />
++      </Card>
++
+       <Card className="space-y-3">
+         <div>
+           <CardTitle className="text-base">Invite more friends</CardTitle>
+diff --git a/app/dashboard/earn/wallet/page.tsx b/app/dashboard/earn/wallet/page.tsx
+index 73c7e30..f178da0 100644
+--- a/app/dashboard/earn/wallet/page.tsx
++++ b/app/dashboard/earn/wallet/page.tsx
+@@ -10,8 +10,12 @@ import {
+   getWalletHistory,
+   hasPendingWithdrawal,
+ } from "../../../../lib/wallet/queries";
++import { getWalletBalanceData } from "../../../../lib/affiliate/graph-queries";
++import { cumulativeByBucket } from "../../../../lib/affiliate/analytics";
+ import { getKycStatus } from "../../../../lib/kyc/queries";
+ import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
++import { AFFILIATE_LABELS } from "../../../../lib/affiliate/labels";
++import { MiniChart } from "../../../../components/affiliate/mini-chart";
+ import { WalletSummary } from "../../../../components/affiliate/wallet-summary";
+ import { HeldCreditRow } from "../../../../components/affiliate/held-credit-row";
+ import { WithdrawForm } from "../../../../components/affiliate/withdraw-form";
+@@ -45,21 +49,37 @@ export default async function WalletPage() {
+ 
+ async function WalletMoney({ userId }: { userId: string }) {
+   const now = new Date();
+-  const [summary, held, history, pending, kycStatus] = await Promise.all([
+-    getWalletSummaryFor(userId, now),
+-    getHeldCredits(userId, now),
+-    getWalletHistory(userId),
+-    hasPendingWithdrawal(userId),
+-    getKycStatus(userId),
+-  ]);
++  const [summary, held, history, pending, kycStatus, balanceData] =
++    await Promise.all([
++      getWalletSummaryFor(userId, now),
++      getHeldCredits(userId, now),
++      getWalletHistory(userId),
++      hasPendingWithdrawal(userId),
++      getKycStatus(userId),
++      getWalletBalanceData(userId),
++    ]);
+ 
+   const kycVerified = kycStatus === "APPROVED";
+   const canWithdraw = kycVerified && summary.availableInPaise > 0 && !pending;
++  const balanceSeries = cumulativeByBucket(balanceData, "day");
+ 
+   return (
+     <div className="space-y-6">
+       <WalletSummary summary={summary} />
+ 
++      {/* B4 — balance over time (running total from the ledger). Held vs available split is above. */}
++      <Card className="space-y-2">
++        <CardTitle className="text-base">
++          {AFFILIATE_LABELS.walletGraph}
++        </CardTitle>
++        <MiniChart
++          points={balanceSeries}
++          kind="line"
++          format={(n) => formatINR(n)}
++          empty="No wallet activity yet."
++        />
++      </Card>
++
+       {/* Withdrawal — form only when every rule is met; otherwise the honest reason. */}
+       <Card className="space-y-3">
+         <CardTitle className="text-base">Withdraw</CardTitle>
+diff --git a/components/affiliate/earn-subnav.tsx b/components/affiliate/earn-subnav.tsx
+index 9ca7d12..122dfc1 100644
+--- a/components/affiliate/earn-subnav.tsx
++++ b/components/affiliate/earn-subnav.tsx
+@@ -5,13 +5,17 @@ import Link from "next/link";
+ import { usePathname } from "next/navigation";
+ import { cn } from "../../lib/utils";
+ 
++// Labels follow DR-038 (compliance-safe): "My Network" for the referral relationship; levels stay
++// "Level 1/2/3" inside. Leaderboard + Rewards are Phase D (not here).
+ const BASE = [
+   { href: "/dashboard/earn", label: "Overview", exact: true },
+   { href: "/dashboard/earn/referrals", label: "Referrals" },
++  { href: "/dashboard/earn/network", label: "My Network" },
+ ];
+ const MONEY = [
+   { href: "/dashboard/earn/wallet", label: "Wallet" },
+   { href: "/dashboard/earn/commissions", label: "Commissions" },
++  { href: "/dashboard/earn/commission-structure", label: "Rewards structure" },
+   { href: "/dashboard/earn/kyc", label: "KYC" },
+ ];
+ 
+diff --git a/components/affiliate/mini-chart.tsx b/components/affiliate/mini-chart.tsx
+new file mode 100644
+index 0000000..3ca47e1
+--- /dev/null
++++ b/components/affiliate/mini-chart.tsx
+@@ -0,0 +1,111 @@
++// Dependency-light SVG chart (Phase B / B2 · B4). No charting library — a small, accessible,
++// theme-aware bar/line chart consistent with the repo's hand-rolled SVG style (cf. progress-ring).
++// Gold is a FILL with charcoal labels (never gold text on light — contrast rule). Honest empty
++// state (D-29: no fabricated bars). Server component — no client JS. Values are unit-agnostic;
++// `format` renders the tooltip/label text.
++import type { SeriesPoint } from "../../lib/affiliate/analytics";
++
++export function MiniChart({
++  points,
++  kind = "bar",
++  format = (n) => String(n),
++  empty = "No data yet.",
++  height = 120,
++}: {
++  points: SeriesPoint[];
++  kind?: "bar" | "line";
++  format?: (n: number) => string;
++  empty?: string;
++  height?: number;
++}) {
++  if (points.length === 0) {
++    return (
++      <p className="rounded-xl bg-charcoal/5 p-4 text-sm text-muted">{empty}</p>
++    );
++  }
++
++  const max = Math.max(...points.map((p) => p.value), 1);
++  const W = 320;
++  const H = height;
++  const pad = 6;
++  const innerH = H - pad * 2;
++  const n = points.length;
++  const step = W / n;
++  const barW = Math.max(2, Math.min(28, step * 0.6));
++
++  const summary = points
++    .map((p) => `${p.label}: ${format(p.value)}`)
++    .join(", ");
++
++  const y = (v: number) => pad + innerH * (1 - v / max);
++
++  return (
++    <figure className="space-y-2">
++      <svg
++        viewBox={`0 0 ${W} ${H}`}
++        width="100%"
++        height={H}
++        preserveAspectRatio="none"
++        role="img"
++        aria-label={summary}
++        className="overflow-visible"
++      >
++        {/* baseline */}
++        <line
++          x1="0"
++          y1={H - pad}
++          x2={W}
++          y2={H - pad}
++          className="stroke-charcoal/15"
++          strokeWidth="1"
++        />
++        {kind === "line" ? (
++          <polyline
++            fill="none"
++            className="stroke-gold"
++            strokeWidth="2.5"
++            strokeLinejoin="round"
++            strokeLinecap="round"
++            points={points
++              .map((p, i) => `${step * i + step / 2},${y(p.value)}`)
++              .join(" ")}
++          />
++        ) : (
++          points.map((p, i) => {
++            const h = (p.value / max) * innerH;
++            return (
++              <rect
++                key={p.key}
++                x={step * i + (step - barW) / 2}
++                y={H - pad - h}
++                width={barW}
++                height={Math.max(0, h)}
++                rx="2"
++                className="fill-gold"
++              >
++                <title>{`${p.label}: ${format(p.value)}`}</title>
++              </rect>
++            );
++          })
++        )}
++      </svg>
++      {/* first / last axis labels — keep it uncluttered on mobile */}
++      <div className="flex justify-between text-[11px] text-muted">
++        <span>{points[0].label}</span>
++        {n > 1 && <span>{points[n - 1].label}</span>}
++      </div>
++      {/* Screen-reader data table (the chart is decorative for AT; data lives here). */}
++      <table className="sr-only">
++        <caption>Chart data</caption>
++        <tbody>
++          {points.map((p) => (
++            <tr key={p.key}>
++              <th scope="row">{p.label}</th>
++              <td>{format(p.value)}</td>
++            </tr>
++          ))}
++        </tbody>
++      </table>
++    </figure>
++  );
++}
+diff --git a/docs/LAUNCH_CONFIG.md b/docs/LAUNCH_CONFIG.md
+index a39d906..0e6d77c 100644
+--- a/docs/LAUNCH_CONFIG.md
++++ b/docs/LAUNCH_CONFIG.md
+@@ -65,6 +65,8 @@
+ | 42 | No-code contact channels (invite-only "no referral code" state) | `/register`, `/checkout` (Phase A §4.4) | External Service | PENDING | Founder | WhatsApp + email in `lib/config/contact.ts` — defaults mirror `/contact` and are marked `REPLACE: temp` (`wa.me/918572887888`, `goskilled.in@gmail.com`); overridable via `NEXT_PUBLIC_SUPPORT_WHATSAPP` / `NEXT_PUBLIC_SUPPORT_EMAIL` | Founder-confirmed support WhatsApp + email | LAUNCH | Pre-launch | DR-036 invite-only gate points code-less visitors here. Real reachable channels (not fabricated); confirm/replace before go-live. Reconcile with `/contact` (#same values). |
+ | 43 | Password policy — minimum length | auth (`lib/auth/password.ts`) — Phase A §6 | Configuration | FINAL* | Founder | Min 8 chars (DR-036 §6); override via `MIN_PASSWORD_LENGTH` (floored at 8) | Same unless founder raises it | LAUNCH | — | *Safe default live in code + server-enforced on register/reset. Supabase hashes/stores the password (DR-024 — no `passwordHash` column). |
+ | 44 | Register / Login / Checkout — Phase A copy | `/register`, `/login`, `/checkout` (DR-036) | Content | PENDING | Founder | Placeholder Hinglish copy live + clearly non-final: invite-only headings, "Invited by {name}", no-code panel, password + OTP-reset labels, checkout referral-code hint. SEO title now "Register — GoSkilled" (was "Register free") | Founder-approved copy set | LAUNCH | Pre-launch | Supersedes the register half of #34 (DR-030 open-registration → DR-036 invite-only). D-29 floor applies — no income language anywhere. |
++| 45 | Commission-structure page copy | `/dashboard/earn/commission-structure` (DR-007/DR-038) | Content | PENDING | Founder | Placeholder D-29-safe copy in `lib/affiliate/commission-structure.ts` (heading/intro/disclaimer — learning-first, "no income projections"). Reward NUMBERS are DR-007 (fixed, not a copy slot). Page gated behind the payouts flag (D-01) | Founder-approved compliance-safe copy | LAUNCH | Pre-launch | Numbers come from the engine (₹900/150/75 · ₹1250/250/150) — do not edit here. |
++| 46 | Affiliate surface labels | earn dashboard (DR-038/DR-034-035) | Content | FINAL* | Founder | `lib/affiliate/labels.ts` — "My Network" section, "Level 1/2/3", "Rewards structure". No "Team/Downline" (DR-034/035). Leaderboard + Rewards deferred to Phase D | Same unless founder renames | OPTIONAL | — | *Compliance-safe defaults live in code + configurable in one place. |
+ 
+ ---
+ 
+@@ -76,3 +78,4 @@
+ - 2026-07-05 — GPS-M4 (Admin) build: #32 FINAL (`accountHolderEnc` migration); #30 review queue + #27 webinar scheduling + #18 flag ceremony + #21 OTP throttle engineering complete (remaining items are founder/legal/creds); #10 Lesson-0 video slot now editable via catalog CRUD; #1 runtime gate `D01_LEGAL_CLEARED` wired. Tier-A surfaces (KYC/withdrawals/settings/schema) parked for Fable review.
+ - 2026-07-05 — GPS-M5 §2.0 Guru engine: added #35 (Anthropic API key), #36 (Guru model + cost caps), #37 (Guru Hinglish system-prompt + state copy). Engine ships on `AI_PROVIDER=mock` (DR-029) with D-29 guardrail + server-enforced cost caps in both modes; parked for Fable Tier-A review.
+ - 2026-07-09 — Phase A Auth+Referral rework (DR-036/DR-038, supersedes DR-030): added #42 (no-code contact channels), #43 (password min-length policy), #44 (Phase A register/login/checkout copy — supersedes register half of #34). Referral code now MANDATORY to register; login gains password + OTP reset; earning gate wired to own confirmed purchase (DR-038). Parked for Fable Tier-A review.
++- 2026-07-10 — Phase B Referral-Engine+Dashboard (DR-007/DR-038): B1 ACTIVATED the earning gate in the webhook (an upline earns only with their own PAID purchase — Tier-A). Surfacing (B2–B6): added #45 (commission-structure copy), #46 (affiliate labels). Network graphs + L1/L2/L3 tables (L1 exportable, L2/L3 masked+non-exportable) + wallet graph + rewards-structure page. Payouts stay OFF (D-01). Parked for Fable (B1) / Opus (B2–B6).
+diff --git a/lib/affiliate/analytics.ts b/lib/affiliate/analytics.ts
+new file mode 100644
+index 0000000..2726352
+--- /dev/null
++++ b/lib/affiliate/analytics.ts
+@@ -0,0 +1,88 @@
++// Affiliate analytics — PURE time-series helpers (Phase B / B2 · B4). No DB, no money math of its
++// own: adapters fetch canonical rows (ledger entries, referral join dates, withdrawals) and these
++// functions bucket them for the graphs. Everything is derived from canon (rebuildable — Art 7.5);
++// nothing is fabricated (D-29 — an empty input yields an empty series, never a placeholder number).
++
++export type Bucket = "day" | "month";
++
++export interface DatedValue {
++  date: Date;
++  value: number; // paise (or a count) — caller decides the unit
++}
++
++export interface SeriesPoint {
++  key: string; // sortable bucket key, e.g. "2026-07-09" | "2026-07"
++  label: string; // human label, e.g. "9 Jul" | "Jul 2026"
++  value: number;
++}
++
++const IST = "Asia/Kolkata";
++
++/** Bucket key + human label for a date, in IST (DB timestamps are UTC). */
++export function bucketKey(
++  date: Date,
++  bucket: Bucket,
++): { key: string; label: string } {
++  const parts = new Intl.DateTimeFormat("en-CA", {
++    timeZone: IST,
++    year: "numeric",
++    month: "2-digit",
++    day: "2-digit",
++  }).formatToParts(date);
++  const y = parts.find((p) => p.type === "year")!.value;
++  const m = parts.find((p) => p.type === "month")!.value;
++  const d = parts.find((p) => p.type === "day")!.value;
++  if (bucket === "month") {
++    const label = new Intl.DateTimeFormat("en-IN", {
++      timeZone: IST,
++      month: "short",
++      year: "numeric",
++    }).format(date);
++    return { key: `${y}-${m}`, label };
++  }
++  const label = new Intl.DateTimeFormat("en-IN", {
++    timeZone: IST,
++    day: "numeric",
++    month: "short",
++  }).format(date);
++  return { key: `${y}-${m}-${d}`, label };
++}
++
++/** Keep only rows within [from, to] (inclusive). Undefined bounds = open-ended. */
++export function filterByDateRange<T extends { date: Date }>(
++  rows: T[],
++  from?: Date,
++  to?: Date,
++): T[] {
++  return rows.filter((r) => (!from || r.date >= from) && (!to || r.date <= to));
++}
++
++/** Sum values into buckets, ascending by key. Empty input → empty series. */
++export function sumByBucket(rows: DatedValue[], bucket: Bucket): SeriesPoint[] {
++  const map = new Map<string, SeriesPoint>();
++  for (const r of rows) {
++    const { key, label } = bucketKey(r.date, bucket);
++    const point = map.get(key);
++    if (point) point.value += r.value;
++    else map.set(key, { key, label, value: r.value });
++  }
++  return [...map.values()].sort((a, b) => (a.key < b.key ? -1 : 1));
++}
++
++/** Running (cumulative) total across per-bucket sums — for growth/balance lines. */
++export function cumulativeByBucket(
++  rows: DatedValue[],
++  bucket: Bucket,
++): SeriesPoint[] {
++  const perBucket = sumByBucket(rows, bucket);
++  let running = 0;
++  return perBucket.map((p) => ({ ...p, value: (running += p.value) }));
++}
++
++/** Convenience for count series (each row counts as 1). */
++export function countByBucket(dates: Date[], bucket: Bucket): SeriesPoint[] {
++  return sumByBucket(
++    dates.map((date) => ({ date, value: 1 })),
++    bucket,
++  );
++}
+diff --git a/lib/affiliate/commission-structure.ts b/lib/affiliate/commission-structure.ts
+new file mode 100644
+index 0000000..90b6d62
+--- /dev/null
++++ b/lib/affiliate/commission-structure.ts
+@@ -0,0 +1,46 @@
++// Commission-structure data (Phase B / B5). Renders straight from the DR-007 single source of truth
++// (modules/affiliate/commission COMMISSION_TABLE) — never re-typed numbers. Copy is compliance-safe
++// (learning-first; NO income guarantees — D-29) and LAUNCH_CONFIG-slotted for founder finalisation.
++import {
++  commissionForLevel,
++  totalCommission,
++  type PackageSlug,
++} from "../../modules/affiliate/commission";
++
++const PACKAGES: { slug: PackageSlug; name: string }[] = [
++  { slug: "skill-builder", name: "Skill Builder" },
++  { slug: "career-booster", name: "Career Booster" },
++];
++
++export interface StructureLevel {
++  level: 1 | 2 | 3;
++  amountInPaise: number;
++}
++export interface StructureRow {
++  slug: PackageSlug;
++  name: string;
++  levels: StructureLevel[];
++  totalInPaise: number;
++}
++
++/** DR-007 structure for both packages, derived from the engine (₹900/150/75 · ₹1250/250/150). */
++export function commissionStructure(): StructureRow[] {
++  return PACKAGES.map(({ slug, name }) => ({
++    slug,
++    name,
++    levels: ([1, 2, 3] as const).map((level) => ({
++      level,
++      amountInPaise: commissionForLevel(slug, level),
++    })),
++    totalInPaise: totalCommission(slug),
++  }));
++}
++
++// LAUNCH_CONFIG copy slots — placeholder, D-29-safe (no income promise, learning-first framing).
++export const COMMISSION_STRUCTURE_COPY = {
++  heading: "How referral rewards work",
++  intro:
++    "When someone you invited buys a course, you receive a fixed reward — across three levels of your network. Rewards are the same for everyone; there are no targets and no guarantees. GoSkilled is a learning platform first.",
++  disclaimer:
++    "These are fixed per-purchase reward amounts, not income projections. Your rewards depend entirely on real purchases by people in your network. We never promise earnings.",
++} as const;
+diff --git a/lib/affiliate/graph-queries.ts b/lib/affiliate/graph-queries.ts
+new file mode 100644
+index 0000000..9146c21
+--- /dev/null
++++ b/lib/affiliate/graph-queries.ts
+@@ -0,0 +1,61 @@
++// Graph data adapters (Phase B / B2 · B4). Thin reads over CANON (ledger + referral graph +
++// withdrawals) that return plain dated rows for the pure bucketing helpers in analytics.ts.
++// No money math here (that lives in modules/ledger); no fabricated points (D-29 — empty in → empty out).
++import { prisma } from "../prisma";
++import type { DatedValue } from "./analytics";
++
++type LiteEntry = { amountInPaise: number; createdAt: Date; type: string };
++
++/** The user's USER_WALLET ledger entries (signed), oldest-first, with their transaction type. */
++async function walletEntriesLite(userId: string): Promise<LiteEntry[]> {
++  const account = await prisma.ledgerAccount.findUnique({
++    where: { userId },
++    select: {
++      entries: {
++        orderBy: { createdAt: "asc" },
++        select: {
++          amountInPaise: true,
++          createdAt: true,
++          transaction: { select: { type: true } },
++        },
++      },
++    },
++  });
++  return (account?.entries ?? []).map((e) => ({
++    amountInPaise: e.amountInPaise,
++    createdAt: e.createdAt,
++    type: e.transaction.type,
++  }));
++}
++
++/** Earnings over time = positive COMMISSION credits (per-period sum via sumByBucket). */
++export async function getEarningSeriesData(
++  userId: string,
++): Promise<DatedValue[]> {
++  const entries = await walletEntriesLite(userId);
++  return entries
++    .filter((e) => e.type === "COMMISSION" && e.amountInPaise > 0)
++    .map((e) => ({ date: e.createdAt, value: e.amountInPaise }));
++}
++
++/** Balance over time = every signed wallet leg (cumulativeByBucket → running balance). */
++export async function getWalletBalanceData(
++  userId: string,
++): Promise<DatedValue[]> {
++  const entries = await walletEntriesLite(userId);
++  return entries.map((e) => ({ date: e.createdAt, value: e.amountInPaise }));
++}
++
++/** Payments received = withdrawals actually PAID out (paid date). Empty until D-01 — honest zero. */
++export async function getPaymentsReceivedData(
++  userId: string,
++): Promise<DatedValue[]> {
++  const paid = await prisma.withdrawal.findMany({
++    where: { userId, status: "PAID" },
++    select: { amountInPaise: true, paidAt: true, requestedAt: true },
++  });
++  return paid.map((w) => ({
++    date: w.paidAt ?? w.requestedAt,
++    value: w.amountInPaise,
++  }));
++}
+diff --git a/lib/affiliate/labels.ts b/lib/affiliate/labels.ts
+new file mode 100644
+index 0000000..eaeae0a
+--- /dev/null
++++ b/lib/affiliate/labels.ts
+@@ -0,0 +1,21 @@
++// Affiliate surface labels (DR-038 / DR-034-035 compliance-safe defaults). Layer-2 copy — kept
++// configurable here so a founder rename never needs a code hunt. Defaults per DR-038: the section
++// reads "My Network" (the referral relationship), levels stay "Level 1/2/3". No MLM "Team/Downline"
++// language (DR-034/DR-035). Leaderboard + Rewards are Phase D — intentionally absent here.
++export const AFFILIATE_LABELS = {
++  networkSection: "My Network",
++  referrals: "Referrals",
++  level1: "Level 1",
++  level2: "Level 2",
++  level3: "Level 3",
++  commissionStructure: "Commission structure",
++  earningGraph: "Earnings over time",
++  networkGraph: "Network growth",
++  paymentsGraph: "Payments received",
++  walletGraph: "Balance over time",
++} as const;
++
++/** "Level 1/2/3" for a numeric level (keeps the DR-038 label wording in one place). */
++export function levelLabel(level: 1 | 2 | 3): string {
++  return AFFILIATE_LABELS[`level${level}`];
++}
+diff --git a/lib/affiliate/network.ts b/lib/affiliate/network.ts
+new file mode 100644
+index 0000000..0763c76
+--- /dev/null
++++ b/lib/affiliate/network.ts
+@@ -0,0 +1,194 @@
++// My-Network detail read (Phase B / B3, privacy-critical · DR-038). Walks the real referral graph
++// (`User.referredById`, same source as the commission engine — the `Referral` table is unpopulated,
++// see lib/affiliate/referrals.ts). PRIVACY IS ENFORCED AT THE QUERY LAYER, not the component:
++//   • Level 1 (your direct invites): first name + joined date + masked mobile + packages. Exportable.
++//   • Level 2 & 3: joined date ONLY — the `select` NEVER reads name or phone, so those fields cannot
++//     leak to the client, and the row type carries no phone field. NON-exportable (see the route).
++// Full mobile is read ONLY for the L1 server-side export (never sent to the browser).
++import { prisma } from "../prisma";
++import { maskLast4 } from "../pii";
++
++export interface NetworkFilters {
++  from?: Date; // filter on the downline's joined date (inclusive)
++  to?: Date;
++  packageSlug?: string; // keep only downlines with a PAID order for this package
++}
++
++export interface L1Row {
++  firstName: string | null;
++  joinedAt: Date;
++  mobileMasked: string | null; // "•••• 1234" — full number never leaves the server for the UI
++  packages: string[]; // names of packages this downline has PAID for
++}
++
++/** L2/L3 row — deliberately carries NO name and NO phone (privacy by construction). */
++export interface MaskedRow {
++  joinedAt: Date;
++}
++
++export interface ReferralNetwork {
++  l1: L1Row[];
++  l2: MaskedRow[];
++  l3: MaskedRow[];
++  counts: { l1: number; l2: number; l3: number };
++}
++
++/** Full L1 row for the SERVER-SIDE export only (includes the real mobile). Never returned to a page. */
++export interface L1ExportRow {
++  name: string | null;
++  mobile: string | null;
++  joinedAt: Date;
++  packages: string[];
++}
++
++type Ided = { id: string; createdAt: Date };
++
++function inRange(d: Date, from?: Date, to?: Date): boolean {
++  return (!from || d >= from) && (!to || d <= to);
++}
++
++/** userId → { names, slugs } of the user's PAID-order packages (one batched query). */
++async function paidPackagesByUser(
++  userIds: string[],
++): Promise<Map<string, { names: string[]; slugs: Set<string> }>> {
++  const map = new Map<string, { names: string[]; slugs: Set<string> }>();
++  if (userIds.length === 0) return map;
++  const orders = await prisma.order.findMany({
++    where: { userId: { in: userIds }, status: "PAID" },
++    select: { userId: true, package: { select: { slug: true, name: true } } },
++  });
++  for (const o of orders) {
++    const cur = map.get(o.userId) ?? { names: [], slugs: new Set<string>() };
++    if (!cur.slugs.has(o.package.slug)) {
++      cur.slugs.add(o.package.slug);
++      cur.names.push(o.package.name);
++    }
++    map.set(o.userId, cur);
++  }
++  return map;
++}
++
++function passesFilters(
++  row: Ided,
++  pkg: Map<string, { names: string[]; slugs: Set<string> }>,
++  f: NetworkFilters,
++): boolean {
++  if (!inRange(row.createdAt, f.from, f.to)) return false;
++  if (f.packageSlug && !pkg.get(row.id)?.slugs.has(f.packageSlug)) return false;
++  return true;
++}
++
++/** Fetch the three levels of ids (createdAt only for L2/L3 — no name/phone ever selected). */
++async function fetchLevels(userId: string): Promise<{
++  l1: {
++    id: string;
++    name: string | null;
++    phone: string | null;
++    createdAt: Date;
++  }[];
++  l2: Ided[];
++  l3: Ided[];
++}> {
++  const l1 = await prisma.user.findMany({
++    where: { referredById: userId },
++    select: { id: true, name: true, phone: true, createdAt: true },
++    orderBy: { createdAt: "desc" },
++  });
++  const l1Ids = l1.map((u) => u.id);
++  const l2 = l1Ids.length
++    ? await prisma.user.findMany({
++        where: { referredById: { in: l1Ids } },
++        select: { id: true, createdAt: true }, // NO name, NO phone — privacy by construction
++        orderBy: { createdAt: "desc" },
++      })
++    : [];
++  const l2Ids = l2.map((u) => u.id);
++  const l3 = l2Ids.length
++    ? await prisma.user.findMany({
++        where: { referredById: { in: l2Ids } },
++        select: { id: true, createdAt: true }, // NO name, NO phone
++        orderBy: { createdAt: "desc" },
++      })
++    : [];
++  return { l1, l2, l3 };
++}
++
++/** The masked network for the page. L1 = first name + masked mobile; L2/L3 = joined date only. */
++export async function getReferralNetwork(
++  userId: string,
++  filters: NetworkFilters = {},
++): Promise<ReferralNetwork> {
++  const { l1, l2, l3 } = await fetchLevels(userId);
++  const pkg = await paidPackagesByUser([
++    ...l1.map((u) => u.id),
++    ...l2.map((u) => u.id),
++    ...l3.map((u) => u.id),
++  ]);
++
++  const l1Rows: L1Row[] = l1
++    .filter((u) => passesFilters(u, pkg, filters))
++    .map((u) => ({
++      firstName: u.name?.trim().split(/\s+/)[0] || null,
++      joinedAt: u.createdAt,
++      mobileMasked: u.phone ? maskLast4(u.phone) : null,
++      packages: pkg.get(u.id)?.names ?? [],
++    }));
++  const l2Rows: MaskedRow[] = l2
++    .filter((u) => passesFilters(u, pkg, filters))
++    .map((u) => ({ joinedAt: u.createdAt }));
++  const l3Rows: MaskedRow[] = l3
++    .filter((u) => passesFilters(u, pkg, filters))
++    .map((u) => ({ joinedAt: u.createdAt }));
++
++  return {
++    l1: l1Rows,
++    l2: l2Rows,
++    l3: l3Rows,
++    counts: { l1: l1Rows.length, l2: l2Rows.length, l3: l3Rows.length },
++  };
++}
++
++/** SERVER-ONLY: full Level-1 rows (real mobile) for the export route. Only L1 is ever exportable. */
++export async function getL1Export(
++  userId: string,
++  filters: NetworkFilters = {},
++): Promise<L1ExportRow[]> {
++  const l1 = await prisma.user.findMany({
++    where: { referredById: userId },
++    select: { id: true, name: true, phone: true, createdAt: true },
++    orderBy: { createdAt: "desc" },
++  });
++  const pkg = await paidPackagesByUser(l1.map((u) => u.id));
++  return l1
++    .filter((u) => passesFilters(u, pkg, filters))
++    .map((u) => ({
++      name: u.name ?? null,
++      mobile: u.phone ?? null,
++      joinedAt: u.createdAt,
++      packages: pkg.get(u.id)?.names ?? [],
++    }));
++}
++
++function csvCell(v: string): string {
++  // Quote if the value contains a comma, quote, or newline; double embedded quotes.
++  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
++}
++
++/** CSV for the L1 export (server-generated). Columns: Name, Mobile, Joined, Packages. */
++export function l1ToCsv(rows: L1ExportRow[]): string {
++  const header = ["Name", "Mobile", "Joined (IST)", "Packages"];
++  const body = rows.map((r) =>
++    [
++      csvCell(r.name ?? ""),
++      csvCell(r.mobile ?? ""),
++      csvCell(
++        new Intl.DateTimeFormat("en-CA", {
++          timeZone: "Asia/Kolkata",
++          dateStyle: "medium",
++        }).format(r.joinedAt),
++      ),
++      csvCell(r.packages.join("; ")),
++    ].join(","),
++  );
++  return [header.join(","), ...body].join("\n");
++}
+diff --git a/lib/payments/webhook.ts b/lib/payments/webhook.ts
+index aa87e1d..92eb347 100644
+--- a/lib/payments/webhook.ts
++++ b/lib/payments/webhook.ts
+@@ -17,6 +17,7 @@ import {
+ import { resolveUplines } from "../../modules/affiliate/upline";
+ import { buildCommissionTxns } from "../../modules/affiliate/credit";
+ import { buildClawbackTxns } from "../../modules/affiliate/clawback";
++import { canEarnCommission } from "../../modules/affiliate/eligibility";
+ import { coursesToEnroll } from "../../modules/lms/entitlement";
+ import type { PackageSlug } from "../../modules/affiliate/commission";
+ import { executeTxSpec } from "../../modules/ledger/persist";
+@@ -193,18 +194,28 @@ async function executeAction(
+     }
+     case "CREDIT_COMMISSIONS": {
+       const chain = await fetchReferralChain(tx, order.userId);
+-      const uplines = resolveUplines(order.userId, chain);
++      const resolved = resolveUplines(order.userId, chain);
++      if (resolved.length === 0) return;
++      // ── DR-038 earning gate — LIVE ENFORCEMENT (Phase B / B1, Tier-A) ────────────────────────
++      // Credit an upline ONLY if they have their OWN confirmed (PAID) purchase — a referral link or
++      // free registration alone never earns. Eligibility is evaluated NOW (credit time = the moment
++      // the downline's payment verified); there is NO retroactive backfill if an upline buys later
++      // (locked behaviour — flagged for founder/Fable confirmation). An ineligible upline is SKIPPED
++      // ENTIRELY: no credit, and NO roll-up of their commission to the next level — each surviving
++      // hop keeps its original level/amount (conservative default; never pays more than earned —
++      // protects the thin referred-margin, AR-1). Roll-up of skipped commission is a separate
++      // founder/Fable money-policy decision — NOT implemented here.
++      // Read is INSIDE this tx (mirrors lib/affiliate/eligibility.hasConfirmedPurchase). Idempotency
++      // keys, HELD lifecycle (DR-025), clawback and DR-007 amounts are all preserved unchanged.
++      const uplines = [];
++      for (const hop of resolved) {
++        const ownPaid = await tx.order.count({
++          where: { userId: hop.userId, status: "PAID" },
++        });
++        if (canEarnCommission({ hasOwnConfirmedPurchase: ownPaid > 0 }))
++          uplines.push(hop);
++      }
+       if (uplines.length === 0) return;
+-      // ── DR-038 earning gate — DOCUMENTED HOOK (Phase B enforcement) ──────────────────────────
+-      // The rule (canEarnCommission, modules/affiliate/eligibility.ts) is LOCKED and unit-tested in
+-      // Phase A but NOT enforced here yet, so this Phase-A change does not regress the DR-023 money
+-      // path. Phase B activates it by filtering uplines to those with their OWN confirmed purchase:
+-      //   const eligible = [];
+-      //   for (const hop of uplines)
+-      //     if (canEarnCommission({ hasOwnConfirmedPurchase: (await tx.order.count({
+-      //       where: { userId: hop.userId, status: "PAID" } })) > 0 })) eligible.push(hop);
+-      //   // ...then buildCommissionTxns({ uplines: eligible }).
+-      // (Mirrors lib/affiliate/eligibility.hasConfirmedPurchase, but reads inside this tx.)
+       const specs = buildCommissionTxns({
+         orderId: order.id,
+         pkg: order.package.slug as PackageSlug,
+diff --git a/modules/affiliate/eligibility.ts b/modules/affiliate/eligibility.ts
+index 94839c7..24ca4a9 100644
+--- a/modules/affiliate/eligibility.ts
++++ b/modules/affiliate/eligibility.ts
+@@ -3,9 +3,10 @@
+ // OWN confirmed purchase. This module states the rule as a pure, unit-testable predicate; the
+ // DB-backed input (`hasConfirmedPurchase`) is supplied by the adapter in lib/affiliate/eligibility.ts.
+ //
+-// Phase A scope: the rule is LOCKED + unit-tested here and wired as a DOCUMENTED HOOK at the
+-// commission-credit site (lib/payments/webhook.ts → CREDIT_COMMISSIONS). FULL enforcement — filtering
+-// ineligible uplines out of the live credit — is Phase B, so the DR-023 money path is unchanged now.
++// Phase A locked + unit-tested this rule; Phase B (B1) ACTIVATED it at the commission-credit site
++// (lib/payments/webhook.ts → CREDIT_COMMISSIONS): each resolved upline is credited only if this
++// predicate holds for their own confirmed purchase, evaluated inside the crediting transaction.
++// Ineligible uplines are skipped with NO roll-up (each surviving hop keeps its original level).
+ 
+ export interface EarningEligibilityInput {
+   /** Does this affiliate have ≥1 of their OWN confirmed (paid) purchases? */
+diff --git a/tests/affiliate-analytics.test.ts b/tests/affiliate-analytics.test.ts
+new file mode 100644
+index 0000000..e349226
+--- /dev/null
++++ b/tests/affiliate-analytics.test.ts
+@@ -0,0 +1,86 @@
++// Phase B / B2 · B4 — pure analytics helpers + the L1 CSV serializer. No DB.
++import { describe, it, expect } from "vitest";
++import {
++  bucketKey,
++  sumByBucket,
++  cumulativeByBucket,
++  countByBucket,
++  filterByDateRange,
++} from "@/lib/affiliate/analytics";
++import { l1ToCsv } from "@/lib/affiliate/network";
++
++const d = (iso: string) => new Date(iso);
++
++describe("bucketKey (IST)", () => {
++  it("day + month keys are IST-based and sortable", () => {
++    const day = bucketKey(d("2026-07-09T06:00:00Z"), "day"); // 11:30 IST → 9 Jul
++    expect(day.key).toBe("2026-07-09");
++    const month = bucketKey(d("2026-07-09T06:00:00Z"), "month");
++    expect(month.key).toBe("2026-07");
++  });
++});
++
++describe("sumByBucket / cumulativeByBucket / countByBucket", () => {
++  const rows = [
++    { date: d("2026-06-10T06:00:00Z"), value: 100 },
++    { date: d("2026-07-01T06:00:00Z"), value: 50 },
++    { date: d("2026-07-20T06:00:00Z"), value: 25 },
++  ];
++  it("sums per bucket, ascending by key", () => {
++    const s = sumByBucket(rows, "month");
++    expect(s.map((p) => [p.key, p.value])).toEqual([
++      ["2026-06", 100],
++      ["2026-07", 75],
++    ]);
++  });
++  it("cumulative running total", () => {
++    const c = cumulativeByBucket(rows, "month");
++    expect(c.map((p) => p.value)).toEqual([100, 175]);
++  });
++  it("count series treats each date as 1", () => {
++    const c = countByBucket([rows[1].date, rows[2].date], "month");
++    expect(c).toEqual([
++      { key: "2026-07", label: expect.any(String), value: 2 },
++    ]);
++  });
++  it("empty input → empty series (no fabricated points)", () => {
++    expect(sumByBucket([], "day")).toEqual([]);
++    expect(cumulativeByBucket([], "month")).toEqual([]);
++  });
++});
++
++describe("filterByDateRange", () => {
++  const rows = [
++    { date: d("2026-06-01T00:00:00Z"), value: 1 },
++    { date: d("2026-07-15T00:00:00Z"), value: 2 },
++    { date: d("2026-08-01T00:00:00Z"), value: 3 },
++  ];
++  it("keeps rows within inclusive bounds", () => {
++    const r = filterByDateRange(rows, d("2026-07-01T00:00:00Z"));
++    expect(r.map((x) => x.value)).toEqual([2, 3]);
++  });
++});
++
++describe("l1ToCsv", () => {
++  it("serializes header + rows and quotes cells containing commas/quotes", () => {
++    const csv = l1ToCsv([
++      {
++        name: "Rahul, Sr.",
++        mobile: "+919812345678",
++        joinedAt: d("2026-07-09T06:00:00Z"),
++        packages: ["Career Booster"],
++      },
++      {
++        name: null,
++        mobile: null,
++        joinedAt: d("2026-07-08T06:00:00Z"),
++        packages: [],
++      },
++    ]);
++    const lines = csv.split("\n");
++    expect(lines[0]).toBe("Name,Mobile,Joined (IST),Packages");
++    expect(lines[1]).toContain('"Rahul, Sr."'); // comma → quoted
++    expect(lines[1]).toContain("+919812345678");
++    expect(lines[2].startsWith(",,")).toBe(true); // null name + mobile → empty cells
++  });
++});
+diff --git a/tests/affiliate-network.integration.test.ts b/tests/affiliate-network.integration.test.ts
+new file mode 100644
+index 0000000..2e7b27e
+--- /dev/null
++++ b/tests/affiliate-network.integration.test.ts
+@@ -0,0 +1,115 @@
++// Phase B / B3 (privacy-critical) — the masked My-Network read. Asserts the server payload:
++//   • L1 rows carry first name + masked mobile (never the full number) + packages
++//   • L2/L3 rows carry NO name and NO phone field at all (privacy by construction)
++//   • date + package filters work
++//   • the L1 export (server-only) DOES include the real mobile
++import { describe, it, expect, beforeAll } from "vitest";
++import { prisma } from "@/lib/prisma";
++import { getReferralNetwork, getL1Export } from "@/lib/affiliate/network";
++
++const HAS_DB = !!process.env.DATABASE_URL;
++const runId = String(Date.now()).slice(-8);
++let seq = 0;
++const uniquePhone = () =>
++  `+91${9_000_000_000 + ((Number(runId) + seq++) % 1_000_000_000)}`;
++
++async function mk(
++  referredById: string | null,
++  name: string | null,
++): Promise<{ id: string; phone: string }> {
++  const phone = uniquePhone();
++  const u = await prisma.user.create({
++    data: {
++      phone,
++      name,
++      referralCode: `GN${runId}${seq}`.toUpperCase(),
++      referredById,
++    },
++    select: { id: true },
++  });
++  return { id: u.id, phone };
++}
++
++describe.skipIf(!HAS_DB)("My-Network masked read (B3 integration)", () => {
++  let root: string;
++  let l1Phone: string;
++  let cbId: string;
++
++  beforeAll(async () => {
++    const cb = await prisma.package.upsert({
++      where: { slug: "career-booster" },
++      update: {},
++      create: {
++        slug: "career-booster",
++        name: "Career Booster",
++        priceInPaise: 219900,
++        isActive: true,
++      },
++      select: { id: true },
++    });
++    cbId = cb.id;
++
++    const r = await mk(null, "Network Root");
++    root = r.id;
++    const a = await mk(root, "Asha Sharma"); // L1 (direct)
++    l1Phone = a.phone;
++    const b = await mk(a.id, "Bala Menon"); // L2
++    await mk(b.id, "Chetan Rao"); // L3
++    // Give the L1 member a PAID order (for the package filter + packages column).
++    await prisma.order.create({
++      data: {
++        userId: a.id,
++        packageId: cbId,
++        amountInPaise: 219900,
++        status: "PAID",
++      },
++    });
++  });
++
++  it("L1 shows first name + MASKED mobile + packages; full number never in the payload", async () => {
++    const net = await getReferralNetwork(root);
++    expect(net.counts.l1).toBe(1);
++    const row = net.l1[0];
++    expect(row.firstName).toBe("Asha");
++    expect(row.mobileMasked).toMatch(/^•+ \d{4}$/); // "•••• 5678"
++    expect(row.mobileMasked).not.toContain(l1Phone.slice(0, 6)); // no full number
++    expect(row.packages).toContain("Career Booster");
++    // The row object must NOT carry a raw phone/mobile field.
++    expect(Object.keys(row)).not.toContain("phone");
++    expect(Object.keys(row)).not.toContain("mobile");
++  });
++
++  it("L2 and L3 rows contain NO name and NO phone (asserted on the server payload)", async () => {
++    const net = await getReferralNetwork(root);
++    expect(net.counts.l2).toBe(1);
++    expect(net.counts.l3).toBe(1);
++    for (const row of [...net.l2, ...net.l3]) {
++      const keys = Object.keys(row);
++      expect(keys).toEqual(["joinedAt"]); // ONLY joinedAt — no name, no phone, nothing else
++    }
++  });
++
++  it("package filter keeps only downlines with a PAID order for that package", async () => {
++    const match = await getReferralNetwork(root, {
++      packageSlug: "career-booster",
++    });
++    expect(match.counts.l1).toBe(1); // Asha bought Career Booster
++    const none = await getReferralNetwork(root, {
++      packageSlug: "skill-builder",
++    });
++    expect(none.counts.l1).toBe(0); // nobody bought Skill Builder
++  });
++
++  it("date filter (future 'from') excludes everyone", async () => {
++    const future = new Date(Date.now() + 365 * 864e5);
++    const net = await getReferralNetwork(root, { from: future });
++    expect(net.counts.l1 + net.counts.l2 + net.counts.l3).toBe(0);
++  });
++
++  it("the L1 export (server-only) DOES include the real mobile", async () => {
++    const rows = await getL1Export(root);
++    expect(rows).toHaveLength(1);
++    expect(rows[0].mobile).toBe(l1Phone); // full number — server-side export only
++    expect(rows[0].name).toBe("Asha Sharma");
++  });
++});
+diff --git a/tests/checkout-mock.integration.test.ts b/tests/checkout-mock.integration.test.ts
+index d7f8c8c..2038095 100644
+--- a/tests/checkout-mock.integration.test.ts
++++ b/tests/checkout-mock.integration.test.ts
+@@ -105,6 +105,19 @@ describe.skipIf(!HAS_DB)("checkout with mock provider (e2e dev flow)", () => {
+     const buyer = await makeUser("9", a.id);
+     buyerPhone10 = buyer.phone.replace("+91", "");
+     uplineIds = [a.id, b.id, c.id];
++
++    // DR-038 earning gate (Phase B/B1): uplines earn only with their OWN confirmed (PAID) purchase.
++    // Seed one for each so this dev-flow exercises the eligible path (assertions unchanged).
++    for (const uid of uplineIds) {
++      await prisma.order.create({
++        data: {
++          userId: uid,
++          packageId: cb.id,
++          amountInPaise: CB_PRICE,
++          status: "PAID",
++        },
++      });
++    }
+   });
+ 
+   it("mock order → signed webhook → PAID + enrollments + 3 HELD commissions", async () => {
+diff --git a/tests/commission-structure.test.ts b/tests/commission-structure.test.ts
+new file mode 100644
+index 0000000..19d2eae
+--- /dev/null
++++ b/tests/commission-structure.test.ts
+@@ -0,0 +1,25 @@
++// Phase B / B5 — the commission-structure page renders the DR-007 numbers from the single source of
++// truth (modules/affiliate/commission), never re-typed. Pure.
++import { describe, it, expect } from "vitest";
++import { commissionStructure } from "@/lib/affiliate/commission-structure";
++
++describe("commissionStructure (DR-007)", () => {
++  it("Skill Builder = ₹900 / 150 / 75 (paise), total ₹1125", () => {
++    const sb = commissionStructure().find((r) => r.slug === "skill-builder")!;
++    expect(sb.levels.map((l) => l.amountInPaise)).toEqual([90000, 15000, 7500]);
++    expect(sb.totalInPaise).toBe(112500);
++  });
++
++  it("Career Booster = ₹1250 / 250 / 150 (paise), total ₹1650", () => {
++    const cb = commissionStructure().find((r) => r.slug === "career-booster")!;
++    expect(cb.levels.map((l) => l.amountInPaise)).toEqual([
++      125000, 25000, 15000,
++    ]);
++    expect(cb.totalInPaise).toBe(165000);
++  });
++
++  it("levels are labelled 1/2/3 in order", () => {
++    for (const row of commissionStructure())
++      expect(row.levels.map((l) => l.level)).toEqual([1, 2, 3]);
++  });
++});
+diff --git a/tests/earning-gate-webhook.integration.test.ts b/tests/earning-gate-webhook.integration.test.ts
+new file mode 100644
+index 0000000..6cc2440
+--- /dev/null
++++ b/tests/earning-gate-webhook.integration.test.ts
+@@ -0,0 +1,300 @@
++// Phase B / B1 (Tier-A) — DR-038 earning gate ACTIVATED in the commission-credit path.
++// Drives the REAL webhook handler end-to-end (signed capture → PAID → commissions) against live
++// Postgres, asserting who gets credited under the gate:
++//   • eligible upline (own PAID purchase) → credited
++//   • ineligible upline (no purchase) → NOT credited, and NO roll-up
++//   • mixed chain (L1 eligible, L2 not, L3 eligible) → only L1 + L3, each at its OWN level amount
++//   • refund → clawback still correct for the credited (eligible) commissions
++//   • duplicate delivery → idempotent (no double credit)
++// Idempotency, HELD lifecycle (DR-025), clawback and DR-007 amounts are unchanged — only WHO earns.
++import { describe, it, expect, beforeAll } from "vitest";
++import { createHmac } from "node:crypto";
++import { prisma } from "@/lib/prisma";
++import { startCheckout } from "@/lib/payments/checkout";
++import { handleRazorpayWebhook } from "@/lib/payments/webhook";
++import { balanceOf, availableBalanceOf } from "@/modules/ledger/ledger";
++
++const HAS_DB = !!process.env.DATABASE_URL;
++const SECRET = "whsec_b1_gate_test";
++const CB_PRICE = 219900; // Career Booster ₹2,199
++const CB = { 1: 125000, 2: 25000, 3: 15000 }; // DR-007 career-booster L1/L2/L3 (paise)
++
++const runId = `b1${Date.now()}`;
++let seq = 0;
++function nextId(): string {
++  return `${runId}${seq++}`;
++}
++function sign(body: string): string {
++  return createHmac("sha256", SECRET).update(body).digest("hex");
++}
++function uniquePhone(): string {
++  const base = Number(String(Date.now()).slice(-9));
++  return `+91${9_000_000_000 + ((base + seq) % 1_000_000_000)}`;
++}
++
++async function mkUser(
++  referredById: string | null,
++): Promise<{ id: string; phone: string }> {
++  const phone = uniquePhone();
++  const u = await prisma.user.create({
++    data: {
++      phone,
++      referralCode: `GB${nextId()}`.toUpperCase(),
++      referredById,
++    },
++    select: { id: true },
++  });
++  return { id: u.id, phone };
++}
++
++let cbPackageId: string;
++async function giveOwnPurchase(userId: string): Promise<void> {
++  await prisma.order.create({
++    data: {
++      userId,
++      packageId: cbPackageId,
++      amountInPaise: CB_PRICE,
++      status: "PAID",
++    },
++  });
++}
++
++/** Build buyer ← a(L1) ← b(L2) ← c(L3); seed own purchases per `eligible`; capture the buyer's order. */
++async function runScenario(eligible: [boolean, boolean, boolean]): Promise<{
++  orderId: string;
++  razorpayOrderId: string;
++  paymentId: string;
++  byLevel: { 1: string; 2: string; 3: string };
++}> {
++  const c = await mkUser(null); // L3
++  const b = await mkUser(c.id); // L2
++  const a = await mkUser(b.id); // L1
++  const buyer = await mkUser(a.id);
++  const byLevel = { 1: a.id, 2: b.id, 3: c.id } as const;
++  if (eligible[0]) await giveOwnPurchase(a.id);
++  if (eligible[1]) await giveOwnPurchase(b.id);
++  if (eligible[2]) await giveOwnPurchase(c.id);
++
++  const tag = nextId();
++  const result = await startCheckout(
++    { packageSlug: "career-booster", phone: buyer.phone.replace("+91", "") },
++    async () => ({ id: `order_rzp_${tag}` }),
++  );
++  const paymentId = `pay_${tag}`;
++  const body = JSON.stringify({
++    event: "payment.captured",
++    payload: {
++      payment: {
++        entity: {
++          id: paymentId,
++          order_id: result.razorpayOrderId,
++          amount: CB_PRICE,
++          status: "captured",
++        },
++      },
++    },
++  });
++  const res = await handleRazorpayWebhook(body, sign(body), `evt_${tag}`);
++  expect(res.status).toBe(200);
++  return {
++    orderId: result.orderId,
++    razorpayOrderId: result.razorpayOrderId,
++    paymentId,
++    byLevel,
++  };
++}
++
++/** Map of userId → credited wallet amount (paise) for an order's COMMISSION transactions. */
++async function creditedByUser(orderId: string): Promise<Map<string, number>> {
++  const txns = await prisma.ledgerTransaction.findMany({
++    where: { type: "COMMISSION", refType: "Order", refId: orderId },
++    include: {
++      entries: {
++        include: { account: { select: { userId: true, type: true } } },
++      },
++    },
++  });
++  const m = new Map<string, number>();
++  for (const t of txns)
++    for (const e of t.entries)
++      if (
++        e.amountInPaise > 0 &&
++        e.account.type === "USER_WALLET" &&
++        e.account.userId
++      )
++        m.set(e.account.userId, e.amountInPaise);
++  return m;
++}
++
++async function walletEntries(userIds: string[]) {
++  const accounts = await prisma.ledgerAccount.findMany({
++    where: { userId: { in: userIds } },
++    include: { entries: { select: { amountInPaise: true, holdUntil: true } } },
++  });
++  return accounts.flatMap((a) => a.entries);
++}
++
++describe.skipIf(!HAS_DB)(
++  "DR-038 earning gate in the webhook (B1, Tier-A)",
++  () => {
++    beforeAll(async () => {
++      process.env.RAZORPAY_WEBHOOK_SECRET = SECRET;
++      process.env.PAYMENT_PROVIDER = "mock";
++      const ai = await prisma.course.upsert({
++        where: { slug: "ai-prompt-mastery" },
++        update: {},
++        create: {
++          slug: "ai-prompt-mastery",
++          title: "AI Prompt Mastery",
++          status: "PUBLISHED",
++        },
++        select: { id: true },
++      });
++      const dm = await prisma.course.upsert({
++        where: { slug: "digital-marketing" },
++        update: {},
++        create: {
++          slug: "digital-marketing",
++          title: "Digital Marketing",
++          status: "COMING_SOON",
++        },
++        select: { id: true },
++      });
++      const cb = await prisma.package.upsert({
++        where: { slug: "career-booster" },
++        update: {
++          priceInPaise: CB_PRICE,
++          includesFutureCourses: true,
++          isActive: true,
++        },
++        create: {
++          slug: "career-booster",
++          name: "Career Booster",
++          priceInPaise: CB_PRICE,
++          includesFutureCourses: true,
++          isActive: true,
++        },
++        select: { id: true },
++      });
++      cbPackageId = cb.id;
++      for (const courseId of [ai.id, dm.id])
++        await prisma.packageCourse.upsert({
++          where: { packageId_courseId: { packageId: cb.id, courseId } },
++          update: {},
++          create: { packageId: cb.id, courseId },
++        });
++      for (const type of [
++        "REVENUE",
++        "COMMISSION_PAYABLE",
++        "PAYOUT_CLEARING",
++        "GST_PAYABLE",
++      ] as const) {
++        const exists = await prisma.ledgerAccount.findFirst({
++          where: { type, userId: null },
++          select: { id: true },
++        });
++        if (!exists) await prisma.ledgerAccount.create({ data: { type } });
++      }
++    });
++
++    it("eligible upline (own PAID purchase) IS credited; ineligible uplines are not", async () => {
++      const { orderId, byLevel } = await runScenario([true, false, false]);
++      const credited = await creditedByUser(orderId);
++      expect(credited.size).toBe(1);
++      expect(credited.get(byLevel[1])).toBe(CB[1]); // L1 eligible → ₹1250
++      expect(credited.has(byLevel[2])).toBe(false);
++      expect(credited.has(byLevel[3])).toBe(false);
++    });
++
++    it("ineligible chain (no upline has purchased) → ZERO commissions, no roll-up", async () => {
++      const { orderId } = await runScenario([false, false, false]);
++      const credited = await creditedByUser(orderId);
++      expect(credited.size).toBe(0);
++      const count = await prisma.ledgerTransaction.count({
++        where: { type: "COMMISSION", refType: "Order", refId: orderId },
++      });
++      expect(count).toBe(0);
++    });
++
++    it("mixed chain (L1 eligible, L2 not, L3 eligible) → credits ONLY L1 + L3 at their own levels (no roll-up)", async () => {
++      const { orderId, byLevel } = await runScenario([true, false, true]);
++      const credited = await creditedByUser(orderId);
++      expect(credited.size).toBe(2);
++      expect(credited.get(byLevel[1])).toBe(CB[1]); // ₹1250 (L1)
++      expect(credited.has(byLevel[2])).toBe(false); // L2 skipped
++      // No roll-up: L3 keeps the L3 amount (₹150), it is NOT promoted to the skipped L2 amount (₹250).
++      expect(credited.get(byLevel[3])).toBe(CB[3]);
++    });
++
++    it("refund → clawback reverses the eligible commissions; wallets net to zero even after the hold", async () => {
++      const { orderId, paymentId, byLevel } = await runScenario([
++        true,
++        true,
++        true,
++      ]);
++      expect((await creditedByUser(orderId)).size).toBe(3);
++
++      const body = JSON.stringify({
++        event: "refund.processed",
++        payload: {
++          refund: {
++            entity: {
++              id: `rfnd_${orderId}`,
++              payment_id: paymentId,
++              amount: CB_PRICE,
++            },
++          },
++        },
++      });
++      const res = await handleRazorpayWebhook(
++        body,
++        sign(body),
++        `evt_rfnd_${orderId}`,
++      );
++      expect(res.status).toBe(200);
++
++      const clawbacks = await prisma.ledgerTransaction.count({
++        where: { type: "CLAWBACK", refType: "Order", refId: orderId },
++      });
++      expect(clawbacks).toBe(3);
++      const entries = await walletEntries([byLevel[1], byLevel[2], byLevel[3]]);
++      const afterWindow = new Date(Date.now() + 49 * 60 * 60 * 1000);
++      expect(balanceOf(entries)).toBe(0);
++      expect(availableBalanceOf(entries, afterWindow)).toBe(0);
++    });
++
++    it("duplicate delivery is idempotent — the eligible credits are not doubled", async () => {
++      const { orderId, razorpayOrderId, paymentId } = await runScenario([
++        true,
++        false,
++        true,
++      ]);
++      const before = (await creditedByUser(orderId)).size;
++      expect(before).toBe(2);
++      const body = JSON.stringify({
++        event: "payment.captured",
++        payload: {
++          payment: {
++            entity: {
++              id: paymentId,
++              order_id: razorpayOrderId,
++              amount: CB_PRICE,
++              status: "captured",
++            },
++          },
++        },
++      });
++      // Re-deliver the SAME event id → idempotent no-op.
++      const res = await handleRazorpayWebhook(
++        body,
++        sign(body),
++        `evt_dup_${orderId}`,
++      );
++      expect(res.status).toBe(200);
++      const count = await prisma.ledgerTransaction.count({
++        where: { type: "COMMISSION", refType: "Order", refId: orderId },
++      });
++      expect(count).toBe(2); // still only the 2 eligible credits
++    });
++  },
++);
+diff --git a/tests/integration/money-flow.integration.test.ts b/tests/integration/money-flow.integration.test.ts
+index d7a8308..9eee6c4 100644
+--- a/tests/integration/money-flow.integration.test.ts
++++ b/tests/integration/money-flow.integration.test.ts
+@@ -114,6 +114,20 @@ describe.skipIf(!HAS_DB)("money flow (integration)", () => {
+     buyerId = buyer.id;
+     uplineIds = [a.id, b.id, c.id];
+ 
++    // DR-038 earning gate (Phase B/B1): an upline earns only with their OWN confirmed (PAID)
++    // purchase. Seed one for each upline so this end-to-end flow exercises the eligible path
++    // (assertions below — 3 commissions, amounts, held, clawback — are unchanged).
++    for (const uid of uplineIds) {
++      await prisma.order.create({
++        data: {
++          userId: uid,
++          packageId: cb.id,
++          amountInPaise: CB_PRICE,
++          status: "PAID",
++        },
++      });
++    }
++
+     // Checkout: inject a fake Razorpay order creator (no network) — buyer already exists by phone.
+     const buyerPhone10 = buyer.phone.replace("+91", "");
+     const result = await startCheckout(
+diff --git a/tests/network-export-route.test.ts b/tests/network-export-route.test.ts
+new file mode 100644
+index 0000000..beba659
+--- /dev/null
++++ b/tests/network-export-route.test.ts
+@@ -0,0 +1,62 @@
++// Phase B / B3 — the L1 export route ENFORCES "Level 1 only" and auth, server-side. Session +
++// network reads are mocked so we exercise the route's authorization/refusal logic deterministically.
++import { describe, it, expect, vi, beforeEach } from "vitest";
++import { NextRequest } from "next/server";
++
++const h = vi.hoisted(() => ({
++  getCurrentUser: vi.fn(),
++  getL1Export: vi.fn(),
++}));
++
++vi.mock("@/lib/auth/session", () => ({ getCurrentUser: h.getCurrentUser }));
++vi.mock("@/lib/affiliate/network", () => ({
++  getL1Export: h.getL1Export,
++  l1ToCsv: (rows: unknown[]) =>
++    `Name,Mobile,Joined (IST),Packages\n#rows=${rows.length}`,
++}));
++
++import { GET } from "@/app/dashboard/earn/network/export/route";
++
++const req = (q: string) =>
++  new NextRequest(`http://localhost/dashboard/earn/network/export${q}`);
++
++beforeEach(() => {
++  vi.clearAllMocks();
++  h.getCurrentUser.mockResolvedValue({
++    id: `u-${Math.random()}`,
++    referralCode: "GSX",
++  });
++  h.getL1Export.mockResolvedValue([
++    { name: "Asha", mobile: "+9199", joinedAt: new Date(), packages: [] },
++  ]);
++});
++
++describe("network export route (B3)", () => {
++  it("refuses Level 2 export server-side (403), never reading data", async () => {
++    const res = await GET(req("?level=2"));
++    expect(res.status).toBe(403);
++    expect(h.getL1Export).not.toHaveBeenCalled();
++  });
++
++  it("refuses Level 3 export server-side (403)", async () => {
++    const res = await GET(req("?level=3"));
++    expect(res.status).toBe(403);
++  });
++
++  it("unauthenticated → 401, no data read", async () => {
++    h.getCurrentUser.mockResolvedValue(null);
++    const res = await GET(req("?level=1"));
++    expect(res.status).toBe(401);
++    expect(h.getL1Export).not.toHaveBeenCalled();
++  });
++
++  it("Level 1 (default) → 200 CSV attachment for the signed-in user", async () => {
++    const res = await GET(req("?level=1"));
++    expect(res.status).toBe(200);
++    expect(res.headers.get("content-type")).toContain("text/csv");
++    expect(res.headers.get("content-disposition")).toContain(
++      "my-network-level-1.csv",
++    );
++    expect(h.getL1Export).toHaveBeenCalledTimes(1);
++  });
++});
