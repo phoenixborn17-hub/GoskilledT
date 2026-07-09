@@ -11,6 +11,9 @@ const BASE = [
   { href: "/dashboard/earn", label: "Overview", exact: true },
   { href: "/dashboard/earn/referrals", label: "Referrals" },
   { href: "/dashboard/earn/network", label: "My Network" },
+  { href: "/dashboard/earn/leaderboard", label: "Leaderboard" },
+  { href: "/dashboard/earn/rewards", label: "Rewards" },
+  { href: "/dashboard/earn/my-leads", label: "My Leads" },
 ];
 const MONEY = [
   { href: "/dashboard/earn/wallet", label: "Wallet" },
