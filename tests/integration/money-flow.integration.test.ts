@@ -114,6 +114,20 @@ describe.skipIf(!HAS_DB)("money flow (integration)", () => {
     buyerId = buyer.id;
     uplineIds = [a.id, b.id, c.id];
 
+    // DR-038 earning gate (Phase B/B1): an upline earns only with their OWN confirmed (PAID)
+    // purchase. Seed one for each upline so this end-to-end flow exercises the eligible path
+    // (assertions below — 3 commissions, amounts, held, clawback — are unchanged).
+    for (const uid of uplineIds) {
+      await prisma.order.create({
+        data: {
+          userId: uid,
+          packageId: cb.id,
+          amountInPaise: CB_PRICE,
+          status: "PAID",
+        },
+      });
+    }
+
     // Checkout: inject a fake Razorpay order creator (no network) — buyer already exists by phone.
     const buyerPhone10 = buyer.phone.replace("+91", "");
     const result = await startCheckout(

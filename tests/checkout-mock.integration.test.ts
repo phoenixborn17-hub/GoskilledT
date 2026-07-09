@@ -105,6 +105,19 @@ describe.skipIf(!HAS_DB)("checkout with mock provider (e2e dev flow)", () => {
     const buyer = await makeUser("9", a.id);
     buyerPhone10 = buyer.phone.replace("+91", "");
     uplineIds = [a.id, b.id, c.id];
+
+    // DR-038 earning gate (Phase B/B1): uplines earn only with their OWN confirmed (PAID) purchase.
+    // Seed one for each so this dev-flow exercises the eligible path (assertions unchanged).
+    for (const uid of uplineIds) {
+      await prisma.order.create({
+        data: {
+          userId: uid,
+          packageId: cb.id,
+          amountInPaise: CB_PRICE,
+          status: "PAID",
+        },
+      });
+    }
   });
 
   it("mock order → signed webhook → PAID + enrollments + 3 HELD commissions", async () => {
