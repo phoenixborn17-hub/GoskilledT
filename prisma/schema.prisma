@@ -66,6 +66,7 @@ model User {
   guruMessages  GuruMessage[]
   emailLogs     EmailLog[]
   contactVerifications ContactVerification[]
+  affiliateLeads AffiliateLead[]
 }
 
 // ─────────────── Catalog / LMS ───────────────
@@ -520,4 +521,44 @@ model EmailLog {
   kind      String                                       // "welcome" | "certificate_ready"
   sentAt    DateTime @default(now())
   @@index([userId])
+}
+
+// ─────────────── Phase D — Rewards / Tiers (DR-034/DR-035) ───────────────
+// Admin-configurable reward definitions. `metric` names what `target` measures (default:
+// completed-referrals — learning-first, NEVER earnings/team-size, DR-035). Per-affiliate progress
+// is DERIVED from canon (no stored progress column → never stale, never fabricated).
+model RewardDefinition {
+  id          String    @id @default(cuid())
+  title       String
+  description String?
+  metric      String    @default("completed_referrals") // what `target` counts
+  target      Int                                        // e.g. 10 completed referrals
+  lastDate    DateTime?                                  // optional deadline
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+// ─────────────── Phase D — My-Leads (affiliate-uploaded, owner-scoped, PII) ───────────────
+// Distinct from the CRM `Lead` (public funnel). These are leads an AFFILIATE uploads for their own
+// follow-up. Phone/email are PII → AES-256-GCM encrypted at rest (lib/pii), masked on display,
+// owner-scoped access, never logged. (Flagged for Fable — PII policy.)
+enum AffiliateLeadStatus {
+  NEW
+  CONTACTED
+  CONVERTED
+  LOST
+}
+
+model AffiliateLead {
+  id        String              @id @default(cuid())
+  ownerId   String                                        // the affiliate who uploaded this lead
+  owner     User                @relation(fields: [ownerId], references: [id])
+  name      String?
+  phoneEnc  String                                        // AES-256-GCM ciphertext (PII)
+  emailEnc  String?                                       // optional PII, encrypted
+  note      String?
+  status    AffiliateLeadStatus @default(NEW)
+  createdAt DateTime            @default(now())
+  @@index([ownerId, createdAt])
 }

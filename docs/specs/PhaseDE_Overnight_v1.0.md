@@ -19,6 +19,15 @@ The **consumer-facing dashboard is being redesigned** (a fresh "bold & colorful"
 - **My-Leads:** data model + **affiliate upload** (leads table with date filter) + basic table + validation. Store safely (owner-scoped; if any PII, follow the Phase-C encryption/privacy pattern → **flag for Fable** in the packet).
 - All three: **derive from canon, honest states, no fabricated numbers.**
 
+## 2.5 Unit 3 — Engineering-correctness & test hardening (safe overnight fill · Tier-B)
+Pure correctness — **no design-language changes, no money-logic behavior changes.** Additive/fix only, each item parked with a test where sensible:
+- **Fix the QA-01 hydration-mismatch console errors** (SSR vs client attribute mismatch) on `/login`, `/dashboard/earn`, `/dashboard/earn/referrals`, `/admin/users` — **root-cause the mismatch, do not just suppress** the warning.
+- **Fix CLS** on `/packages` and `/faq` (confirm on a production build — dev over-reports) and the **course-player ~6px horizontal overflow @360px** (`/dashboard/learn/[courseSlug]`).
+- **Add recommended tests:** Phase-B **refund-mirror edge** test (upline earns → own order refunds → earned commission kept, future eligibility lost); confirm the guardrail's exact prescribed strings are locked; any obvious missing non-regression around KYC/withdraw.
+- **Optional behavior-preserving refactor** (only if low-risk): `hasConfirmedPurchase(tx, userId)` tx-parameterized to remove the inline-query drift risk (Fable's Phase-B note) — keep behavior identical, tests green.
+- **Light validation/security audit:** skim inputs/routes for missing server-side validation; **fix trivial/safe ones, FLAG the rest** in the packet (do not do risky refactors unattended).
+Rules: additive/correctness only; existing money suites stay green; park + test; flag anything non-trivial rather than guessing.
+
 ## 3. Security / correctness
 Server-enforce all authorization (admin-only for admin surfaces; owner-scoped for affiliate data). No PII in logs. Reuse existing patterns (`lib/pii`, masking, `recordAdminAction` audit). Non-regression: do not alter ledger/commission/withdraw money logic — additive only; existing money suites must stay green.
 
