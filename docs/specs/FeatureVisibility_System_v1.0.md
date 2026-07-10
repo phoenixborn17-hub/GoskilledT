@@ -1,6 +1,8 @@
 # Feature Visibility System (Affiliate Visibility Control) — Build Spec v1.0 (FROZEN)
 
 > **BINDING: `Frozen_Spec_Amendments_v1.0 §E` adds leak-channel acceptance (notifications · activity feed · profile referral code · mobile bottom-bar Learning-only recomposition · marketing-site review variant).**
+>
+> **⚖ COMPLIANCE REFRAME (2026-07-10): DR-040 = legal launch-gate / staged rollout — the affiliate model is DISABLED until its legal review clears, then enabled. This is NOT "cloaking" or showing a regulator one product while users see another. The flag gates the actually-regulated surfaces FIRST — share/referral link · `/join/[code]` route · commission attribution — nav-hide is the least important part. Do not document or frame this as hiding a live feature from a reviewer.**
 
 > **In-repo, self-contained spec (DR-027) → DR-040.** A founder-mandated, compliance-critical capability: **cleanly enable/disable any feature, module, or workspace** — per user, per role, or globally — so external reviewers (Razorpay, Google AdSense, government/auditors, compliance, demo accounts) can experience a **complete, polished Learning platform with no visible trace** that the Affiliate layer exists.
 >
