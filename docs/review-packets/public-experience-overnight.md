@@ -133,6 +133,18 @@ tsc + lint + prettier + build-compile all clean.
   *entry* (login/register/OTP/forgot/reset) is done.
 - Deep per-form auth UI polish (see open Q3).
 
+## Addendum — GST compliance copy fix (commit `27b23de`, founder-authorized 2026-07-11)
+The LLP is **not GST-registered yet** (in-process), so all "GST-inclusive" copy was removed from every
+public/marketing/auth surface and replaced with honest "one price · no hidden charges" framing —
+homepage, packages, course detail, about, FAQ (page + `faq.ts` incl. the homepage-teaser item), SEO
+meta, checkout display line, trust chips/triad/footer/auth-shell, 3 OG images, and the `shape.ts`
+comparison table. Scope guard held: **no** money/tax/ledger/webhook/prisma/test change
+(`modules/payments/gst.ts`, `GST_PAYABLE`, etc. untouched). tsc + lint + prettier clean; shape test 9/9.
+- **⚠️ OPEN — needs founder decision:** `lib/email/receipt.ts` still prints
+  `Amount paid: … (GST-inclusive)` on the payment **receipt/invoice**. Per the scope guard ("leave
+  invoice/tax backend untouched") I did NOT edit it, but it is customer-facing and carries the same
+  compliance risk. Please confirm whether the receipt wording should change too (it's a money-file edit).
+
 ## Confirmation
-- **Nothing merged. Nothing deployed. No seed run.** All 9 commits are on `gps-marketing`; `main` is
+- **Nothing merged. Nothing deployed. No seed run.** All 11 commits are on `gps-marketing`; `main` is
   untouched at b73402c. Working tree clean.
