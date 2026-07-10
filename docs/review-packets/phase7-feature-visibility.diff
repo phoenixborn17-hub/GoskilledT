@@ -664,6 +664,67 @@ index cdebf4d..e3cb095 100644
  
        <Card>
          <CardTitle className="mb-4 text-lg">Your details</CardTitle>
+diff --git a/app/design-system/layout.tsx b/app/design-system/layout.tsx
+index b1b449a..2900e5d 100644
+--- a/app/design-system/layout.tsx
++++ b/app/design-system/layout.tsx
+@@ -1,16 +1,25 @@
+ import type { Metadata } from "next";
++import { redirect } from "next/navigation";
++import { getCurrentUser } from "../../lib/auth/session";
+ 
+ // Internal design-system reference (Redesign U1 founder visual pass) — never indexed, not a
+-// product surface. Kept out of search + crawlers.
++// product surface. Kept out of search + crawlers. It renders sample components INCLUDING Affiliate/
++// Earn samples with illustrative money/commission figures, so it must never be reachable
++// UNAUTHENTICATED (a Razorpay/AdSense/compliance crawler must not see commission numbers — DR-040 /
++// D-29). This server layout gates the whole route behind a login; the showcase page is unchanged.
+ export const metadata: Metadata = {
+   title: "Design System",
+   robots: { index: false, follow: false },
+ };
+ 
+-export default function DesignSystemLayout({
++export const dynamic = "force-dynamic";
++
++export default async function DesignSystemLayout({
+   children,
+ }: {
+   children: React.ReactNode;
+ }) {
+-  return children;
++  const user = await getCurrentUser();
++  if (!user) redirect("/login?next=/design-system");
++  return <>{children}</>;
+ }
+diff --git a/app/register/actions.ts b/app/register/actions.ts
+index 4659b48..135fca3 100644
+--- a/app/register/actions.ts
++++ b/app/register/actions.ts
+@@ -9,6 +9,7 @@ import { getOtpProvider } from "../../lib/auth/otp";
+ import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
+ import { syncUser } from "../../lib/auth/user-sync";
+ import { resolveSponsorByCode } from "../../lib/auth/sponsor";
++import { isFeatureVisible } from "../../lib/feature-visibility/context";
+ import {
+   passwordIssue,
+   setPasswordForCurrentUser,
+@@ -56,7 +57,14 @@ export async function validateReferralCode(
+ ): Promise<ValidateCodeResult> {
+   const sponsor = await resolveSponsorByCode(rawCode);
+   if (!sponsor) return { ok: false, error: INVALID_CODE };
+-  return { ok: true, sponsorFirstName: sponsor.firstName };
++  // Feature Visibility (DR-040): keep validation intact (a valid code still succeeds → registration
++  // works), but SUPPRESS the "Invited by [name]" reveal when the Affiliate layer is globally hidden —
++  // matching register/page.tsx. Anonymous/public context here → GLOBAL overrides only.
++  const affiliateVisible = await isFeatureVisible("earn");
++  return {
++    ok: true,
++    sponsorFirstName: affiliateVisible ? sponsor.firstName : null,
++  };
+ }
+ 
+ export async function sendRegisterOtp(
 diff --git a/app/register/page.tsx b/app/register/page.tsx
 index 6bfd37d..c69ac60 100644
 --- a/app/register/page.tsx
@@ -982,6 +1043,176 @@ index 0000000..655ca77
 +    </div>
 +  );
 +}
+diff --git a/components/affiliate/earn-subnav.tsx b/components/affiliate/earn-subnav.tsx
+deleted file mode 100644
+index 16843da..0000000
+--- a/components/affiliate/earn-subnav.tsx
++++ /dev/null
+@@ -1,57 +0,0 @@
+-"use client";
+-// Earn section sub-nav (GPS-M3). Money tabs (Wallet/Commissions/KYC) appear only when the flag is
+-// ON; pre-flag the section is invite-only (§1C). The money pages still exist by URL in both states.
+-import Link from "next/link";
+-import { usePathname } from "next/navigation";
+-import { cn } from "../../lib/utils";
+-
+-// Labels follow DR-038 (compliance-safe): "My Network" for the referral relationship; levels stay
+-// "Level 1/2/3" inside. Leaderboard + Rewards are Phase D (not here).
+-const BASE = [
+-  { href: "/dashboard/earn", label: "Overview", exact: true },
+-  { href: "/dashboard/earn/referrals", label: "Referrals" },
+-  { href: "/dashboard/earn/network", label: "My Network" },
+-  { href: "/dashboard/earn/leaderboard", label: "Leaderboard" },
+-  { href: "/dashboard/earn/rewards", label: "Rewards" },
+-  { href: "/dashboard/earn/my-leads", label: "My Leads" },
+-];
+-const MONEY = [
+-  { href: "/dashboard/earn/wallet", label: "Wallet" },
+-  { href: "/dashboard/earn/commissions", label: "Commissions" },
+-  { href: "/dashboard/earn/commission-structure", label: "Rewards structure" },
+-  { href: "/dashboard/earn/kyc", label: "KYC" },
+-];
+-
+-export function EarnSubNav({ showMoney }: { showMoney: boolean }) {
+-  const pathname = usePathname();
+-  const tabs = showMoney ? [...BASE, ...MONEY] : BASE;
+-
+-  return (
+-    <nav
+-      aria-label="Earn sections"
+-      className="-mx-1 flex gap-1 overflow-x-auto pb-1"
+-    >
+-      {tabs.map((t) => {
+-        const active =
+-          "exact" in t && t.exact
+-            ? pathname === t.href
+-            : pathname === t.href || pathname.startsWith(`${t.href}/`);
+-        return (
+-          <Link
+-            key={t.href}
+-            href={t.href}
+-            aria-current={active ? "page" : undefined}
+-            className={cn(
+-              "press shrink-0 rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+-              active
+-                ? "bg-gold text-charcoal"
+-                : "text-charcoal/70 hover:bg-gold/15",
+-            )}
+-          >
+-            {t.label}
+-          </Link>
+-        );
+-      })}
+-    </nav>
+-  );
+-}
+diff --git a/components/dashboard/dashboard-nav.tsx b/components/dashboard/dashboard-nav.tsx
+deleted file mode 100644
+index 71e631f..0000000
+--- a/components/dashboard/dashboard-nav.tsx
++++ /dev/null
+@@ -1,101 +0,0 @@
+-"use client";
+-import Link from "next/link";
+-import { usePathname } from "next/navigation";
+-import { Home, BookOpen, Coins, User } from "lucide-react";
+-import { cn } from "../../lib/utils";
+-
+-// DR-030 §2 bottom nav: Home · Learn · Earn · Profile. Home = the Dashboard Hub (/dashboard);
+-// Learn = the course home (/dashboard/learn); the Progress route still exists and lights up Learn.
+-const TABS = [
+-  {
+-    href: "/dashboard",
+-    label: "Home",
+-    Icon: Home,
+-    match: (p: string) => p === "/dashboard",
+-  },
+-  {
+-    href: "/dashboard/learn",
+-    label: "Learn",
+-    Icon: BookOpen,
+-    match: (p: string) =>
+-      p.startsWith("/dashboard/learn") ||
+-      p.startsWith("/dashboard/courses") ||
+-      p.startsWith("/dashboard/progress"),
+-  },
+-  {
+-    href: "/dashboard/earn",
+-    label: "Earn",
+-    Icon: Coins,
+-    match: (p: string) => p.startsWith("/dashboard/earn"),
+-  },
+-  {
+-    href: "/dashboard/profile",
+-    label: "Profile",
+-    Icon: User,
+-    match: (p: string) => p.startsWith("/dashboard/profile"),
+-  },
+-];
+-
+-export function DashboardNav() {
+-  const pathname = usePathname();
+-
+-  return (
+-    <>
+-      {/* Desktop: left sidebar */}
+-      <nav
+-        aria-label="Dashboard"
+-        className="fixed inset-y-0 left-0 z-20 hidden w-56 flex-col border-r border-charcoal/10 bg-white p-4 md:flex"
+-      >
+-        <span className="mb-6 px-2 font-heading text-lg font-bold text-brand">
+-          GoSkilled
+-        </span>
+-        <ul className="flex flex-col gap-1">
+-          {TABS.map(({ href, label, Icon, match }) => {
+-            const active = match(pathname);
+-            return (
+-              <li key={href}>
+-                <Link
+-                  href={href}
+-                  aria-current={active ? "page" : undefined}
+-                  className={cn(
+-                    "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
+-                    active
+-                      ? "bg-brand text-brand-fg"
+-                      : "text-charcoal/70 hover:bg-brand/5",
+-                  )}
+-                >
+-                  <Icon className="h-5 w-5" aria-hidden />
+-                  {label}
+-                </Link>
+-              </li>
+-            );
+-          })}
+-        </ul>
+-      </nav>
+-
+-      {/* Mobile: bottom navigation */}
+-      <nav
+-        aria-label="Dashboard"
+-        className="glass fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-charcoal/10 md:hidden"
+-      >
+-        {TABS.map(({ href, label, Icon, match }) => {
+-          const active = match(pathname);
+-          return (
+-            <Link
+-              key={href}
+-              href={href}
+-              aria-current={active ? "page" : undefined}
+-              className={cn(
+-                "flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-colors",
+-                active ? "text-brand" : "text-muted",
+-              )}
+-            >
+-              <Icon className="h-5 w-5" aria-hidden />
+-              {label}
+-            </Link>
+-          );
+-        })}
+-      </nav>
+-    </>
+-  );
+-}
 diff --git a/components/home/enter-workspaces.tsx b/components/home/enter-workspaces.tsx
 index d0b5165..63a9f8e 100644
 --- a/components/home/enter-workspaces.tsx
@@ -1135,6 +1366,2164 @@ index bdad3ed..b84d1b6 100644
      </div>
    );
  }
+diff --git a/docs/review-packets/phase7-feature-visibility.diff b/docs/review-packets/phase7-feature-visibility.diff
+new file mode 100644
+index 0000000..c4f001d
+--- /dev/null
++++ b/docs/review-packets/phase7-feature-visibility.diff
+@@ -0,0 +1,2015 @@
++diff --git a/app/admin/feature-visibility/actions.ts b/app/admin/feature-visibility/actions.ts
++new file mode 100644
++index 0000000..1b9157e
++--- /dev/null
+++++ b/app/admin/feature-visibility/actions.ts
++@@ -0,0 +1,52 @@
+++// Feature Visibility admin actions (DR-040 · Tier A). Admin RBAC re-check → Zod at the boundary →
+++// delegate to the adapter (which writes + audits atomically). Discriminated result, never throws to
+++// the client. No money logic.
+++"use server";
+++import { z } from "zod";
+++import { revalidatePath } from "next/cache";
+++import { getAdminUser } from "../../../lib/auth/admin";
+++import {
+++  setFeatureOverride,
+++  clearFeatureOverride,
+++} from "../../../lib/admin/feature-visibility";
+++
+++export type FlagActionResult = { ok: true } | { ok: false; error: string };
+++
+++const setSchema = z.object({
+++  featureKey: z.string().trim().min(1).max(60),
+++  scope: z.enum(["GLOBAL", "ROLE", "USER"]),
+++  scopeValue: z.string().trim().max(200).default(""),
+++  visible: z.boolean(),
+++});
+++
+++const clearSchema = z.object({
+++  featureKey: z.string().trim().min(1).max(60),
+++  scope: z.enum(["GLOBAL", "ROLE", "USER"]),
+++  scopeValue: z.string().trim().max(200).default(""),
+++});
+++
+++export async function setFeatureVisibilityAction(
+++  input: z.input<typeof setSchema>,
+++): Promise<FlagActionResult> {
+++  const admin = await getAdminUser();
+++  if (!admin) return { ok: false, error: "Not authorized" };
+++  const parsed = setSchema.safeParse(input);
+++  if (!parsed.success) return { ok: false, error: "Invalid input" };
+++  const res = await setFeatureOverride(admin, parsed.data);
+++  if (!res.ok) return res;
+++  revalidatePath("/admin/feature-visibility");
+++  return { ok: true };
+++}
+++
+++export async function clearFeatureVisibilityAction(
+++  input: z.input<typeof clearSchema>,
+++): Promise<FlagActionResult> {
+++  const admin = await getAdminUser();
+++  if (!admin) return { ok: false, error: "Not authorized" };
+++  const parsed = clearSchema.safeParse(input);
+++  if (!parsed.success) return { ok: false, error: "Invalid input" };
+++  const res = await clearFeatureOverride(admin, parsed.data);
+++  if (!res.ok) return res;
+++  revalidatePath("/admin/feature-visibility");
+++  return { ok: true };
+++}
++diff --git a/app/admin/feature-visibility/page.tsx b/app/admin/feature-visibility/page.tsx
++new file mode 100644
++index 0000000..a69f176
++--- /dev/null
+++++ b/app/admin/feature-visibility/page.tsx
++@@ -0,0 +1,58 @@
+++// /admin/feature-visibility (DR-040 · Tier A — compliance). View + set feature flags at global /
+++// role / user scope; every change is written to the immutable AdminAction audit log. This governs
+++// VISIBILITY of surfaces only — it never touches wallet/commission/withdraw math, and payouts stay
+++// OFF (D-01) independently. Server enforcement (route guards + the resolver) does the real work;
+++// this is the operator console for it.
+++import { listFeatureFlags } from "../../../lib/admin/feature-visibility";
+++import { FeatureVisibilityControls } from "../../../components/admin/feature-visibility-controls";
+++import { PageHeading } from "../../../components/admin/primitives";
+++import { Card } from "../../../components/ui/card";
+++
+++export const dynamic = "force-dynamic";
+++
+++export default async function FeatureVisibilityPage() {
+++  const flags = await listFeatureFlags();
+++
+++  return (
+++    <section className="space-y-6">
+++      <PageHeading
+++        title="Feature visibility"
+++        subtitle="Enable / disable a feature per user, per role, or globally. Server-enforced (routes + APIs become unreachable, not just hidden). Audited."
+++      />
+++
+++      <Card className="border-l-4 border-l-charcoal bg-charcoal/[0.03]">
+++        <p className="text-sm text-charcoal">
+++          <strong>What this is.</strong> The Affiliate layer is a{" "}
+++          <strong>legal launch-gate / staged rollout</strong> — kept disabled
+++          until its legal review clears, then enabled. Hiding it recomposes the
+++          app into a coherent Learning-only product (no dead links, no
+++          &ldquo;disabled&rdquo; notices). It changes visibility of surfaces
+++          only — wallet/commission/withdraw math is untouched and payouts stay
+++          OFF (D-01) independently. Underlying data persists; unhiding restores
+++          the exact prior state.
+++        </p>
+++        <p className="mt-2 text-xs text-muted">
+++          Precedence is <strong>hide-wins / fail-safe</strong>: if any
+++          applicable scope (global · role · user) says hide, the feature is
+++          hidden — and a read error also fails to hidden. Every change here is
+++          recorded in the Audit log.
+++        </p>
+++      </Card>
+++
+++      {flags.map((flag) => (
+++        <Card key={flag.key} className="space-y-4">
+++          <div>
+++            <h2 className="font-heading text-lg font-bold">
+++              {flag.label}{" "}
+++              <span className="font-mono text-xs font-normal text-muted">
+++                {flag.key}
+++              </span>
+++            </h2>
+++            <p className="mt-1 text-sm text-muted">{flag.description}</p>
+++          </div>
+++          <FeatureVisibilityControls flag={flag} />
+++        </Card>
+++      ))}
+++    </section>
+++  );
+++}
++diff --git a/app/dashboard/earn/actions.ts b/app/dashboard/earn/actions.ts
++index 07b4e11..79a97d2 100644
++--- a/app/dashboard/earn/actions.ts
+++++ b/app/dashboard/earn/actions.ts
++@@ -35,6 +35,7 @@ import {
++ } from "../../../lib/wallet/queries";
++ import { getKycStatus } from "../../../lib/kyc/queries";
++ import { track, anonId } from "../../../lib/analytics/track";
+++import { assertFeatureVisible } from "../../../lib/feature-visibility/context";
++ 
++ export type ActionResult = { ok: true } | { ok: false; error: string };
++ 
++@@ -46,6 +47,7 @@ function fileExt(name: string): string {
++ 
++ // ── Referral share — fires the canonical `referral_share` event (no PII, no ₹). ──
++ export async function recordReferralShare(): Promise<ActionResult> {
+++  await assertFeatureVisible("earn"); // DR-040: affiliate action unreachable when hidden (404)
++   const user = await getCurrentUser();
++   if (!user) return { ok: false, error: "Please sign in." };
++   await track("referral_share", user.id, { channel: "share" });
++@@ -59,6 +61,7 @@ export async function sendKycVerification(
++ ): Promise<ActionResult> {
++   if (channel !== "email" && channel !== "whatsapp")
++     return { ok: false, error: "Invalid channel." };
+++  await assertFeatureVisible("earn"); // DR-040
++   const user = await getCurrentUser();
++   if (!user) return { ok: false, error: "Please sign in." };
++   // Reuse the OTP send throttle (per-phone key stands in for per-user here).
++@@ -78,6 +81,7 @@ export async function confirmKycVerification(
++ ): Promise<ActionResult> {
++   if (channel !== "email" && channel !== "whatsapp")
++     return { ok: false, error: "Invalid channel." };
+++  await assertFeatureVisible("earn"); // DR-040
++   const user = await getCurrentUser();
++   if (!user) return { ok: false, error: "Please sign in." };
++   const res = await confirmContactVerification(user.id, channel, target, code);
++@@ -111,6 +115,7 @@ const kycSchema = z.object({
++ 
++ // FormData boundary: KYC now carries file uploads, so the action takes FormData (not a typed object).
++ export async function submitKyc(formData: FormData): Promise<ActionResult> {
+++  await assertFeatureVisible("earn"); // DR-040
++   const user = await getCurrentUser();
++   if (!user) return { ok: false, error: "Please sign in." };
++ 
++@@ -217,6 +222,7 @@ export async function requestWithdrawal(
++   const parsed = withdrawalSchema.safeParse(input);
++   if (!parsed.success) return { ok: false, error: "Invalid amount." };
++ 
+++  await assertFeatureVisible("earn"); // DR-040
++   const user = await getCurrentUser();
++   if (!user) return { ok: false, error: "Please sign in." };
++ 
++diff --git a/app/dashboard/earn/kyc/doc/[kind]/route.ts b/app/dashboard/earn/kyc/doc/[kind]/route.ts
++index f65e739..344b880 100644
++--- a/app/dashboard/earn/kyc/doc/[kind]/route.ts
+++++ b/app/dashboard/earn/kyc/doc/[kind]/route.ts
++@@ -11,6 +11,7 @@ import {
++ } from "@/lib/storage/kyc-docs";
++ import { resolveKycDocPath } from "@/lib/kyc/doc-access";
++ import { checkActionRate } from "@/lib/auth/action-rate-limit";
+++import { isFeatureVisible } from "@/lib/feature-visibility/context";
++ 
++ export const dynamic = "force-dynamic";
++ 
++@@ -25,6 +26,10 @@ export async function GET(
++   const user = await getCurrentUser();
++   if (!user) return new NextResponse("Not authorized", { status: 401 });
++ 
+++  // DR-040: KYC-for-payout is part of the Affiliate layer — unreachable (404) when hidden.
+++  if (!(await isFeatureVisible("earn")))
+++    return new NextResponse("Not found", { status: 404 });
+++
++   // Abuse throttle (Unit 3) — a document fetch reads decrypted-path → signed URL; cap per user.
++   const rl = await checkActionRate("kyc-doc", user.id, 30);
++   if (!rl.ok) return new NextResponse(rl.error, { status: 429 });
++diff --git a/app/dashboard/earn/layout.tsx b/app/dashboard/earn/layout.tsx
++index 89c65c9..da30554 100644
++--- a/app/dashboard/earn/layout.tsx
+++++ b/app/dashboard/earn/layout.tsx
++@@ -1,15 +1,23 @@
++ // Earn section layout (GPS-M3 · Redesign U5). Gold-forward affiliate surface (data-theme), noindex.
++ // The old EarnSubNav tab bar is removed — the app shell's contextual sidebar (Nav_Workspace v1.1)
++ // is now the single Earn nav (no duplicate nav system).
+++//
+++// Feature Visibility (DR-040): this layout wraps EVERY /dashboard/earn/* route, so the guard here is
+++// the primary SERVER-SIDE ENFORCEMENT for the Affiliate layer — when `earn` is hidden for this user,
+++// the whole subtree (dashboard · network · wallet · commissions · leaderboard · rewards · leads ·
+++// commission-structure · KYC) is UNREACHABLE (404 via notFound()), not merely nav-hidden. Individual
+++// server actions / route handlers under this tree re-assert the same guard (a POST can skip a layout).
++ import type { Metadata } from "next";
+++import { assertFeatureVisible } from "../../../lib/feature-visibility/context";
++ 
++ export const metadata: Metadata = { robots: { index: false, follow: false } };
++ 
++-export default function EarnLayout({
+++export default async function EarnLayout({
++   children,
++ }: {
++   children: React.ReactNode;
++ }) {
+++  await assertFeatureVisible("earn");
++   return (
++     <div data-theme="affiliate" className="space-y-6">
++       {children}
++diff --git a/app/dashboard/earn/my-leads/actions.ts b/app/dashboard/earn/my-leads/actions.ts
++index df14a0f..bab9172 100644
++--- a/app/dashboard/earn/my-leads/actions.ts
+++++ b/app/dashboard/earn/my-leads/actions.ts
++@@ -6,6 +6,7 @@ import { z } from "zod";
++ import { revalidatePath } from "next/cache";
++ import { getCurrentUser } from "../../../../lib/auth/session";
++ import { createAffiliateLead } from "../../../../lib/affiliate/leads";
+++import { assertFeatureVisible } from "../../../../lib/feature-visibility/context";
++ 
++ export type LeadActionResult = { ok: true } | { ok: false; error: string };
++ 
++@@ -19,6 +20,7 @@ const leadSchema = z.object({
++ export async function addAffiliateLead(
++   input: z.input<typeof leadSchema>,
++ ): Promise<LeadActionResult> {
+++  await assertFeatureVisible("earn"); // DR-040: affiliate action unreachable when hidden
++   const user = await getCurrentUser();
++   if (!user) return { ok: false, error: "Please sign in." };
++   const parsed = leadSchema.safeParse(input);
++diff --git a/app/dashboard/earn/network/export/route.ts b/app/dashboard/earn/network/export/route.ts
++index 6224a5e..84b41c5 100644
++--- a/app/dashboard/earn/network/export/route.ts
+++++ b/app/dashboard/earn/network/export/route.ts
++@@ -5,6 +5,7 @@ import { NextResponse, type NextRequest } from "next/server";
++ import { getCurrentUser } from "../../../../../lib/auth/session";
++ import { getL1Export, l1ToCsv } from "../../../../../lib/affiliate/network";
++ import { rateLimit } from "../../../../../lib/rate-limit";
+++import { isFeatureVisible } from "../../../../../lib/feature-visibility/context";
++ 
++ export const dynamic = "force-dynamic";
++ 
++@@ -12,6 +13,11 @@ export async function GET(request: NextRequest) {
++   const user = await getCurrentUser();
++   if (!user) return new NextResponse("Not authorized", { status: 401 });
++ 
+++  // DR-040: when the Affiliate layer is hidden for this user, the export is unreachable (404) —
+++  // enforced HERE too, since a direct GET bypasses the Earn layout guard.
+++  if (!(await isFeatureVisible("earn")))
+++    return new NextResponse("Not found", { status: 404 });
+++
++   const sp = request.nextUrl.searchParams;
++   // DR-038: only Level 1 may be exported. Any other level is refused HERE, server-side — the UI
++   // never offers an L2/L3 export, and this is the enforcing backstop.
++diff --git a/app/dashboard/home/page.tsx b/app/dashboard/home/page.tsx
++index 697d6d2..9514ad0 100644
++--- a/app/dashboard/home/page.tsx
+++++ b/app/dashboard/home/page.tsx
++@@ -16,6 +16,7 @@ import {
++   Store,
++ } from "lucide-react";
++ import { getCurrentUser } from "../../../lib/auth/session";
+++import { isFeatureVisible } from "../../../lib/feature-visibility/context";
++ import { getHomeSummary, type HomeSummary } from "../../../lib/home/summary";
++ import { safeMoney } from "../../../lib/format";
++ import { format } from "date-fns";
++@@ -43,7 +44,10 @@ export const metadata = { title: "Home" };
++ 
++ export default async function HomePage() {
++   const user = await getCurrentUser();
++-  const summary = await getHomeSummary(user!.id);
+++  const [summary, affiliateVisible] = await Promise.all([
+++    getHomeSummary(user!.id),
+++    isFeatureVisible("earn"), // DR-040: gate every affiliate/referral surface on Home
+++  ]);
++ 
++   return (
++     <div className="space-y-8">
++@@ -84,17 +88,20 @@ export default async function HomePage() {
++       </Link>
++ 
++       {summary.lifecycleNew ? (
++-        <ZeroData summary={summary} />
+++        <ZeroData summary={summary} affiliateVisible={affiliateVisible} />
++       ) : (
++         <>
++-          <TodaysSummary summary={summary} />
++-          <QuickActions summary={summary} />
+++          <TodaysSummary
+++            summary={summary}
+++            affiliateVisible={affiliateVisible}
+++          />
+++          <QuickActions summary={summary} affiliateVisible={affiliateVisible} />
++           <Priorities summary={summary} />
++           <Suspense fallback={<EnterWorkspacesSkeleton />}>
++             <EnterWorkspaces userId={user!.id} />
++           </Suspense>
++           <Announcements />
++-          <ShareSection shareUrl={summary.shareUrl} />
+++          {affiliateVisible && <ShareSection shareUrl={summary.shareUrl} />}
++         </>
++       )}
++     </div>
++@@ -102,7 +109,13 @@ export default async function HomePage() {
++ }
++ 
++ // ── First viewport: Today's Summary (composed payload) ──────────────────────────
++-function TodaysSummary({ summary }: { summary: HomeSummary }) {
+++function TodaysSummary({
+++  summary,
+++  affiliateVisible,
+++}: {
+++  summary: HomeSummary;
+++  affiliateVisible: boolean;
+++}) {
++   const { nextLesson, streak, webinarToday, walletAvailablePaise } = summary;
++   return (
++     <section aria-label="Today's summary">
++@@ -172,7 +185,7 @@ function TodaysSummary({ summary }: { summary: HomeSummary }) {
++           </BentoItem>
++         )}
++ 
++-        {walletAvailablePaise != null && (
+++        {walletAvailablePaise != null && affiliateVisible && (
++           <BentoItem size="secondary">
++             <DecisionCard
++               icon={Wallet}
++@@ -194,7 +207,13 @@ function TodaysSummary({ summary }: { summary: HomeSummary }) {
++ }
++ 
++ // ── Contextual Quick Actions (≤4, rules-driven) ─────────────────────────────────
++-function QuickActions({ summary }: { summary: HomeSummary }) {
+++function QuickActions({
+++  summary,
+++  affiliateVisible,
+++}: {
+++  summary: HomeSummary;
+++  affiliateVisible: boolean;
+++}) {
++   const actions = [
++     {
++       icon: PlayCircle,
++@@ -202,7 +221,10 @@ function QuickActions({ summary }: { summary: HomeSummary }) {
++       href: summary.nextLesson?.href ?? "/dashboard/learn",
++       primary: true,
++     },
++-    { icon: Share2, label: "Refer a friend", href: "/dashboard/earn" },
+++    // Referral is an Affiliate-layer action — omitted when the Affiliate layer is hidden (DR-040).
+++    ...(affiliateVisible
+++      ? [{ icon: Share2, label: "Refer a friend", href: "/dashboard/earn" }]
+++      : []),
++     ...(summary.webinarToday
++       ? [{ icon: CalendarDays, label: "Join webinar", href: "/webinar" }]
++       : []),
++@@ -293,30 +315,44 @@ function ShareSection({ shareUrl }: { shareUrl: string }) {
++ }
++ 
++ // ── Zero-data first run (Dashboard §7) — getting-started, never empty widgets ─────
++-function ZeroData({ summary }: { summary: HomeSummary }) {
+++function ZeroData({
+++  summary,
+++  affiliateVisible,
+++}: {
+++  summary: HomeSummary;
+++  affiliateVisible: boolean;
+++}) {
+++  const steps = [
+++    {
+++      title: "Pick your first course",
+++      description: "Browse the catalog and choose what to learn.",
+++      action: (
+++        <Link href="/dashboard/learn">
+++          <Button className="w-auto">Browse courses</Button>
+++        </Link>
+++      ),
+++    },
+++    {
+++      title: "Watch your first lesson",
+++      description: "Just 2 minutes to your first win.",
+++    },
+++    // The referral step is part of the Affiliate layer — dropped when hidden (DR-040).
+++    ...(affiliateVisible
+++      ? [{ title: "Share your referral link with a friend" }]
+++      : []),
+++  ];
++   return (
++     <div className="space-y-6">
++       <GettingStartedCard
++         icon={Rocket}
++-        subtitle="3 quick steps to your first win"
++-        steps={[
++-          {
++-            title: "Pick your first course",
++-            description: "Browse the catalog and choose what to learn.",
++-            action: (
++-              <Link href="/dashboard/learn">
++-                <Button className="w-auto">Browse courses</Button>
++-              </Link>
++-            ),
++-          },
++-          {
++-            title: "Watch your first lesson",
++-            description: "Just 2 minutes to your first win.",
++-          },
++-          { title: "Share your referral link with a friend" },
++-        ]}
+++        subtitle={
+++          affiliateVisible
+++            ? "3 quick steps to your first win"
+++            : "2 quick steps to your first win"
+++        }
+++        steps={steps}
++       />
++-      <ShareSection shareUrl={summary.shareUrl} />
+++      {affiliateVisible && <ShareSection shareUrl={summary.shareUrl} />}
++     </div>
++   );
++ }
++diff --git a/app/dashboard/layout.tsx b/app/dashboard/layout.tsx
++index cb35278..3562f07 100644
++--- a/app/dashboard/layout.tsx
+++++ b/app/dashboard/layout.tsx
++@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
++ import { getCurrentUser } from "../../lib/auth/session";
++ import { prisma } from "../../lib/prisma";
++ import { siteUrl } from "../../lib/seo";
+++import { getVisibleFeatures } from "../../lib/feature-visibility/context";
++ import { AppShell } from "../../components/nav/app-shell";
++ import { InstallPrompt } from "../../components/pwa/install-prompt";
++ 
++@@ -17,17 +18,25 @@ export default async function DashboardLayout({
++   const user = await getCurrentUser();
++   if (!user) redirect("/login?next=/dashboard");
++ 
++-  const [record, completed] = await Promise.all([
+++  const [record, completed, visibleFeatures] = await Promise.all([
++     prisma.user.findUnique({
++       where: { id: user.id },
++       select: { name: true, referralCode: true },
++     }),
++     // PWA install prompt (GPS-M5 §2.5) shows AFTER the first lesson — never on landing/marketing.
++     prisma.lessonProgress.count({ where: { userId: user.id } }),
+++    // Feature Visibility (DR-040): resolve server-side, drive nav/share recomposition + hard-gate the
+++    // referral code out of the client payload entirely when the Affiliate layer is hidden.
+++    getVisibleFeatures(),
++   ]);
++ 
++-  const referralCode = record?.referralCode ?? "";
++-  const shareUrl = `${siteUrl()}/register?ref=${referralCode}`;
+++  const affiliateVisible = visibleFeatures.earn === true;
+++  // When Affiliate is hidden the referral code/link never reach the client bundle (no source-of-page
+++  // trace for a reviewer) — the shell hides the Share affordance from this too.
+++  const referralCode = affiliateVisible ? (record?.referralCode ?? "") : "";
+++  const shareUrl = affiliateVisible
+++    ? `${siteUrl()}/register?ref=${referralCode}`
+++    : "";
++ 
++   return (
++     <>
++@@ -35,6 +44,7 @@ export default async function DashboardLayout({
++         userName={record?.name?.trim() || "You"}
++         referralCode={referralCode}
++         shareUrl={shareUrl}
+++        visibleFeatures={visibleFeatures}
++       >
++         {children}
++       </AppShell>
++diff --git a/app/dashboard/learn/page.tsx b/app/dashboard/learn/page.tsx
++index 50ba80e..b5d4cdc 100644
++--- a/app/dashboard/learn/page.tsx
+++++ b/app/dashboard/learn/page.tsx
++@@ -15,6 +15,7 @@ import {
++   Rocket,
++ } from "lucide-react";
++ import { getCurrentUser } from "../../../lib/auth/session";
+++import { isFeatureVisible } from "../../../lib/feature-visibility/context";
++ import {
++   getLearnDashboard,
++   type LearnDashboard,
++@@ -42,7 +43,10 @@ const GOAL_SUBLINE: Record<string, string> = {
++ 
++ export default async function LearnPage() {
++   const user = await getCurrentUser();
++-  const d = await getLearnDashboard(user!.id);
+++  const [d, affiliateVisible] = await Promise.all([
+++    getLearnDashboard(user!.id),
+++    isFeatureVisible("earn"), // DR-040: gate the cross-cutting referral affordance on Learn
+++  ]);
++ 
++   return (
++     <div className="space-y-8">
++@@ -55,12 +59,22 @@ export default async function LearnPage() {
++         </p>
++       </header>
++ 
++-      {d.lifecycleNew ? <ZeroData /> : <Loaded d={d} />}
+++      {d.lifecycleNew ? (
+++        <ZeroData affiliateVisible={affiliateVisible} />
+++      ) : (
+++        <Loaded d={d} affiliateVisible={affiliateVisible} />
+++      )}
++     </div>
++   );
++ }
++ 
++-function Loaded({ d }: { d: LearnDashboard }) {
+++function Loaded({
+++  d,
+++  affiliateVisible,
+++}: {
+++  d: LearnDashboard;
+++  affiliateVisible: boolean;
+++}) {
++   const remaining = d.active ? d.active.total - d.active.completed : 0;
++   const heroAi =
++     d.active && d.active.percent > 0 && remaining > 0
++@@ -159,11 +173,14 @@ function Loaded({ d }: { d: LearnDashboard }) {
++             label="Explore courses"
++             href="/courses"
++           />
++-          <QuickActionCard
++-            icon={Share2}
++-            label="Refer a friend"
++-            href="/dashboard/earn"
++-          />
+++          {/* Referral is the cross-cutting Affiliate-layer affordance — hidden when Affiliate is off. */}
+++          {affiliateVisible && (
+++            <QuickActionCard
+++              icon={Share2}
+++              label="Refer a friend"
+++              href="/dashboard/earn"
+++            />
+++          )}
++         </div>
++       </section>
++     </>
++@@ -262,27 +279,34 @@ function Overview({ d }: { d: LearnDashboard }) {
++   );
++ }
++ 
++-function ZeroData() {
+++function ZeroData({ affiliateVisible }: { affiliateVisible: boolean }) {
+++  const steps = [
+++    {
+++      title: "Pick your first course",
+++      description: "Browse the catalog and choose what to learn.",
+++      action: (
+++        <Link href="/courses">
+++          <Button className="w-auto">Browse courses</Button>
+++        </Link>
+++      ),
+++    },
+++    {
+++      title: "Watch your first lesson",
+++      description: "Just 2 minutes to your first win.",
+++    },
+++    ...(affiliateVisible
+++      ? [{ title: "Share your referral link with a friend" }]
+++      : []),
+++  ];
++   return (
++     <GettingStartedCard
++       icon={Rocket}
++-      subtitle="3 quick steps to your first win"
++-      steps={[
++-        {
++-          title: "Pick your first course",
++-          description: "Browse the catalog and choose what to learn.",
++-          action: (
++-            <Link href="/courses">
++-              <Button className="w-auto">Browse courses</Button>
++-            </Link>
++-          ),
++-        },
++-        {
++-          title: "Watch your first lesson",
++-          description: "Just 2 minutes to your first win.",
++-        },
++-        { title: "Share your referral link with a friend" },
++-      ]}
+++      subtitle={
+++        affiliateVisible
+++          ? "3 quick steps to your first win"
+++          : "2 quick steps to your first win"
+++      }
+++      steps={steps}
++     />
++   );
++ }
++diff --git a/app/dashboard/profile/page.tsx b/app/dashboard/profile/page.tsx
++index cdebf4d..e3cb095 100644
++--- a/app/dashboard/profile/page.tsx
+++++ b/app/dashboard/profile/page.tsx
++@@ -2,6 +2,7 @@
++ // referral code, logout. Notification prefs moved to Account · Settings (single home). No self-serve
++ // account deletion (support-mediated; DPDP = LEGAL workstream). Auth/profile writes unchanged.
++ import { getCurrentUserRecord } from "../../../lib/auth/session";
+++import { isFeatureVisible } from "../../../lib/feature-visibility/context";
++ import { greetingTitle } from "../../../lib/greeting";
++ import { ProfileForm } from "../../../components/dashboard/profile-form";
++ import { LogoutButton } from "../../../components/dashboard/logout-button";
++@@ -12,7 +13,10 @@ export const dynamic = "force-dynamic";
++ export const metadata = { title: "Profile" };
++ 
++ export default async function ProfilePage() {
++-  const user = await getCurrentUserRecord();
+++  const [user, affiliateVisible] = await Promise.all([
+++    getCurrentUserRecord(),
+++    isFeatureVisible("earn"), // DR-040 leak channel (§E): hide the referral code when Affiliate hidden
+++  ]);
++ 
++   return (
++     <section aria-labelledby="profile-heading" className="space-y-6">
++@@ -31,18 +35,24 @@ export default async function ProfilePage() {
++         <Badge variant="gold">Founding Batch</Badge>
++       </header>
++ 
++-      {/* Referral code (DR-030 §6.8) — invite-only framing, no earn language pre-D-01. */}
++-      <Card className="flex items-center justify-between gap-3">
++-        <div>
++-          <p className="text-small font-medium text-ink">Your referral code</p>
++-          <p className="font-heading text-h4 font-bold tracking-wide text-theme-strong">
++-            {user?.referralCode ?? "—"}
++-          </p>
++-        </div>
++-        <span className="text-caption text-ink-muted">
++-          Friends who join with your link stay linked to you.
++-        </span>
++-      </Card>
+++      {/* Referral code (DR-030 §6.8) — invite-only framing, no earn language pre-D-01. Feature
+++          Visibility (DR-040 §E leak channel): the referral code is an Affiliate surface — hidden
+++          entirely (not just nav) when the Affiliate layer is off, so a reviewer sees no referral trace. */}
+++      {affiliateVisible && (
+++        <Card className="flex items-center justify-between gap-3">
+++          <div>
+++            <p className="text-small font-medium text-ink">
+++              Your referral code
+++            </p>
+++            <p className="font-heading text-h4 font-bold tracking-wide text-theme-strong">
+++              {user?.referralCode ?? "—"}
+++            </p>
+++          </div>
+++          <span className="text-caption text-ink-muted">
+++            Friends who join with your link stay linked to you.
+++          </span>
+++        </Card>
+++      )}
++ 
++       <Card>
++         <CardTitle className="mb-4 text-lg">Your details</CardTitle>
++diff --git a/app/register/page.tsx b/app/register/page.tsx
++index 6bfd37d..c69ac60 100644
++--- a/app/register/page.tsx
+++++ b/app/register/page.tsx
++@@ -3,6 +3,7 @@ import Link from "next/link";
++ import { RegisterForm } from "./register-form";
++ import { resolveSponsorByCode } from "../../lib/auth/sponsor";
++ import { readRefCookie } from "../../lib/auth/ref-cookie";
+++import { isFeatureVisible } from "../../lib/feature-visibility/context";
++ import { contactChannels } from "../../lib/config/contact";
++ import { pageMetadata } from "../../lib/seo";
++ 
++@@ -31,6 +32,14 @@ export default async function RegisterPage({
++   const contact = contactChannels(
++     "Hi! I'd like a GoSkilled referral code to register.",
++   );
+++  // Feature Visibility (DR-040 · the /register?ref attribution surface): when the Affiliate layer is
+++  // GLOBALLY hidden (a review window / pre-legal), suppress the visible referral framing ("Invited by
+++  // [name] ✓") so a reviewer sees no referral mechanics. Anonymous context → GLOBAL overrides only.
+++  // Registration LOGIC (DR-036 invite-only code requirement + attribution) is unchanged.
+++  const affiliateVisible = await isFeatureVisible("earn");
+++  const sponsorFirstName = affiliateVisible
+++    ? (sponsor?.firstName ?? null)
+++    : null;
++ 
++   return (
++     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
++@@ -38,7 +47,7 @@ export default async function RegisterPage({
++         <RegisterForm
++           initialCode={initialCode}
++           initialValid={!!sponsor}
++-          initialSponsorFirstName={sponsor?.firstName ?? null}
+++          initialSponsorFirstName={sponsorFirstName}
++           contact={contact}
++         />
++       </Suspense>
++diff --git a/components/admin/admin-nav.tsx b/components/admin/admin-nav.tsx
++index c77a8f7..88a525f 100644
++--- a/components/admin/admin-nav.tsx
+++++ b/components/admin/admin-nav.tsx
++@@ -14,6 +14,7 @@ import {
++   BookOpen,
++   Video,
++   ScrollText,
+++  ToggleLeft,
++   Settings,
++ } from "lucide-react";
++ import { cn } from "../../lib/utils";
++@@ -32,6 +33,11 @@ const TABS = [
++   { href: "/admin/catalog", label: "Catalog", Icon: BookOpen },
++   { href: "/admin/webinar", label: "Webinar", Icon: Video },
++   { href: "/admin/audit", label: "Audit", Icon: ScrollText },
+++  {
+++    href: "/admin/feature-visibility",
+++    label: "Visibility",
+++    Icon: ToggleLeft,
+++  },
++   { href: "/admin/settings", label: "Settings", Icon: Settings },
++ ];
++ 
++diff --git a/components/admin/feature-visibility-controls.tsx b/components/admin/feature-visibility-controls.tsx
++new file mode 100644
++index 0000000..655ca77
++--- /dev/null
+++++ b/components/admin/feature-visibility-controls.tsx
++@@ -0,0 +1,252 @@
+++"use client";
+++// Feature Visibility controls (DR-040 · Tier A). Per feature: set/clear the GLOBAL override (the
+++// review-window lever), plus per-ROLE and per-USER overrides. Resolution is HIDE-WINS / fail-safe —
+++// any applicable "hide" hides, so a global hide can't be re-revealed by a stale per-user flag.
+++// Every change is audited server-side (AdminAction). This is admin UI only — the real enforcement
+++// lives in the server resolver/route guards.
+++import { useState, useTransition } from "react";
+++import { useRouter } from "next/navigation";
+++import { EyeOff, Eye, RotateCcw, X } from "lucide-react";
+++import {
+++  setFeatureVisibilityAction,
+++  clearFeatureVisibilityAction,
+++} from "../../app/admin/feature-visibility/actions";
+++import type { FeatureFlagView } from "../../lib/admin/feature-visibility";
+++
+++export function FeatureVisibilityControls({ flag }: { flag: FeatureFlagView }) {
+++  const router = useRouter();
+++  const [pending, startTransition] = useTransition();
+++  const [err, setErr] = useState<string | null>(null);
+++  const [role, setRole] = useState("REVIEWER");
+++  const [userId, setUserId] = useState("");
+++
+++  const effectiveGlobal = flag.globalOverride ?? flag.defaultVisible;
+++
+++  function run(fn: () => Promise<{ ok: boolean; error?: string }>) {
+++    setErr(null);
+++    startTransition(async () => {
+++      const res = await fn();
+++      if (res.ok) router.refresh();
+++      else setErr(res.error ?? "Something went wrong.");
+++    });
+++  }
+++
+++  const setGlobal = (visible: boolean) =>
+++    run(() =>
+++      setFeatureVisibilityAction({
+++        featureKey: flag.key,
+++        scope: "GLOBAL",
+++        scopeValue: "",
+++        visible,
+++      }),
+++    );
+++  const clearGlobal = () =>
+++    run(() =>
+++      clearFeatureVisibilityAction({
+++        featureKey: flag.key,
+++        scope: "GLOBAL",
+++        scopeValue: "",
+++      }),
+++    );
+++
+++  const pillBtn = (active: boolean, danger?: boolean) =>
+++    [
+++      "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors disabled:opacity-40",
+++      active
+++        ? danger
+++          ? "bg-red-600 text-white"
+++          : "bg-brand text-brand-fg"
+++        : "border border-charcoal/20 text-charcoal hover:bg-charcoal/5",
+++    ].join(" ");
+++
+++  return (
+++    <div className="space-y-4">
+++      {/* Effective state */}
+++      <div className="flex flex-wrap items-center gap-2">
+++        <span
+++          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
+++            effectiveGlobal
+++              ? "bg-brand text-brand-fg"
+++              : "bg-charcoal/80 text-white"
+++          }`}
+++        >
+++          {effectiveGlobal ? "VISIBLE" : "HIDDEN"} (default)
+++        </span>
+++        <span className="text-xs text-muted">
+++          Registry default: {flag.defaultVisible ? "visible" : "hidden"} ·
+++          resolution is hide-wins
+++        </span>
+++      </div>
+++
+++      {/* GLOBAL scope */}
+++      <div className="rounded-lg border border-charcoal/10 p-3">
+++        <p className="mb-2 text-sm font-semibold">Global (platform-wide)</p>
+++        <div className="flex flex-wrap gap-2">
+++          <button
+++            type="button"
+++            disabled={pending}
+++            onClick={() => setGlobal(true)}
+++            className={pillBtn(flag.globalOverride === true)}
+++          >
+++            <Eye className="h-4 w-4" aria-hidden /> Show
+++          </button>
+++          <button
+++            type="button"
+++            disabled={pending}
+++            onClick={() => setGlobal(false)}
+++            className={pillBtn(flag.globalOverride === false, true)}
+++          >
+++            <EyeOff className="h-4 w-4" aria-hidden /> Hide
+++          </button>
+++          <button
+++            type="button"
+++            disabled={pending || flag.globalOverride === null}
+++            onClick={clearGlobal}
+++            className={pillBtn(flag.globalOverride === null)}
+++          >
+++            <RotateCcw className="h-4 w-4" aria-hidden /> Use default
+++          </button>
+++        </div>
+++      </div>
+++
+++      {/* ROLE + USER scopes */}
+++      <div className="grid gap-3 md:grid-cols-2">
+++        <ScopePanel
+++          title="Per role"
+++          placeholder="Role (e.g. REVIEWER)"
+++          value={role}
+++          setValue={setRole}
+++          overrides={flag.roleOverrides}
+++          pending={pending}
+++          onSet={(visible) =>
+++            run(() =>
+++              setFeatureVisibilityAction({
+++                featureKey: flag.key,
+++                scope: "ROLE",
+++                scopeValue: role,
+++                visible,
+++              }),
+++            )
+++          }
+++          onClear={(scopeValue) =>
+++            run(() =>
+++              clearFeatureVisibilityAction({
+++                featureKey: flag.key,
+++                scope: "ROLE",
+++                scopeValue,
+++              }),
+++            )
+++          }
+++        />
+++        <ScopePanel
+++          title="Per user"
+++          placeholder="User id"
+++          value={userId}
+++          setValue={setUserId}
+++          overrides={flag.userOverrides}
+++          pending={pending}
+++          onSet={(visible) =>
+++            run(() =>
+++              setFeatureVisibilityAction({
+++                featureKey: flag.key,
+++                scope: "USER",
+++                scopeValue: userId,
+++                visible,
+++              }),
+++            )
+++          }
+++          onClear={(scopeValue) =>
+++            run(() =>
+++              clearFeatureVisibilityAction({
+++                featureKey: flag.key,
+++                scope: "USER",
+++                scopeValue,
+++              }),
+++            )
+++          }
+++        />
+++      </div>
+++
+++      {err && <p className="text-sm text-red-600">{err}</p>}
+++    </div>
+++  );
+++}
+++
+++function ScopePanel({
+++  title,
+++  placeholder,
+++  value,
+++  setValue,
+++  overrides,
+++  pending,
+++  onSet,
+++  onClear,
+++}: {
+++  title: string;
+++  placeholder: string;
+++  value: string;
+++  setValue: (v: string) => void;
+++  overrides: { scopeValue: string; visible: boolean }[];
+++  pending: boolean;
+++  onSet: (visible: boolean) => void;
+++  onClear: (scopeValue: string) => void;
+++}) {
+++  return (
+++    <div className="rounded-lg border border-charcoal/10 p-3">
+++      <p className="mb-2 text-sm font-semibold">{title}</p>
+++      <div className="flex flex-wrap items-center gap-2">
+++        <input
+++          value={value}
+++          onChange={(e) => setValue(e.target.value)}
+++          placeholder={placeholder}
+++          className="min-w-0 flex-1 rounded-lg border border-charcoal/20 px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+++          autoComplete="off"
+++        />
+++        <button
+++          type="button"
+++          disabled={pending || !value.trim()}
+++          onClick={() => onSet(false)}
+++          className="rounded-lg border border-red-300 px-2.5 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40"
+++        >
+++          Hide
+++        </button>
+++        <button
+++          type="button"
+++          disabled={pending || !value.trim()}
+++          onClick={() => onSet(true)}
+++          className="rounded-lg border border-charcoal/20 px-2.5 py-1.5 text-sm font-semibold hover:bg-charcoal/5 disabled:opacity-40"
+++        >
+++          Show
+++        </button>
+++      </div>
+++      {overrides.length > 0 && (
+++        <ul className="mt-2 space-y-1">
+++          {overrides.map((o) => (
+++            <li
+++              key={o.scopeValue}
+++              className="flex items-center justify-between gap-2 rounded-md bg-charcoal/5 px-2.5 py-1 text-xs"
+++            >
+++              <span className="truncate font-mono">{o.scopeValue}</span>
+++              <span className="flex items-center gap-2">
+++                <span
+++                  className={`font-semibold ${o.visible ? "text-brand-deep" : "text-red-700"}`}
+++                >
+++                  {o.visible ? "show" : "hide"}
+++                </span>
+++                <button
+++                  type="button"
+++                  aria-label={`Clear override for ${o.scopeValue}`}
+++                  disabled={pending}
+++                  onClick={() => onClear(o.scopeValue)}
+++                  className="text-muted hover:text-charcoal disabled:opacity-40"
+++                >
+++                  <X className="h-3.5 w-3.5" aria-hidden />
+++                </button>
+++              </span>
+++            </li>
+++          ))}
+++        </ul>
+++      )}
+++    </div>
+++  );
+++}
++diff --git a/components/home/enter-workspaces.tsx b/components/home/enter-workspaces.tsx
++index d0b5165..63a9f8e 100644
++--- a/components/home/enter-workspaces.tsx
+++++ b/components/home/enter-workspaces.tsx
++@@ -4,7 +4,7 @@
++ import { GraduationCap, Users } from "lucide-react";
++ import { getEnrolledCourses } from "../../lib/lms/queries";
++ import { getReferralTree } from "../../lib/affiliate/referrals";
++-import { isFeatureVisible } from "../../lib/feature-visibility";
+++import { isFeatureVisible } from "../../lib/feature-visibility/context";
++ import { formatCount } from "../../lib/format";
++ import { DecisionCard } from "../cards/decision/decision-card";
++ import { BentoGrid, BentoItem } from "../cards/decision/bento";
++@@ -12,7 +12,7 @@ import { ProgressRing } from "../data/progress-ring";
++ import { NetworkNodes } from "../data/network-nodes";
++ 
++ export async function EnterWorkspaces({ userId }: { userId: string }) {
++-  const affiliateVisible = isFeatureVisible("earn");
+++  const affiliateVisible = await isFeatureVisible("earn");
++   const [enrolled, tree] = await Promise.all([
++     getEnrolledCourses(userId),
++     affiliateVisible ? getReferralTree(userId) : Promise.resolve(null),
++diff --git a/components/nav/app-shell.tsx b/components/nav/app-shell.tsx
++index bdad3ed..b84d1b6 100644
++--- a/components/nav/app-shell.tsx
+++++ b/components/nav/app-shell.tsx
++@@ -9,6 +9,7 @@ import {
++   activeWorkspaceKey,
++   type Workspace,
++ } from "../../lib/nav/workspaces";
+++import { isVisibleIn, type FeatureKey } from "../../lib/feature-visibility";
++ import { signOutAction } from "../../app/dashboard/actions";
++ import { Topbar } from "./topbar";
++ import { SidebarItem } from "./sidebar-item";
++@@ -22,6 +23,9 @@ export interface AppShellProps {
++   userName: string;
++   referralCode: string;
++   shareUrl: string;
+++  /** Server-resolved feature visibility map (Feature Visibility, DR-040). Presentation gate on top
+++   *  of server enforcement — the switcher, Share affordance, etc. recompose from this. */
+++  visibleFeatures: Partial<Record<FeatureKey, boolean>>;
++   children: React.ReactNode;
++ }
++ 
++@@ -52,10 +56,14 @@ export function AppShell({
++   userName,
++   referralCode,
++   shareUrl,
+++  visibleFeatures,
++   children,
++ }: AppShellProps) {
++   const pathname = usePathname() ?? "/dashboard/home";
++-  const workspaces = visibleWorkspaces();
+++  // Presentation recomposition from the server-resolved map (server routes/actions enforce for real).
+++  const workspaces = visibleWorkspaces((f) => isVisibleIn(visibleFeatures, f));
+++  // The referral share affordance is part of the Affiliate layer — hide it when `earn` is hidden.
+++  const shareVisible = isVisibleIn(visibleFeatures, "earn");
++   const activeKey = activeWorkspaceKey(pathname);
++   const active = workspaces.find((w) => w.key === activeKey) ?? workspaces[0];
++   const hasContext = active.items.length > 0;
++@@ -141,15 +149,17 @@ export function AppShell({
++           G
++         </Link>
++         {switcher("rail")}
++-        <div className="mt-auto">
++-          <IconButton
++-            aria-label="Share your link"
++-            variant="outline"
++-            onClick={openShare}
++-          >
++-            <Share2 className="h-5 w-5" aria-hidden />
++-          </IconButton>
++-        </div>
+++        {shareVisible && (
+++          <div className="mt-auto">
+++            <IconButton
+++              aria-label="Share your link"
+++              variant="outline"
+++              onClick={openShare}
+++            >
+++              <Share2 className="h-5 w-5" aria-hidden />
+++            </IconButton>
+++          </div>
+++        )}
++       </nav>
++ 
++       {/* Desktop: contextual sidebar (only when the workspace has pages) */}
++@@ -195,13 +205,15 @@ export function AppShell({
++           }
++           actions={
++             <>
++-              <IconButton
++-                aria-label="Share your link"
++-                variant="outline"
++-                onClick={openShare}
++-              >
++-                <Share2 className="h-5 w-5" aria-hidden />
++-              </IconButton>
+++              {shareVisible && (
+++                <IconButton
+++                  aria-label="Share your link"
+++                  variant="outline"
+++                  onClick={openShare}
+++                >
+++                  <Share2 className="h-5 w-5" aria-hidden />
+++                </IconButton>
+++              )}
++               <IconButton aria-label="Notifications">
++                 <Bell className="h-5 w-5" aria-hidden />
++               </IconButton>
++@@ -255,22 +267,26 @@ export function AppShell({
++         {switcher("bar")}
++       </nav>
++ 
++-      {/* Share sheet — the persistent Share affordance opens the full widget. */}
++-      <Drawer
++-        open={shareOpen}
++-        onClose={() => setShareOpen(false)}
++-        side="bottom"
++-        title="Share & earn"
++-      >
++-        <ShareWidget
++-          link={shareUrl}
++-          whatsappMessage={`Main GoSkilled par seekh raha hoon — tu bhi join kar: ${shareUrl}`}
++-          className="border-0 p-0 shadow-none"
++-        />
++-        <p className="mt-3 text-caption text-ink-muted">
++-          Your referral code: <span className="font-mono">{referralCode}</span>
++-        </p>
++-      </Drawer>
+++      {/* Share sheet — the persistent Share affordance opens the full widget. Part of the Affiliate
+++          layer: not rendered (and not reachable) when `earn` is hidden. */}
+++      {shareVisible && (
+++        <Drawer
+++          open={shareOpen}
+++          onClose={() => setShareOpen(false)}
+++          side="bottom"
+++          title="Share & earn"
+++        >
+++          <ShareWidget
+++            link={shareUrl}
+++            whatsappMessage={`Main GoSkilled par seekh raha hoon — tu bhi join kar: ${shareUrl}`}
+++            className="border-0 p-0 shadow-none"
+++          />
+++          <p className="mt-3 text-caption text-ink-muted">
+++            Your referral code:{" "}
+++            <span className="font-mono">{referralCode}</span>
+++          </p>
+++        </Drawer>
+++      )}
++     </div>
++   );
++ }
++diff --git a/lib/admin/feature-visibility.ts b/lib/admin/feature-visibility.ts
++new file mode 100644
++index 0000000..6a983dd
++--- /dev/null
+++++ b/lib/admin/feature-visibility.ts
++@@ -0,0 +1,142 @@
+++// Feature Visibility admin adapter (DR-040 · Tier A — compliance). Reads the current overrides for
+++// every admin-controllable feature, and applies set/clear at global/role/user scope. Every change is
+++// audited via the immutable AdminAction log, atomically with the write (same pattern as the KYC /
+++// payout-flag adapters). NO money logic — visibility of surfaces only.
+++import { prisma } from "../prisma";
+++import type { AdminIdentity } from "../auth/admin";
+++import { recordAdminAction } from "./audit";
+++import {
+++  CONTROLLABLE_FEATURES,
+++  isKnownFeature,
+++  type FeatureKey,
+++  type FeatureScope,
+++} from "../feature-visibility";
+++
+++export interface ScopedOverride {
+++  scope: FeatureScope;
+++  scopeValue: string;
+++  visible: boolean;
+++}
+++
+++export interface FeatureFlagView {
+++  key: FeatureKey;
+++  label: string;
+++  description: string;
+++  defaultVisible: boolean;
+++  /** The GLOBAL override's value, or null when no global override exists (→ default applies). */
+++  globalOverride: boolean | null;
+++  roleOverrides: { scopeValue: string; visible: boolean }[];
+++  userOverrides: { scopeValue: string; visible: boolean }[];
+++}
+++
+++export type FlagResult = { ok: true } | { ok: false; error: string };
+++
+++/** Every admin-controllable feature + its current overrides, grouped by scope. */
+++export async function listFeatureFlags(): Promise<FeatureFlagView[]> {
+++  const rows = await prisma.featureOverride.findMany({
+++    orderBy: [{ featureKey: "asc" }, { scope: "asc" }, { scopeValue: "asc" }],
+++  });
+++  return CONTROLLABLE_FEATURES.map((f) => {
+++    const forKey = rows.filter((r) => r.featureKey === f.key);
+++    const global = forKey.find((r) => r.scope === "GLOBAL");
+++    return {
+++      key: f.key,
+++      label: f.label,
+++      description: f.description,
+++      defaultVisible: f.defaultVisible,
+++      globalOverride: global ? global.visible : null,
+++      roleOverrides: forKey
+++        .filter((r) => r.scope === "ROLE")
+++        .map((r) => ({ scopeValue: r.scopeValue, visible: r.visible })),
+++      userOverrides: forKey
+++        .filter((r) => r.scope === "USER")
+++        .map((r) => ({ scopeValue: r.scopeValue, visible: r.visible })),
+++    };
+++  });
+++}
+++
+++function normalizeScopeValue(scope: FeatureScope, raw: string): string {
+++  return scope === "GLOBAL" ? "" : raw.trim();
+++}
+++
+++/** Upsert one override at (feature, scope, scopeValue) + record an immutable audit row atomically. */
+++export async function setFeatureOverride(
+++  actor: AdminIdentity,
+++  input: {
+++    featureKey: string;
+++    scope: FeatureScope;
+++    scopeValue: string;
+++    visible: boolean;
+++  },
+++): Promise<FlagResult> {
+++  if (!isKnownFeature(input.featureKey))
+++    return { ok: false, error: "Unknown feature." };
+++  if (!CONTROLLABLE_FEATURES.some((f) => f.key === input.featureKey))
+++    return { ok: false, error: "This feature is not toggleable." };
+++
+++  const scopeValue = normalizeScopeValue(input.scope, input.scopeValue);
+++  if (input.scope !== "GLOBAL" && !scopeValue)
+++    return {
+++      ok: false,
+++      error:
+++        input.scope === "ROLE"
+++          ? "Enter a role (e.g. REVIEWER)."
+++          : "Enter a user id.",
+++    };
+++
+++  await prisma.$transaction(async (tx) => {
+++    await tx.featureOverride.upsert({
+++      where: {
+++        featureKey_scope_scopeValue: {
+++          featureKey: input.featureKey,
+++          scope: input.scope,
+++          scopeValue,
+++        },
+++      },
+++      create: {
+++        featureKey: input.featureKey,
+++        scope: input.scope,
+++        scopeValue,
+++        visible: input.visible,
+++        updatedBy: actor.supabaseId,
+++      },
+++      update: { visible: input.visible, updatedBy: actor.supabaseId },
+++    });
+++    await recordAdminAction(tx, {
+++      actor,
+++      action: "FEATURE_VISIBILITY_SET",
+++      entity: "FeatureOverride",
+++      entityId: input.featureKey,
+++      meta: { scope: input.scope, scopeValue, visible: input.visible },
+++    });
+++  });
+++  return { ok: true };
+++}
+++
+++/** Remove an override (revert that scope to the next-lower precedence / default) + audit it. */
+++export async function clearFeatureOverride(
+++  actor: AdminIdentity,
+++  input: { featureKey: string; scope: FeatureScope; scopeValue: string },
+++): Promise<FlagResult> {
+++  if (!isKnownFeature(input.featureKey))
+++    return { ok: false, error: "Unknown feature." };
+++  const scopeValue = normalizeScopeValue(input.scope, input.scopeValue);
+++
+++  await prisma.$transaction(async (tx) => {
+++    await tx.featureOverride.deleteMany({
+++      where: {
+++        featureKey: input.featureKey,
+++        scope: input.scope,
+++        scopeValue,
+++      },
+++    });
+++    await recordAdminAction(tx, {
+++      actor,
+++      action: "FEATURE_VISIBILITY_CLEAR",
+++      entity: "FeatureOverride",
+++      entityId: input.featureKey,
+++      meta: { scope: input.scope, scopeValue },
+++    });
+++  });
+++  return { ok: true };
+++}
++diff --git a/lib/feature-visibility/context.ts b/lib/feature-visibility/context.ts
++new file mode 100644
++index 0000000..fee1615
++--- /dev/null
+++++ b/lib/feature-visibility/context.ts
++@@ -0,0 +1,85 @@
+++// Feature Visibility System (DR-040) — server-side context + enforcement helpers.
+++//
+++// Loads the current user's context + all scope overrides ONCE per request (React cache), resolves
+++// every feature, and exposes the checks that route guards / server actions / API handlers / the nav
+++// builder use. This is the SERVER enforcement seam — a hidden feature's pages, actions, and routes
+++// call assertFeatureVisible() and become 404, never merely CSS-hidden.
+++//
+++// SERVER-ONLY by convention: this module touches Prisma + the session. Client components must NOT
+++// import it — they consume the server-resolved visibility MAP (passed as a prop) via the pure
+++// helpers in ./index. (The `server-only` npm guard isn't a dependency of this project.)
+++import { cache } from "react";
+++import { notFound } from "next/navigation";
+++import { prisma } from "../prisma";
+++import { getCurrentUser } from "../auth/session";
+++import { FEATURES, type FeatureKey } from "./registry";
+++import {
+++  resolveAllFeatures,
+++  type FeatureOverrideRow,
+++  type UserContext,
+++} from "./resolver";
+++
+++/** {userId, role} for the current request — anonymous ({null,null}) on public pages. */
+++export const getVisibilityContext = cache(async (): Promise<UserContext> => {
+++  const user = await getCurrentUser();
+++  if (!user) return { userId: null, role: null };
+++  const rec = await prisma.user.findUnique({
+++    where: { id: user.id },
+++    select: { role: true },
+++  });
+++  return { userId: user.id, role: rec?.role ?? "USER" };
+++});
+++
+++// Load every override in one query. Returns null on DB failure so the caller can fail SAFE (hidden)
+++// rather than fail OPEN (leaking a hidden feature because a read errored).
+++const loadOverrides = cache(async (): Promise<FeatureOverrideRow[] | null> => {
+++  try {
+++    const rows = await prisma.featureOverride.findMany({
+++      select: {
+++        featureKey: true,
+++        scope: true,
+++        scopeValue: true,
+++        visible: true,
+++      },
+++    });
+++    return rows as FeatureOverrideRow[];
+++  } catch {
+++    return null;
+++  }
+++});
+++
+++/** The FAIL-SAFE map used when overrides can't be read: fail-safe features hidden, structural kept. */
+++function failSafeMap(): Record<FeatureKey, boolean> {
+++  const out = {} as Record<FeatureKey, boolean>;
+++  for (const key of Object.keys(FEATURES) as FeatureKey[]) {
+++    const def = FEATURES[key];
+++    out[key] = def.failSafeHidden ? false : def.defaultVisible;
+++  }
+++  return out;
+++}
+++
+++/** The resolved visible/hidden map for every feature, for this request's user. Memoised. */
+++export const getVisibleFeatures = cache(
+++  async (): Promise<Record<FeatureKey, boolean>> => {
+++    const [ctx, overrides] = await Promise.all([
+++      getVisibilityContext(),
+++      loadOverrides(),
+++    ]);
+++    if (overrides === null) return failSafeMap();
+++    return resolveAllFeatures(overrides, ctx);
+++  },
+++);
+++
+++/** Server-side single-feature check. */
+++export async function isFeatureVisible(key: FeatureKey): Promise<boolean> {
+++  return (await getVisibleFeatures())[key];
+++}
+++
+++/**
+++ * Route/action guard: if the feature is hidden for this user, render 404 — the page/action/route is
+++ * UNREACHABLE, not just visually removed. Use at the top of a hidden feature's layout, server
+++ * actions, and route handlers.
+++ */
+++export async function assertFeatureVisible(key: FeatureKey): Promise<void> {
+++  if (!(await isFeatureVisible(key))) notFound();
+++}
++diff --git a/lib/feature-visibility/index.ts b/lib/feature-visibility/index.ts
++index 3495818..22938e3 100644
++--- a/lib/feature-visibility/index.ts
+++++ b/lib/feature-visibility/index.ts
++@@ -1,28 +1,34 @@
++-// Feature-Visibility resolver (DR-040) — STUB for Phase 2.
++-// Phase 7 builds the real registry + `isFeatureVisible()` resolver (per user/role/global, server-
++-// enforced on routes/APIs/actions, with graceful nav recomposition). For now this always returns
++-// true so nothing is hidden. The nav is already BUILT through this hook (see lib/nav/workspaces),
++-// so enabling visibility in Phase 7 is a resolver change — the shell recomposes with no gaps.
++-export type FeatureKey =
++-  | "home"
++-  | "learn"
++-  | "earn" // the Affiliate workspace — the primary DR-040 toggle target
++-  | "explore"
++-  | "guru"
++-  | "account"
++-  | "share";
+++// Feature Visibility System (DR-040) — CLIENT-SAFE public surface.
+++//
+++// This barrel re-exports only pure, isomorphic pieces (registry + resolver types/logic) so client
+++// components (e.g. the nav shell) can import types + a pure map helper without pulling in server-only
+++// code. The SERVER enforcement helpers (getVisibleFeatures / isFeatureVisible / assertFeatureVisible)
+++// live in ./context and must be imported from there directly (they are `server-only`).
+++export {
+++  FEATURES,
+++  CONTROLLABLE_FEATURES,
+++  isKnownFeature,
+++  type FeatureKey,
+++  type FeatureDef,
+++} from "./registry";
++ 
++-// Stub registry — everything visible. Phase 7 replaces this with a per user/role/global resolver.
++-const VISIBLE = new Set<FeatureKey>([
++-  "home",
++-  "learn",
++-  "earn",
++-  "explore",
++-  "guru",
++-  "account",
++-  "share",
++-]);
+++export {
+++  resolveFeature,
+++  resolveAllFeatures,
+++  type FeatureScope,
+++  type FeatureOverrideRow,
+++  type UserContext,
+++} from "./resolver";
++ 
++-export function isFeatureVisible(feature: FeatureKey): boolean {
++-  return VISIBLE.has(feature);
+++import type { FeatureKey } from "./registry";
+++
+++/**
+++ * Client-side read of a server-resolved visibility map (passed down as a prop). This is presentation
+++ * polish ON TOP OF server enforcement — never the only gate. Missing key → treated as hidden.
+++ */
+++export function isVisibleIn(
+++  map: Partial<Record<FeatureKey, boolean>> | undefined,
+++  key: FeatureKey,
+++): boolean {
+++  return map?.[key] === true;
++ }
++diff --git a/lib/feature-visibility/registry.ts b/lib/feature-visibility/registry.ts
++new file mode 100644
++index 0000000..39df7be
++--- /dev/null
+++++ b/lib/feature-visibility/registry.ts
++@@ -0,0 +1,122 @@
+++// Feature Visibility System (DR-040) — the feature REGISTRY.
+++//
+++// A general, extensible feature-flag system: ANY module/workspace (Affiliate, AI, Marketplace,
+++// Communities, Jobs, …) registers a key here with a default and a fail-safe, and is then toggleable
+++// per-user / per-role / globally through the SAME resolver + admin UI. This file is the code-level
+++// source of truth for WHICH features exist and their defaults; per-scope OVERRIDES live in the
+++// `FeatureOverride` table and are applied by the resolver.
+++//
+++// COMPLIANCE REFRAME (DR-040): the affiliate flag is a LEGAL LAUNCH-GATE / staged rollout (the
+++// affiliate model is disabled until its legal review clears, then enabled) — NOT reviewer "cloaking".
+++// The flag gates the actually-regulated surfaces first (share/referral link · referral attribution
+++// display · the Earn routes), and the nav recomposes as a by-product.
+++
+++export type FeatureKey =
+++  | "home"
+++  | "learn"
+++  | "earn" // the Affiliate/Earn layer — the primary DR-040 toggle target
+++  | "explore"
+++  | "guru"
+++  | "account"
+++  | "share"
+++  | "marketplace"; // reserved/dummy — proves the system is general (a 2nd toggleable feature)
+++
+++export interface FeatureDef {
+++  key: FeatureKey;
+++  label: string;
+++  description: string;
+++  /** Value when no scope override applies. */
+++  defaultVisible: boolean;
+++  /** On resolver error / ambiguity, fall to the MORE-HIDDEN state (safer for a review). */
+++  failSafeHidden: boolean;
+++  /** Surfaced in the admin flag UI (structural features like Home/Account are never toggled). */
+++  adminControllable: boolean;
+++}
+++
+++// Structural workspaces (home/learn/account) are always visible and NOT admin-controllable — the app
+++// is never a blank shell. `earn` is the affiliate layer (the DR-040 target). `marketplace` is a
+++// reserved dummy that ships HIDDEN and toggleable, so the system's generality is provable end-to-end.
+++export const FEATURES: Record<FeatureKey, FeatureDef> = {
+++  home: {
+++    key: "home",
+++    label: "Home",
+++    description: "The Home hub — always available.",
+++    defaultVisible: true,
+++    failSafeHidden: false,
+++    adminControllable: false,
+++  },
+++  learn: {
+++    key: "learn",
+++    label: "Learn",
+++    description: "The Learning workspace — always available.",
+++    defaultVisible: true,
+++    failSafeHidden: false,
+++    adminControllable: false,
+++  },
+++  account: {
+++    key: "account",
+++    label: "Account",
+++    description: "The Account workspace — always available.",
+++    defaultVisible: true,
+++    failSafeHidden: false,
+++    adminControllable: false,
+++  },
+++  earn: {
+++    key: "earn",
+++    label: "Affiliate (Earn)",
+++    description:
+++      "The Affiliate/Earn layer: Earn workspace, referral share links, network, wallet, commissions, leaderboard, rewards, KYC-for-payout. DR-040 legal launch-gate — disable until affiliate legal review clears.",
+++    // Default preserves current product behaviour (Earn is live). Flip the GLOBAL override to hidden
+++    // for a review window or until D-01 legal clears (a LAUNCH_CONFIG decision, not a code default).
+++    defaultVisible: true,
+++    failSafeHidden: true, // any error/ambiguity → hidden (compliance-safe)
+++    adminControllable: true,
+++  },
+++  marketplace: {
+++    key: "marketplace",
+++    label: "Marketplace (reserved)",
+++    description:
+++      "Reserved future workspace. Ships hidden; toggleable — demonstrates the visibility system is general, not an affiliate one-off.",
+++    defaultVisible: false,
+++    failSafeHidden: true,
+++    adminControllable: true,
+++  },
+++  // Legacy/structural keys kept for type-compatibility with the nav model. Not managed by this UI:
+++  // `share` visibility DERIVES from `earn` (see resolver); `explore`/`guru` are governed elsewhere
+++  // (Explore folded into Learn; Guru behind lib/flags.guruEnabled()).
+++  share: {
+++    key: "share",
+++    label: "Referral share",
+++    description:
+++      "Referral share affordance — follows the Affiliate (earn) flag.",
+++    defaultVisible: true,
+++    failSafeHidden: true,
+++    adminControllable: false,
+++  },
+++  explore: {
+++    key: "explore",
+++    label: "Explore",
+++    description:
+++      "Folded into Learn (Browse) — not a standalone workspace in V1.",
+++    defaultVisible: true,
+++    failSafeHidden: false,
+++    adminControllable: false,
+++  },
+++  guru: {
+++    key: "guru",
+++    label: "Guru AI",
+++    description: "Deferred (DR-041); governed by lib/flags.guruEnabled().",
+++    defaultVisible: false,
+++    failSafeHidden: false,
+++    adminControllable: false,
+++  },
+++};
+++
+++/** Admin-toggleable features, in display order (Affiliate first). */
+++export const CONTROLLABLE_FEATURES: FeatureDef[] = (
+++  Object.values(FEATURES) as FeatureDef[]
+++).filter((f) => f.adminControllable);
+++
+++export function isKnownFeature(key: string): key is FeatureKey {
+++  return Object.prototype.hasOwnProperty.call(FEATURES, key);
+++}
++diff --git a/lib/feature-visibility/resolver.ts b/lib/feature-visibility/resolver.ts
++new file mode 100644
++index 0000000..433d358
++--- /dev/null
+++++ b/lib/feature-visibility/resolver.ts
++@@ -0,0 +1,74 @@
+++// Feature Visibility System (DR-040) — the PURE resolver.
+++//
+++// Given a feature's scope overrides + a user context, decide visible/hidden. No DB, no framework —
+++// so the precedence + fail-safe rules are node-testable in isolation. The DB load + per-request
+++// memoisation live in ./context.ts; enforcement (route guards, action guards, nav) consumes this.
+++
+++import { FEATURES, type FeatureKey } from "./registry";
+++
+++export type FeatureScope = "GLOBAL" | "ROLE" | "USER";
+++
+++export interface FeatureOverrideRow {
+++  featureKey: string;
+++  scope: FeatureScope;
+++  /** "" for GLOBAL; the role string for ROLE; the userId for USER. */
+++  scopeValue: string;
+++  visible: boolean;
+++}
+++
+++export interface UserContext {
+++  /** Internal User.id, or null for an anonymous/public visitor (only GLOBAL overrides apply). */
+++  userId: string | null;
+++  /** User.role (USER · ADMIN · REVIEWER), or null when anonymous. */
+++  role: string | null;
+++}
+++
+++/** Is this override applicable to the given context? */
+++function applies(row: FeatureOverrideRow, ctx: UserContext): boolean {
+++  switch (row.scope) {
+++    case "GLOBAL":
+++      return true;
+++    case "ROLE":
+++      return ctx.role != null && row.scopeValue === ctx.role;
+++    case "USER":
+++      return ctx.userId != null && row.scopeValue === ctx.userId;
+++    default:
+++      return false;
+++  }
+++}
+++
+++/**
+++ * Resolve ONE feature. Precedence is **hide-wins / fail-safe** (per spec §Configurability): if ANY
+++ * applicable scope (global/role/user) says HIDE → hidden; else if any says SHOW → visible; else the
+++ * registry default. Hide-wins is deliberate — a global review-window hide can't be accidentally
+++ * re-revealed by a stale per-user flag, and revealing is always the explicit act of removing the hide.
+++ * Unknown keys and no-applicable-override → registry default (or false if the key is unknown).
+++ */
+++export function resolveFeature(
+++  featureKey: FeatureKey,
+++  overrides: FeatureOverrideRow[],
+++  ctx: UserContext,
+++): boolean {
+++  const def = FEATURES[featureKey];
+++  const applicable = overrides.filter(
+++    (o) => o.featureKey === featureKey && applies(o, ctx),
+++  );
+++  if (applicable.some((o) => o.visible === false)) return false; // hide wins
+++  if (applicable.some((o) => o.visible === true)) return true;
+++  return def ? def.defaultVisible : false;
+++}
+++
+++/** Resolve every registered feature into a plain map, applying the overrides for this context. */
+++export function resolveAllFeatures(
+++  overrides: FeatureOverrideRow[],
+++  ctx: UserContext,
+++): Record<FeatureKey, boolean> {
+++  const out = {} as Record<FeatureKey, boolean>;
+++  for (const key of Object.keys(FEATURES) as FeatureKey[]) {
+++    let visible = resolveFeature(key, overrides, ctx);
+++    // `share` (the referral affordance) is not independently managed — it follows the affiliate flag.
+++    if (key === "share") visible = resolveFeature("earn", overrides, ctx);
+++    out[key] = visible;
+++  }
+++  return out;
+++}
++diff --git a/lib/nav/workspaces.ts b/lib/nav/workspaces.ts
++index 8c6996a..38b7ae3 100644
++--- a/lib/nav/workspaces.ts
+++++ b/lib/nav/workspaces.ts
++@@ -24,7 +24,7 @@ import {
++   LifeBuoy,
++   type LucideIcon,
++ } from "lucide-react";
++-import { isFeatureVisible, type FeatureKey } from "../feature-visibility";
+++import { type FeatureKey } from "../feature-visibility";
++ import type { WorkspaceTheme } from "../../components/nav/workspace-switcher";
++ 
++ export type WorkspaceKey = "home" | "learn" | "earn" | "account";
++@@ -112,9 +112,24 @@ export const WORKSPACES: Workspace[] = [
++   },
++ ];
++ 
++-/** Workspaces the current viewer may see (Feature-Visibility stub → all; Phase 7 resolves). */
++-export function visibleWorkspaces(): Workspace[] {
++-  return WORKSPACES.filter((w) => isFeatureVisible(w.feature));
+++/**
+++ * Workspaces the current viewer may see, plus per-item recomposition (Feature Visibility, DR-040).
+++ * `isVisible` is the server-resolved predicate (passed down from the dashboard layout). When the
+++ * Affiliate (`earn`) layer is hidden: the Earn switcher item drops, AND the Account sidebar's KYC
+++ * item drops (KYC = "get payout-ready" is an affiliate surface whose route is guarded → no dead
+++ * link). The shell recomposes to a coherent Learning-only product with no gaps.
+++ */
+++export function visibleWorkspaces(
+++  isVisible: (feature: FeatureKey) => boolean,
+++): Workspace[] {
+++  const affiliateVisible = isVisible("earn");
+++  return WORKSPACES.filter((w) => isVisible(w.feature)).map((w) => {
+++    if (w.key !== "account" || affiliateVisible) return w;
+++    return {
+++      ...w,
+++      items: w.items.filter((i) => i.href !== "/dashboard/earn/kyc"),
+++    };
+++  });
++ }
++ 
++ /** Which workspace a pathname belongs to — drives the switcher highlight + theme. */
++diff --git a/prisma/migrations/20260710190844_phase7_feature_visibility/migration.sql b/prisma/migrations/20260710190844_phase7_feature_visibility/migration.sql
++new file mode 100644
++index 0000000..aa055b5
++--- /dev/null
+++++ b/prisma/migrations/20260710190844_phase7_feature_visibility/migration.sql
++@@ -0,0 +1,29 @@
+++-- CreateEnum
+++CREATE TYPE "FeatureScope" AS ENUM ('GLOBAL', 'ROLE', 'USER');
+++
+++-- AlterEnum
+++ALTER TYPE "Role" ADD VALUE 'REVIEWER';
+++
+++-- CreateTable
+++CREATE TABLE "FeatureOverride" (
+++    "id" TEXT NOT NULL,
+++    "featureKey" TEXT NOT NULL,
+++    "scope" "FeatureScope" NOT NULL,
+++    "scopeValue" TEXT NOT NULL DEFAULT '',
+++    "visible" BOOLEAN NOT NULL,
+++    "updatedBy" TEXT,
+++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+++    "updatedAt" TIMESTAMP(3) NOT NULL,
+++
+++    CONSTRAINT "FeatureOverride_pkey" PRIMARY KEY ("id")
+++);
+++
+++-- CreateIndex
+++CREATE INDEX "FeatureOverride_featureKey_idx" ON "FeatureOverride"("featureKey");
+++
+++-- CreateIndex
+++CREATE UNIQUE INDEX "FeatureOverride_featureKey_scope_scopeValue_key" ON "FeatureOverride"("featureKey", "scope", "scopeValue");
+++
+++-- RLS: every new public table ships RLS ENABLED, deny-all (no policies) — golden rule 15.
+++-- The app connects as table owner and bypasses non-forced RLS; the anon key gets nothing.
+++ALTER TABLE "FeatureOverride" ENABLE ROW LEVEL SECURITY;
++diff --git a/prisma/schema.prisma b/prisma/schema.prisma
++index 1de9bc4..6c9de06 100644
++--- a/prisma/schema.prisma
+++++ b/prisma/schema.prisma
++@@ -17,6 +17,10 @@ datasource db {
++ enum Role {
++   USER
++   ADMIN
+++  // Feature Visibility (DR-040): a review/demo account. Behaves as a normal (non-admin) learner but
+++  // is a per-ROLE scope target so the Affiliate layer can be hidden for reviewers (admin gate stays
+++  // on Supabase app_metadata.role, unaffected).
+++  REVIEWER
++ }
++ 
++ // goal-based onboarding (Blueprint §3 /onboarding)
++@@ -562,3 +566,30 @@ model AffiliateLead {
++   createdAt DateTime            @default(now())
++   @@index([ownerId, createdAt])
++ }
+++
+++// ─────────────── Feature Visibility (DR-040) ───────────────
+++// General feature-flag system. The code registry (lib/feature-visibility/registry.ts) owns which
+++// features exist + their defaults; THIS table holds per-scope OVERRIDES only. Resolver precedence is
+++// hide-wins / fail-safe. NO money logic — visibility of surfaces only; hiding never mutates ledger
+++// state. Every flag change is audited via AdminAction (immutable convention).
+++enum FeatureScope {
+++  GLOBAL
+++  ROLE
+++  USER
+++}
+++
+++model FeatureOverride {
+++  id         String       @id @default(cuid())
+++  featureKey String                              // a lib/feature-visibility registry key (e.g. "earn")
+++  scope      FeatureScope
+++  // "" for GLOBAL · the Role string for ROLE · the User.id for USER. Non-null (with "") so the
+++  // unique index below actually enforces one row per (feature, scope, target) — Postgres treats
+++  // NULLs as distinct, which would allow duplicate GLOBAL rows.
+++  scopeValue String       @default("")
+++  visible    Boolean
+++  updatedBy  String?                             // admin Supabase id (denormalised actor)
+++  createdAt  DateTime     @default(now())
+++  updatedAt  DateTime     @updatedAt
+++  @@unique([featureKey, scope, scopeValue])
+++  @@index([featureKey])
+++}
++diff --git a/tests/feature-visibility-admin.integration.test.ts b/tests/feature-visibility-admin.integration.test.ts
++new file mode 100644
++index 0000000..bd8f379
++--- /dev/null
+++++ b/tests/feature-visibility-admin.integration.test.ts
++@@ -0,0 +1,130 @@
+++// Feature Visibility admin adapter (DR-040) — set → list → resolve → clear, each with an immutable
+++// AdminAction audit row. Runs against the real DB when DATABASE_URL is set. Isolated: uses a
+++// namespaced USER-scope override (no global state touched), and clears it at the end.
+++import { describe, it, expect, beforeAll, afterAll } from "vitest";
+++import { prisma } from "@/lib/prisma";
+++import {
+++  setFeatureOverride,
+++  clearFeatureOverride,
+++  listFeatureFlags,
+++} from "@/lib/admin/feature-visibility";
+++import { resolveFeature } from "@/lib/feature-visibility/resolver";
+++import type { AdminIdentity } from "@/lib/auth/admin";
+++
+++const HAS_DB = !!process.env.DATABASE_URL;
+++const actor: AdminIdentity = {
+++  supabaseId: "fvtest-admin",
+++  email: "fvtest-admin@example.com",
+++};
+++const testUserId = `fvtest_${Date.now()}`;
+++
+++async function overridesForEarn() {
+++  return (await prisma.featureOverride.findMany({
+++    where: { featureKey: "earn" },
+++    select: { featureKey: true, scope: true, scopeValue: true, visible: true },
+++  })) as {
+++    featureKey: string;
+++    scope: "GLOBAL" | "ROLE" | "USER";
+++    scopeValue: string;
+++    visible: boolean;
+++  }[];
+++}
+++
+++describe.skipIf(!HAS_DB)("Feature Visibility admin adapter (DR-040)", () => {
+++  beforeAll(async () => {
+++    await prisma.featureOverride.deleteMany({
+++      where: { scope: "USER", scopeValue: testUserId },
+++    });
+++  });
+++  afterAll(async () => {
+++    await prisma.featureOverride.deleteMany({
+++      where: { scope: "USER", scopeValue: testUserId },
+++    });
+++  });
+++
+++  it("set USER hide → override listed + audit row + resolver hides that user", async () => {
+++    const res = await setFeatureOverride(actor, {
+++      featureKey: "earn",
+++      scope: "USER",
+++      scopeValue: testUserId,
+++      visible: false,
+++    });
+++    expect(res.ok).toBe(true);
+++
+++    const flags = await listFeatureFlags();
+++    const earn = flags.find((f) => f.key === "earn")!;
+++    expect(earn.userOverrides).toContainEqual({
+++      scopeValue: testUserId,
+++      visible: false,
+++    });
+++
+++    // The pure resolver, fed the real DB rows, hides earn for that user but not for others.
+++    const rows = await overridesForEarn();
+++    expect(
+++      resolveFeature("earn", rows, { userId: testUserId, role: "USER" }),
+++    ).toBe(false);
+++    expect(
+++      resolveFeature("earn", rows, { userId: "someone-else", role: "USER" }),
+++    ).toBe(true);
+++
+++    const audit = await prisma.adminAction.findFirst({
+++      where: {
+++        action: "FEATURE_VISIBILITY_SET",
+++        entity: "FeatureOverride",
+++        entityId: "earn",
+++      },
+++      orderBy: { createdAt: "desc" },
+++    });
+++    expect(audit?.actorSupabaseId).toBe(actor.supabaseId);
+++    expect((audit?.meta as { scopeValue?: string })?.scopeValue).toBe(
+++      testUserId,
+++    );
+++  });
+++
+++  it("clear USER override → removed + audit row + resolver reverts to default", async () => {
+++    const res = await clearFeatureOverride(actor, {
+++      featureKey: "earn",
+++      scope: "USER",
+++      scopeValue: testUserId,
+++    });
+++    expect(res.ok).toBe(true);
+++
+++    const flags = await listFeatureFlags();
+++    const earn = flags.find((f) => f.key === "earn")!;
+++    expect(earn.userOverrides.some((o) => o.scopeValue === testUserId)).toBe(
+++      false,
+++    );
+++
+++    const rows = await overridesForEarn();
+++    expect(
+++      resolveFeature("earn", rows, { userId: testUserId, role: "USER" }),
+++    ).toBe(true); // back to default (visible)
+++
+++    const audit = await prisma.adminAction.findFirst({
+++      where: {
+++        action: "FEATURE_VISIBILITY_CLEAR",
+++        entity: "FeatureOverride",
+++        entityId: "earn",
+++      },
+++      orderBy: { createdAt: "desc" },
+++    });
+++    expect(audit?.actorSupabaseId).toBe(actor.supabaseId);
+++  });
+++
+++  it("rejects an unknown / non-controllable feature key", async () => {
+++    const bad = await setFeatureOverride(actor, {
+++      featureKey: "not-a-real-feature",
+++      scope: "GLOBAL",
+++      scopeValue: "",
+++      visible: false,
+++    });
+++    expect(bad.ok).toBe(false);
+++    const structural = await setFeatureOverride(actor, {
+++      featureKey: "home", // exists but is not admin-controllable
+++      scope: "GLOBAL",
+++      scopeValue: "",
+++      visible: false,
+++    });
+++    expect(structural.ok).toBe(false);
+++  });
+++});
++diff --git a/tests/feature-visibility.test.ts b/tests/feature-visibility.test.ts
++new file mode 100644
++index 0000000..1c056ec
++--- /dev/null
+++++ b/tests/feature-visibility.test.ts
++@@ -0,0 +1,103 @@
+++// Feature Visibility resolver (DR-040) — pure precedence + fail-safe + extensibility. No DB.
+++import { describe, it, expect } from "vitest";
+++import {
+++  resolveFeature,
+++  resolveAllFeatures,
+++  type FeatureOverrideRow,
+++  type UserContext,
+++} from "../lib/feature-visibility/resolver";
+++
+++const USER: UserContext = { userId: "u1", role: "USER" };
+++const REVIEWER: UserContext = { userId: "u2", role: "REVIEWER" };
+++const ANON: UserContext = { userId: null, role: null };
+++
+++function row(
+++  scope: FeatureOverrideRow["scope"],
+++  scopeValue: string,
+++  visible: boolean,
+++  featureKey = "earn",
+++): FeatureOverrideRow {
+++  return { featureKey, scope, scopeValue, visible };
+++}
+++
+++describe("Feature Visibility resolver (DR-040)", () => {
+++  it("no overrides → registry default (earn visible, marketplace hidden)", () => {
+++    expect(resolveFeature("earn", [], USER)).toBe(true);
+++    expect(resolveFeature("marketplace", [], USER)).toBe(false);
+++  });
+++
+++  it("GLOBAL hide hides for everyone; GLOBAL show shows", () => {
+++    expect(resolveFeature("earn", [row("GLOBAL", "", false)], USER)).toBe(
+++      false,
+++    );
+++    expect(resolveFeature("earn", [row("GLOBAL", "", false)], ANON)).toBe(
+++      false,
+++    );
+++    expect(
+++      resolveFeature(
+++        "marketplace",
+++        [row("GLOBAL", "", true, "marketplace")],
+++        USER,
+++      ),
+++    ).toBe(true); // extensibility: a 2nd feature toggles through the same system
+++  });
+++
+++  it("ROLE scope hides only the matching role", () => {
+++    const ov = [row("ROLE", "REVIEWER", false)];
+++    expect(resolveFeature("earn", ov, REVIEWER)).toBe(false);
+++    expect(resolveFeature("earn", ov, USER)).toBe(true); // a normal USER is unaffected
+++    expect(resolveFeature("earn", ov, ANON)).toBe(true); // anon has no role → default
+++  });
+++
+++  it("USER scope hides only the matching user", () => {
+++    const ov = [row("USER", "u1", false)];
+++    expect(resolveFeature("earn", ov, USER)).toBe(false); // u1
+++    expect(resolveFeature("earn", ov, REVIEWER)).toBe(true); // u2
+++  });
+++
+++  it("HIDE WINS across scopes (fail-safe): any applicable hide → hidden", () => {
+++    // global SHOW but a per-user HIDE → hidden for that user (can't be re-revealed).
+++    expect(
+++      resolveFeature(
+++        "earn",
+++        [row("GLOBAL", "", true), row("USER", "u1", false)],
+++        USER,
+++      ),
+++    ).toBe(false);
+++    // global HIDE but a per-user SHOW → still hidden (hide wins).
+++    expect(
+++      resolveFeature(
+++        "earn",
+++        [row("GLOBAL", "", false), row("USER", "u1", true)],
+++        USER,
+++      ),
+++    ).toBe(false);
+++  });
+++
+++  it("an applicable SHOW with no HIDE reveals over the default", () => {
+++    // marketplace default hidden; a role SHOW for REVIEWER reveals it for that role only.
+++    const ov = [row("ROLE", "REVIEWER", true, "marketplace")];
+++    expect(resolveFeature("marketplace", ov, REVIEWER)).toBe(true);
+++    expect(resolveFeature("marketplace", ov, USER)).toBe(false); // default hidden
+++  });
+++
+++  it("resolveAllFeatures: `share` follows the `earn` flag; structural stay visible", () => {
+++    const hidden = resolveAllFeatures([row("GLOBAL", "", false)], USER);
+++    expect(hidden.earn).toBe(false);
+++    expect(hidden.share).toBe(false); // derived from earn
+++    expect(hidden.home).toBe(true);
+++    expect(hidden.learn).toBe(true);
+++    expect(hidden.account).toBe(true);
+++
+++    const visible = resolveAllFeatures([], USER);
+++    expect(visible.earn).toBe(true);
+++    expect(visible.share).toBe(true);
+++  });
+++
+++  it("overrides for other features do not bleed across keys", () => {
+++    // hiding marketplace must not affect earn.
+++    const ov = [row("GLOBAL", "", false, "marketplace")];
+++    expect(resolveFeature("earn", ov, USER)).toBe(true);
+++    expect(resolveFeature("marketplace", ov, USER)).toBe(false);
+++  });
+++});
+diff --git a/docs/review-packets/phase7-feature-visibility.md b/docs/review-packets/phase7-feature-visibility.md
+new file mode 100644
+index 0000000..f5fb03c
+--- /dev/null
++++ b/docs/review-packets/phase7-feature-visibility.md
+@@ -0,0 +1,131 @@
++# Review Packet — Phase 7: Feature Visibility System (DR-040)
++
++**Branch:** `gps-feature-visibility` (cut from `main @ d8c2bfd`)
++**Tier:** **A — compliance-critical (Fable leak-hunt on the enforcement layer, then steward + founder).**
++**Status:** BUILT · PARKED · **NOT MERGED** (GATE). Diff: `phase7-feature-visibility.diff` (26 files, +1373 / −136).
++**Spec:** `docs/specs/FeatureVisibility_System_v1.0.md` (+ `Frozen_Spec_Amendments §E`, `Nav_Workspace_Architecture v1.1`).
++
++---
++
++## What was built
++
++A **general, extensible feature-flag / visibility system** (not an affiliate one-off). The Affiliate
++(`earn`) layer is the first consumer; a reserved dummy `marketplace` feature proves any future module
++plugs in the same way.
++
++**Architecture (5 pieces):**
++1. **Registry** (`lib/feature-visibility/registry.ts`) — code source of truth for which features exist
++   + defaults + fail-safe + admin-controllable. Extensible: add a key, it's toggleable everywhere.
++2. **Pure resolver** (`resolver.ts`) — `resolveFeature(key, overrides, ctx)` precedence: **hide-wins /
++   fail-safe** (any applicable global/role/user "hide" → hidden; else any "show" → visible; else
++   default). `share` derives from `earn`. Node-testable, no DB.
++3. **Server context** (`context.ts`) — loads user {id, role} + all overrides once per request (React
++   `cache`), `getVisibleFeatures()` / `isFeatureVisible(key)` / `assertFeatureVisible(key)` (→ 404).
++   **Fails SAFE**: a DB read error hides every `failSafeHidden` feature (never fails open).
++4. **DB** — `FeatureOverride` table (featureKey · scope GLOBAL|ROLE|USER · scopeValue · visible ·
++   updatedBy) + `REVIEWER` added to `Role`. Migration ships **RLS ENABLED deny-all** (golden rule 15).
++5. **Admin UI + audit** (`/admin/feature-visibility`) — set/clear at each scope; every change writes an
++   immutable `AdminAction` row atomically (reuses `recordAdminAction`).
++
++**Enforcement (server-first, not CSS):**
++- **Route subtree:** `app/dashboard/earn/layout.tsx` calls `assertFeatureVisible("earn")` → the WHOLE
++  `/dashboard/earn/*` subtree (dashboard · network · wallet · commissions · leaderboard · rewards ·
++  leads · commission-structure · KYC) is `notFound()` when hidden.
++- **Server actions:** every affiliate action re-asserts (`earn/actions.ts` ×5, `my-leads/actions.ts`) —
++  a direct POST can't skip a layout.
++- **Route handlers:** `network/export/route.ts` + `kyc/doc/[kind]/route.ts` return 404 when hidden.
++
++**Nav recomposition (presentation, from the server-resolved map):**
++- `visibleWorkspaces(isVisible)` drops the Earn switcher item AND the Account→KYC sidebar item (no
++  dead link to the guarded route). Shell hides the Share affordance (rail · topbar · drawer).
++- Dashboard layout resolves visibility server-side and **omits `referralCode`/`shareUrl` from the
++  client payload entirely** when hidden (no referral code in page source for a reviewer).
++
++**Leak channels (§E) closed:**
++- **Profile referral-code card** — hidden (`app/dashboard/profile/page.tsx`).
++- **Home** — Share section, "Refer a friend" quick action, wallet card, zero-data share step — all gated.
++- **Learn** — "Refer a friend" quick action + zero-data share step — gated.
++- **Enter-Workspaces** — Affiliate card already gated (now via the real resolver).
++- **Mobile bottom-bar** — recomposes to Home·Learn·Account (it IS the switcher; one code path).
++- **`/register?ref` attribution display** — the visible "Invited by [name] ✓" is suppressed when `earn`
++  is GLOBALLY hidden (anonymous context → global only).
++- **Notifications / Activity feed** — there is **no in-app Notification model and no commission/earning
++  notification exists today**; the earning "activity" charts live under `/dashboard/earn/*` (covered by
++  the route guard). So there is no separate surface to hide now — flagged for when notifications land.
++
++## Deliberate scope boundaries (challenge-with-logic)
++
++- **No money-logic change.** Only surface visibility/reachability. Wallet/commission/withdraw math,
++  DR-038 masking, and the D-01 payout gate are byte-identical. **Attribution writing (`referredById`)
++  is UNCHANGED** — it's a money-neutral data link and removing it would be un-restorable, violating
++  "unhide restores exact prior state." We gate the *visible* referral surfaces + the routes, keep the data.
++- **`earn` default = VISIBLE.** Preserves current product behaviour (Earn is live) so nothing silently
++  turns off. The GLOBAL hide is the review-window / pre-legal lever. **OPEN founder/LAUNCH_CONFIG
++  question:** should the global default flip to HIDDEN until D-01 affiliate legal clears? (The system
++  supports both; only the default value differs.)
++- **DR-036 registration logic untouched** — invite-only code requirement is auth's job, not this
++  feature's. Only the visible "invited by" framing is gated. **Open Q:** relax invite-only when
++  affiliate is globally hidden? (founder / DR-036.)
++- **Marketing site (Zone A)** earn-copy review variant = **explicit §E open founder question — NOT
++  built.** (The 404 for a hidden earn route currently renders the marketing chrome, which still has an
++  "Earn" marketing link — that's Zone A, the open question.)
++
++## Tests / verification
++
++- **Pure resolver** `tests/feature-visibility.test.ts` (8) — defaults · global/role/user scope ·
++  **hide-wins across scopes** · reveal-over-default · `share`-follows-`earn` · cross-key isolation ·
++  unknown-key. Green.
++- **Adapter integration** `tests/feature-visibility-admin.integration.test.ts` (3) — set USER hide →
++  listed + **audit row** + resolver hides that user (not others); clear → reverted + audit row +
++  resolver back to default; rejects unknown / non-controllable keys. Green (live DB).
++- **Full suite 458/458 green** (was 447; +11). **Money non-regression green** (earning-gate-webhook,
++  quiz-cert-gate, money-flow). `tsc` clean · `eslint` clean · `prettier` clean.
++- **Visual proof** (Playwright, real QA sessions; screenshots in the morning packet): reviewer Home
++  (desktop + mobile) recomposed to Home·Learn·Account with no Share/referral/Affiliate; `/dashboard/earn`
++  + `/dashboard/earn/wallet` → 404; Profile with no referral-code card + KYC dropped from the Account
++  sidebar; admin flag UI showing Affiliate HIDDEN + Marketplace (2nd feature) toggle; and the restored
++  (visible) state for contrast.
++
++---
++
++## ⚠ FABLE TIER-A LEAK-HUNT CHECKLIST (please verify before merge)
++
++Enforcement (a single reachable affiliate surface defeats the purpose during a Razorpay/AdSense review):
++
++- [ ] **Route subtree:** with `earn` hidden, direct-URL to EACH `/dashboard/earn/*` page 404s (layout
++      guard). Confirm no earn page defines its own layout that bypasses `earn/layout.tsx`.
++- [ ] **Server actions:** every mutating affiliate action re-asserts `assertFeatureVisible("earn")` —
++      `recordReferralShare`, `sendKycVerification`, `confirmKycVerification`, `submitKyc`,
++      `requestWithdrawal`, `addAffiliateLead`. A direct RPC with `earn` hidden must not mutate.
++- [ ] **Route handlers:** `network/export` (CSV of real phone numbers) + `kyc/doc/[kind]` (signed doc
++      URL) both 404 when hidden.
++- [ ] **Fail-safe:** confirm a DB read failure in `context.ts` hides `earn` (fails safe, not open); and
++      that `failSafeHidden` is set for `earn`/`marketplace`/`share`.
++- [ ] **Precedence:** hide-wins is correct — a per-user `visible:true` cannot re-reveal past a GLOBAL
++      `false`. Confirm this is the intended compliance posture (it is, per spec §Configurability).
++- [ ] **Client payload:** with `earn` hidden, the referral code / share URL are NOT in the dashboard
++      HTML/client props (grep the reviewer page source for the code).
++- [ ] **Leak channels (§E):** no affiliate nav/widget/text/share/referral-code renders anywhere for a
++      hidden user — Home, Learn, Profile, shell (rail/topbar/drawer), mobile bottom-bar.
++- [ ] **Money non-regression:** confirm nothing under `lib/wallet`, `modules/`, the webhook, DR-038
++      masking, or the withdraw gate changed (visibility only); payouts stay OFF (D-01) independently.
++- [ ] **Audit immutability:** flag changes write `AdminAction` rows; note `AdminAction` has no DB
++      UPDATE/DELETE trigger (immutable by convention only, like today) — flag if a trigger is wanted.
++- [ ] **Extensibility:** the dummy `marketplace` key toggles through the same system (no earn-specific
++      hack in the resolver except the documented `share`→`earn` derivation).
++
++## 5-line self-assessment
++
++1. **Enforcement:** server-first — route-subtree guard + per-action + per-route + fail-safe; nav/CSS
++   hiding is polish on top, never the only gate.
++2. **Money safety:** zero money-logic touched; attribution data preserved (unhide restores state);
++   payouts OFF independent; 458/458 incl. money non-regression.
++3. **Compliance framing:** built + documented as a legal launch-gate / staged rollout, never as
++   hiding a live feature from a regulator (DR-040 reframe honoured).
++4. **Generality:** a real registry + resolver + admin UI; proven extensible via a 2nd feature.
++5. **Risk / open items:** global-default flip (LAUNCH_CONFIG), invite-only-when-hidden (DR-036), and
++   marketing Zone-A copy variant are surfaced as founder questions, not silently decided.
++
++## STOP — no merge
++
++Fable Tier-A leak-hunt → steward verify → founder pastes authorization → merge. Per GATE, parked here.
 diff --git a/lib/admin/feature-visibility.ts b/lib/admin/feature-visibility.ts
 new file mode 100644
 index 0000000..6a983dd
@@ -1283,6 +3672,266 @@ index 0000000..6a983dd
 +  });
 +  return { ok: true };
 +}
+diff --git a/lib/dashboard/hub.ts b/lib/dashboard/hub.ts
+index 3873092..ebfac26 100644
+--- a/lib/dashboard/hub.ts
++++ b/lib/dashboard/hub.ts
+@@ -1,18 +1,10 @@
+-// Dashboard Hub data loader (DR-030 §6). Assembles every card's data server-side in one pass so
+-// the Hub page stays declarative. Truthful by construction: checklist progress + invite counts +
+-// webinar dates are all DERIVED from real rows — nothing fabricated, every card has a real
+-// zero/locked/coming-soon state (§6 "no card ever renders blank").
++// Dashboard checklist-state parsing helper. The old `getHubData` loader (and its Hub* types) was
++// superseded by lib/home/summary.ts + lib/learn/dashboard.ts and REMOVED (DR-040 cleanup — it carried
++// dead affiliate/referral markup). Only the checklistState parser remains, still used by the Home hub.
++// checklistState JSON is validated on read — never trusted as-is (Golden Rule 4 at every boundary).
+ import { z } from "zod";
+ import type { Prisma } from "../generated/prisma";
+-import { prisma } from "../prisma";
+-import { siteUrl } from "../seo";
+-import { getEnrolledCourses, getCoursePlayerView } from "../lms/queries";
+-import { getLesson0Status, GETTING_STARTED_SLUG } from "../lms/getting-started";
+-import { getReferralTree } from "../affiliate/referrals";
+-import { getNextWebinar } from "../crm/webinar";
+-import { listCatalogCourses } from "../catalog/queries";
+ 
+-// checklistState JSON is validated on read — never trusted as-is (Golden Rule 4 at every boundary).
+ const ChecklistStateSchema = z
+   .object({ dismissedAt: z.string().optional() })
+   .catch({ dismissedAt: undefined });
+@@ -22,232 +14,3 @@ export function parseChecklistState(raw: Prisma.JsonValue | null | undefined): {
+ } {
+   return ChecklistStateSchema.parse(raw ?? {});
+ }
+-
+-export interface ChecklistItem {
+-  key: string;
+-  label: string;
+-  done: boolean;
+-  href: string;
+-  cta: string;
+-}
+-
+-export interface HubLearnLesson {
+-  title: string;
+-  locked: boolean;
+-  isFreePreview: boolean;
+-  completed: boolean;
+-}
+-export interface HubLearnCourse {
+-  slug: string;
+-  title: string;
+-  lessonCount: number;
+-  lockedCount: number;
+-  isEnrolled: boolean;
+-  percent: number;
+-  firstPreviewLessonId: string | null;
+-  modules: { title: string; lessons: HubLearnLesson[] }[];
+-}
+-
+-export interface HubContinue {
+-  href: string;
+-  cta: string;
+-  eyebrow: string;
+-  title: string;
+-  subtitle: string;
+-  percent: number | null;
+-}
+-
+-export interface HubData {
+-  name: string | null;
+-  goal: string | null;
+-  referralCode: string;
+-  shareUrl: string;
+-  continue: HubContinue;
+-  learnCourses: HubLearnCourse[];
+-  inviteCount: number;
+-  checklist: {
+-    items: ChecklistItem[];
+-    doneCount: number;
+-    total: number;
+-    dismissed: boolean;
+-  };
+-  webinar: { startsAt: Date | null; title: string | null };
+-}
+-
+-export async function getHubData(userId: string): Promise<HubData> {
+-  const [record, lesson0, enrolled, catalog, tree, webinar, previewProgress] =
+-    await Promise.all([
+-      prisma.user.findUnique({
+-        where: { id: userId },
+-        select: {
+-          name: true,
+-          goal: true,
+-          referralCode: true,
+-          checklistState: true,
+-        },
+-      }),
+-      getLesson0Status(userId),
+-      getEnrolledCourses(userId),
+-      listCatalogCourses(),
+-      getReferralTree(userId),
+-      getNextWebinar(),
+-      // Item 2 = watched any real course preview (a completed free-preview lesson, excluding L0).
+-      prisma.lessonProgress.findFirst({
+-        where: {
+-          userId,
+-          lesson: {
+-            isFreePreview: true,
+-            module: { course: { slug: { not: GETTING_STARTED_SLUG } } },
+-          },
+-        },
+-        select: { id: true },
+-      }),
+-    ]);
+-
+-  const referralCode = record?.referralCode ?? "";
+-  const shareUrl = `${siteUrl()}/register?ref=${referralCode}`;
+-
+-  // Launch courses = PUBLISHED catalog courses (system course already excluded by the query).
+-  const launchSlugs = catalog
+-    .filter((c) => c.status === "PUBLISHED")
+-    .map((c) => c.slug);
+-  const playerViews = await Promise.all(
+-    launchSlugs.map((slug) => getCoursePlayerView(userId, slug)),
+-  );
+-
+-  const learnCourses: HubLearnCourse[] = playerViews
+-    .filter((v): v is NonNullable<typeof v> => v !== null)
+-    .map((v) => {
+-      const lessons = v.modules.flatMap((m) => m.lessons);
+-      const firstPreview = lessons.find((l) => l.isFreePreview);
+-      return {
+-        slug: v.course.slug,
+-        title: v.course.title,
+-        lessonCount: lessons.length,
+-        lockedCount: lessons.filter((l) => l.locked).length,
+-        isEnrolled: v.isEnrolled,
+-        percent: v.progress.percent,
+-        firstPreviewLessonId: firstPreview?.id ?? null,
+-        modules: v.modules.map((m) => ({
+-          title: m.title,
+-          lessons: m.lessons.map((l) => ({
+-            title: l.title,
+-            locked: l.locked,
+-            isFreePreview: l.isFreePreview,
+-            completed: l.completed,
+-          })),
+-        })),
+-      };
+-    });
+-
+-  // ── Continue card (§6.3): always a resume action, never empty ──
+-  const continueCard = buildContinue(lesson0, enrolled, learnCourses);
+-
+-  // ── Get-Started checklist (§6.2): derived from real data ──
+-  const inviteCount = tree.l1Count;
+-  const firstPreview = learnCourses.find((c) => c.firstPreviewLessonId);
+-  const items: ChecklistItem[] = [
+-    {
+-      key: "lesson0",
+-      label: "Complete Lesson 0",
+-      done: lesson0.completed,
+-      href: lesson0.lessonId
+-        ? `/dashboard/learn/${lesson0.courseSlug}?lesson=${lesson0.lessonId}`
+-        : "/dashboard",
+-      cta: "Watch (2 min)",
+-    },
+-    {
+-      key: "preview",
+-      label: "Watch a course preview",
+-      done: !!previewProgress,
+-      href: firstPreview
+-        ? `/dashboard/learn/${firstPreview.slug}?lesson=${firstPreview.firstPreviewLessonId}`
+-        : "/dashboard/learn",
+-      cta: "Watch a preview",
+-    },
+-    {
+-      // No booking system yet (webinar schedule = LAUNCH_CONFIG #27); item completes when booking
+-      // lands. Stays honestly unchecked — never faked.
+-      key: "webinar",
+-      label: "Book a webinar seat",
+-      done: false,
+-      href: "/webinar",
+-      cta: webinar ? "See sessions" : "Coming soon",
+-    },
+-    {
+-      key: "invite",
+-      label: "Invite 2 friends",
+-      done: inviteCount >= 2,
+-      href: "/dashboard/earn",
+-      cta: "Share your link",
+-    },
+-  ];
+-  const doneCount = items.filter((i) => i.done).length;
+-  const dismissed = !!parseChecklistState(record?.checklistState).dismissedAt;
+-
+-  return {
+-    name: record?.name?.trim() || null,
+-    goal: record?.goal ?? null,
+-    referralCode,
+-    shareUrl,
+-    continue: continueCard,
+-    learnCourses,
+-    inviteCount,
+-    checklist: { items, doneCount, total: items.length, dismissed },
+-    webinar: {
+-      startsAt: webinar?.startsAt ?? null,
+-      title: webinar?.title ?? null,
+-    },
+-  };
+-}
+-
+-function buildContinue(
+-  lesson0: { lessonId: string | null; completed: boolean; courseSlug: string },
+-  enrolled: Awaited<ReturnType<typeof getEnrolledCourses>>,
+-  learnCourses: HubLearnCourse[],
+-): HubContinue {
+-  // 1) Lesson 0 first, until it's done.
+-  if (lesson0.lessonId && !lesson0.completed) {
+-    return {
+-      href: `/dashboard/learn/${lesson0.courseSlug}?lesson=${lesson0.lessonId}`,
+-      cta: "Start",
+-      eyebrow: "Start here",
+-      title: "GoSkilled kaise kaam karta hai",
+-      subtitle: "Your 2-minute intro to how everything works.",
+-      percent: null,
+-    };
+-  }
+-  // 2) An enrolled course still in progress.
+-  const active = enrolled.find((c) => c.progress.percent < 100);
+-  if (active) {
+-    return {
+-      href: `/dashboard/learn/${active.slug}`,
+-      cta: active.progress.completed === 0 ? "Start" : "Resume",
+-      eyebrow: "Continue learning",
+-      title: active.title,
+-      subtitle: `${active.progress.completed} / ${active.progress.total} lessons`,
+-      percent: active.progress.percent,
+-    };
+-  }
+-  // 3) No active enrollment → a free preview of a launch course (never empty).
+-  const preview = learnCourses.find((c) => c.firstPreviewLessonId);
+-  if (preview) {
+-    return {
+-      href: `/dashboard/learn/${preview.slug}?lesson=${preview.firstPreviewLessonId}`,
+-      cta: "Watch free",
+-      eyebrow: "Try a free preview",
+-      title: preview.title,
+-      subtitle: "Watch the first lesson free — no purchase needed.",
+-      percent: null,
+-    };
+-  }
+-  // 4) Absolute fallback (no catalog yet) — still a real destination.
+-  return {
+-    href: "/dashboard/learn",
+-    cta: "Explore",
+-    eyebrow: "Start learning",
+-    title: "Explore courses",
+-    subtitle: "Browse what you can learn on GoSkilled.",
+-    percent: null,
+-  };
+-}
 diff --git a/lib/feature-visibility/context.ts b/lib/feature-visibility/context.ts
 new file mode 100644
 index 0000000..fee1615
@@ -2013,3 +4662,54 @@ index 0000000..1c056ec
 +    expect(resolveFeature("marketplace", ov, USER)).toBe(false);
 +  });
 +});
+diff --git a/tests/register-actions.test.ts b/tests/register-actions.test.ts
+index c7c8b23..f53808a 100644
+--- a/tests/register-actions.test.ts
++++ b/tests/register-actions.test.ts
+@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
+   findUnique: vi.fn(),
+   update: vi.fn(),
+   track: vi.fn(),
++  isFeatureVisible: vi.fn(),
+ }));
+ 
+ vi.mock("@/lib/auth/sponsor", () => ({
+@@ -44,6 +45,10 @@ vi.mock("@/lib/prisma", () => ({
+   prisma: { user: { findUnique: h.findUnique, update: h.update } },
+ }));
+ vi.mock("@/lib/analytics/track", () => ({ track: h.track }));
++// DR-040: validateReferralCode suppresses the sponsor-name reveal when the Affiliate layer is hidden.
++vi.mock("@/lib/feature-visibility/context", () => ({
++  isFeatureVisible: h.isFeatureVisible,
++}));
+ 
+ import {
+   validateReferralCode,
+@@ -71,6 +76,7 @@ beforeEach(() => {
+   h.ensureGettingStartedEnrollment.mockResolvedValue(undefined);
+   h.postAuthRedirect.mockResolvedValue("/welcome");
+   h.findUnique.mockResolvedValue(null); // brand-new account
++  h.isFeatureVisible.mockResolvedValue(true); // Affiliate visible by default
+ });
+ 
+ describe("§8.1 register without a code → blocked", () => {
+@@ -125,6 +131,19 @@ describe("§8.2 invalid code → generic block", () => {
+     const miss = await validateReferralCode("GSNOPE");
+     expect(miss.ok).toBe(false);
+   });
++
++  it("validateReferralCode suppresses the sponsor name when Affiliate is hidden (DR-040), but still validates", async () => {
++    h.resolveSponsorByCode.mockResolvedValueOnce({
++      id: "s1",
++      firstName: "Rahul",
++    });
++    h.isFeatureVisible.mockResolvedValueOnce(false); // Affiliate globally hidden
++    // Code is still VALID (registration works) — only the "Invited by [name]" reveal is suppressed.
++    expect(await validateReferralCode(CODE)).toEqual({
++      ok: true,
++      sponsorFirstName: null,
++    });
++  });
+ });
+ 
+ describe("weak password → blocked before SMS / account", () => {

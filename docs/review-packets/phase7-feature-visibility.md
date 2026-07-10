@@ -2,8 +2,37 @@
 
 **Branch:** `gps-feature-visibility` (cut from `main @ d8c2bfd`)
 **Tier:** **A — compliance-critical (Fable leak-hunt on the enforcement layer, then steward + founder).**
-**Status:** BUILT · PARKED · **NOT MERGED** (GATE). Diff: `phase7-feature-visibility.diff` (26 files, +1373 / −136).
+**Status:** BUILT · PARKED · **NOT MERGED** (GATE). Diff: `phase7-feature-visibility.diff` (34 files, +3563 / −539).
 **Spec:** `docs/specs/FeatureVisibility_System_v1.0.md` (+ `Frozen_Spec_Amendments §E`, `Nav_Workspace_Architecture v1.1`).
+
+---
+
+## ⟳ ADDENDUM — Fable Tier-A block resolved (re-review) · commit `b338495`
+
+Fable's first-pass BLOCK found 2 leaks + dead code. All addressed:
+
+- **LEAK 1 — register attribution.** `app/register/actions.ts` `validateReferralCode` (the action the
+  register form calls on code entry) returned the sponsor name unconditionally → leaked "Invited by
+  [name]" even when `earn` is globally hidden. **Fix:** gate the RETURNED name on
+  `isFeatureVisible("earn")` — validation intact (a valid code still succeeds → registration works),
+  only the name reveal is suppressed. Matches `register/page.tsx`. **+1 test** proves suppression.
+- **LEAK 2 — unauthenticated commission numbers.** `/design-system` (a public client-component
+  showcase) rendered Affiliate samples incl. illustrative commission/earnings figures. **Fix:**
+  auth-gate the whole route via `app/design-system/layout.tsx` (server component → `getCurrentUser`
+  → redirect `/login`). **Verified:** `/design-system` unauth → **307 → /login**, zero affiliate/
+  commission content served. (Fable's explicit alternative to per-section feature-gating; chosen over a
+  risky 800-line client/server split.)
+- **CLEANUP — dead earn code (zero imports confirmed).** Deleted `components/dashboard/dashboard-nav.tsx`
+  + `components/affiliate/earn-subnav.tsx` (both unimported); reduced `lib/dashboard/hub.ts` to
+  `parseChecklistState` (the only live export — test-used) by removing the fully-unimported `getHubData`
+  loader + Hub* types + its `/dashboard/earn` markup (net −403 lines here).
+  - **`ProfileCard` KEPT** (not deleted): it HAS an import (the design-system showcase) → not
+    zero-imports per Fable's own "confirm zero imports first" rule; and it's already DR-040-correct
+    (renders the referral code only when the caller passes it — Amendments §E). The showcase auth-gate
+    now covers its exposure. Flag if you'd still prefer it removed.
+
+Re-verify: **459/459 green** (+1 vs prior) incl. money non-regression; `tsc`/`eslint`/`prettier` clean.
+No money logic touched. The full leak-hunt checklist below still applies.
 
 ---
 
