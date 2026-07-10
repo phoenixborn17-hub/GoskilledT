@@ -1,6 +1,8 @@
 // /courses — catalog grid (Ticket 5, Task 1). Server component, read-only. Category filter via
-// ?category= (no client JS). PUBLISHED prominent; COMING_SOON honestly labeled.
+// ?category= (no client JS). PUBLISHED prominent; COMING_SOON honestly labeled. Re-skinned to the
+// Public Experience standard (kit + shell); data/logic unchanged.
 import Link from "next/link";
+import { GraduationCap } from "lucide-react";
 import { listCatalogCourses, listPackages } from "../../lib/catalog/queries";
 import {
   courseStats,
@@ -8,8 +10,13 @@ import {
   packagesIncludingCourse,
 } from "../../lib/catalog/shape";
 import { pageMetadata } from "../../lib/seo";
-import { SiteHeader } from "../../components/marketing/site-header";
-import { SiteFooter } from "../../components/marketing/site-footer";
+import { MarketingShell } from "../../components/marketing/marketing-shell";
+import {
+  PageHero,
+  Section,
+  TrustChips,
+  CtaBand,
+} from "../../components/marketing/kit";
 import {
   CourseCard,
   type CourseCardData,
@@ -46,69 +53,91 @@ export default async function CoursesPage({
       status: c.status,
       lessonCount: stats.lessonCount,
       durationLabel: stats.durationLabel,
+      hasFreePreview: stats.hasFreePreview,
       packageNames: packagesIncludingCourse(c.slug, packages),
     };
   });
   const visible = category
     ? cards.filter((c) => c.category === category)
     : cards;
+  const liveCount = cards.filter((c) => c.status === "PUBLISHED").length;
 
   return (
-    <>
-      <SiteHeader />
-      <main className="mx-auto w-full max-w-5xl px-4 py-10">
-        <header className="mb-6">
-          <h1 className="font-heading text-3xl font-extrabold">Courses</h1>
-          {/* COPY: draft */}
-          <p className="mt-1 text-muted">
-            Practical skills you can use at work — start with a free preview
-            lesson.
-          </p>
-        </header>
+    <MarketingShell>
+      <main>
+        <PageHero
+          eyebrow="Courses"
+          eyebrowIcon={GraduationCap}
+          title="Learn a real, job-ready skill"
+          subtitle="Practical lessons in simple Hinglish — start with a free preview, learn at your own pace, right from your phone."
+        >
+          <TrustChips className="justify-center" />
+        </PageHero>
 
-        {categories.length > 0 && (
-          <div
-            className="mb-6 flex flex-wrap gap-2"
-            role="group"
-            aria-label="Filter by category"
-          >
-            <FilterChip href="/courses" active={!category}>
-              All
-            </FilterChip>
-            {categories.map((cat) => (
-              <FilterChip
-                key={cat}
-                href={`/courses?category=${encodeURIComponent(cat)}`}
-                active={category === cat}
-              >
-                {cat}
+        <Section aria-labelledby="all-courses" reveal={false}>
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+            <h2
+              id="all-courses"
+              className="font-heading text-xl font-bold text-charcoal"
+            >
+              {category ? `${category} courses` : "All courses"}
+            </h2>
+            {liveCount > 0 && (
+              <p className="text-sm text-muted">
+                {liveCount} live now · more releasing soon
+              </p>
+            )}
+          </div>
+
+          {categories.length > 0 && (
+            <div
+              className="mb-8 flex flex-wrap gap-2"
+              role="group"
+              aria-label="Filter by category"
+            >
+              <FilterChip href="/courses" active={!category}>
+                All
               </FilterChip>
-            ))}
-          </div>
-        )}
+              {categories.map((cat) => (
+                <FilterChip
+                  key={cat}
+                  href={`/courses?category=${encodeURIComponent(cat)}`}
+                  active={category === cat}
+                >
+                  {cat}
+                </FilterChip>
+              ))}
+            </div>
+          )}
 
-        {/* Screen-reader heading so the card <h3>s don't skip a level after the page <h1> (a11y:
-            heading-order). Visually redundant with the <h1>, so kept sr-only — no visual change. */}
-        <h2 className="sr-only">All courses</h2>
-        {visible.length === 0 ? (
-          <Card className="text-center text-muted">
-            No courses in this category yet.{" "}
-            <Link href="/courses" className="font-semibold text-brand">
-              See all
-            </Link>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {visible.map((c) => (
-              <div key={c.slug} className="reveal">
-                <CourseCard course={c} />
-              </div>
-            ))}
-          </div>
-        )}
+          {visible.length === 0 ? (
+            <Card className="text-center text-muted">
+              No courses in this category yet.{" "}
+              <Link href="/courses" className="font-semibold text-brand">
+                See all
+              </Link>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {visible.map((c) => (
+                <div key={c.slug} className="reveal">
+                  <CourseCard course={c} />
+                </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        <CtaBand
+          title="Not sure where to start?"
+          subtitle="Join a free webinar to see how GoSkilled works — no payment, no pressure."
+          ctaHref="/webinar"
+          ctaLabel="Join a free webinar"
+          secondaryHref="/packages"
+          secondaryLabel="See packages"
+        />
       </main>
-      <SiteFooter />
-    </>
+    </MarketingShell>
   );
 }
 
@@ -129,7 +158,7 @@ function FilterChip({
         "rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
         active
           ? "border-brand bg-brand text-brand-fg"
-          : "border-charcoal/15 text-charcoal/70 hover:bg-brand/5",
+          : "border-charcoal/15 text-charcoal/70 hover:border-brand/30 hover:bg-brand/5",
       )}
     >
       {children}

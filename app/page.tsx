@@ -120,6 +120,7 @@ export default async function HomePage() {
       status: c.status,
       lessonCount: s.lessonCount,
       durationLabel: s.durationLabel,
+      hasFreePreview: s.hasFreePreview,
       packageNames: packagesIncludingCourse(c.slug, packages),
     };
   });
