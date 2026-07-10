@@ -26,6 +26,7 @@ import {
 } from "../../../lib/kyc/verify";
 import type { VerifyChannel } from "../../../modules/kyc/verify";
 import { checkOtpSendRate } from "../../../lib/auth/otp-rate-limit";
+import { checkActionRate } from "../../../lib/auth/action-rate-limit";
 import { validateWithdrawal } from "../../../modules/wallet/withdrawal";
 import { payoutsEnabled } from "../../../lib/env";
 import {
@@ -112,6 +113,10 @@ const kycSchema = z.object({
 export async function submitKyc(formData: FormData): Promise<ActionResult> {
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please sign in." };
+
+  // Abuse throttle (Unit 3) — PII write path; caps rapid resubmits. No KYC rule changes.
+  const rl = await checkActionRate("kyc-submit", user.id, 8);
+  if (!rl.ok) return { ok: false, error: rl.error };
 
   const parsed = kycSchema.safeParse({
     pan: String(formData.get("pan") ?? ""),
@@ -214,6 +219,11 @@ export async function requestWithdrawal(
 
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please sign in." };
+
+  // Abuse throttle (Unit 3) — does NOT change any withdrawal rule; single-pending + validateWithdrawal
+  // still own the decision. Dampens rapid-fire submits before we touch the DB.
+  const rl = await checkActionRate("withdraw-request", user.id, 6);
+  if (!rl.ok) return { ok: false, error: rl.error };
 
   // Load state, then delegate the decision entirely to the domain rule.
   const [summary, pending, kycStatus] = await Promise.all([

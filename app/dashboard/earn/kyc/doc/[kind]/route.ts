@@ -10,6 +10,7 @@ import {
   canAccessKycDoc,
 } from "@/lib/storage/kyc-docs";
 import { resolveKycDocPath } from "@/lib/kyc/doc-access";
+import { checkActionRate } from "@/lib/auth/action-rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,10 @@ export async function GET(
 
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Not authorized", { status: 401 });
+
+  // Abuse throttle (Unit 3) — a document fetch reads decrypted-path → signed URL; cap per user.
+  const rl = await checkActionRate("kyc-doc", user.id, 30);
+  if (!rl.ok) return new NextResponse(rl.error, { status: 429 });
 
   // Owner-only route (self). The rule is still evaluated explicitly for defence in depth.
   if (
