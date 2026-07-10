@@ -18,6 +18,7 @@ import { resolveUplines } from "../../modules/affiliate/upline";
 import { buildCommissionTxns } from "../../modules/affiliate/credit";
 import { buildClawbackTxns } from "../../modules/affiliate/clawback";
 import { canEarnCommission } from "../../modules/affiliate/eligibility";
+import { hasConfirmedPurchase } from "../affiliate/eligibility";
 import { coursesToEnroll } from "../../modules/lms/entitlement";
 import type { PackageSlug } from "../../modules/affiliate/commission";
 import { executeTxSpec } from "../../modules/ledger/persist";
@@ -209,10 +210,9 @@ async function executeAction(
       // keys, HELD lifecycle (DR-025), clawback and DR-007 amounts are all preserved unchanged.
       const uplines = [];
       for (const hop of resolved) {
-        const ownPaid = await tx.order.count({
-          where: { userId: hop.userId, status: "PAID" },
-        });
-        if (canEarnCommission({ hasOwnConfirmedPurchase: ownPaid > 0 }))
+        // Reuse the shared eligibility helper INSIDE this tx (no inline-query drift — Fable's note).
+        const ownConfirmed = await hasConfirmedPurchase(hop.userId, tx);
+        if (canEarnCommission({ hasOwnConfirmedPurchase: ownConfirmed }))
           uplines.push(hop);
       }
       if (uplines.length === 0) return;
