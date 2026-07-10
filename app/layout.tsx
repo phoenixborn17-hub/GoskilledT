@@ -4,6 +4,7 @@ import "./globals.css";
 import { siteUrl, SITE_NAME } from "../lib/seo";
 import { PwaRegister } from "../components/pwa/pwa-register";
 import { StagingBanner } from "../components/system/staging-banner";
+import { DeviceTierProvider } from "../components/system/device-tier-provider";
 
 // Brand fonts (DR-012), self-hosted via next/font: zero layout-shift setup, `swap` so text
 // is never invisible, and subset to latin + devanagari only (data-light for Tier-2/3 users).
@@ -70,6 +71,9 @@ export default function RootLayout({
           Skip to content
         </a>
         <StagingBanner />
+        {/* Stamps data-device-tier on <html> so device-tiered effects (Skill Universe, cards,
+            glass) degrade from the single §C heuristic — not just prefers-reduced-motion. Null UI. */}
+        <DeviceTierProvider />
         <div id="main-content" tabIndex={-1}>
           {children}
         </div>
