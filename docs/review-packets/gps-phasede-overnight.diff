@@ -1,0 +1,4545 @@
+diff --git a/app/admin/page.tsx b/app/admin/page.tsx
+index 2f54dea..36cfb89 100644
+--- a/app/admin/page.tsx
++++ b/app/admin/page.tsx
+@@ -1,6 +1,7 @@
+ // /admin — dashboard hub (GPS-M4 §2.0). One glance = state of the business today; pending queues
+ // surfaced by urgency; recent audit trail. All real aggregates; zero-states truthful.
+ import { getDashboardData } from "../../lib/admin/queries";
++import { getAdminKpis } from "../../lib/admin/kpi";
+ import { formatINR } from "../../lib/money";
+ import {
+   PageHeading,
+@@ -8,12 +9,13 @@ import {
+   QueueCard,
+   fmtDateTime,
+ } from "../../components/admin/primitives";
+-import { Card } from "../../components/ui/card";
++import { MiniChart } from "../../components/affiliate/mini-chart";
++import { Card, CardTitle } from "../../components/ui/card";
+ 
+ export const dynamic = "force-dynamic";
+ 
+ export default async function AdminDashboardPage() {
+-  const d = await getDashboardData();
++  const [d, kpis] = await Promise.all([getDashboardData(), getAdminKpis()]);
+ 
+   return (
+     <section className="space-y-6">
+@@ -49,6 +51,66 @@ export default async function AdminDashboardPage() {
+         />
+       </div>
+ 
++      {/* KPI graphs (E1) — real aggregates, inline-SVG, honest empty states. */}
++      <div>
++        <h2 className="mb-3 font-heading text-lg font-bold text-charcoal">
++          Trends
++        </h2>
++        <div className="grid gap-3 lg:grid-cols-2">
++          <Card className="space-y-2">
++            <CardTitle className="text-base">Registrations / month</CardTitle>
++            <MiniChart
++              points={kpis.registrations}
++              kind="bar"
++              format={(n) => n.toLocaleString("en-IN")}
++              empty="No registrations yet."
++            />
++          </Card>
++          <Card className="space-y-2">
++            <CardTitle className="text-base">Paid purchases / month</CardTitle>
++            <MiniChart
++              points={kpis.purchases}
++              kind="bar"
++              format={(n) => n.toLocaleString("en-IN")}
++              empty="No paid purchases yet."
++            />
++          </Card>
++          <Card className="space-y-2">
++            <CardTitle className="text-base">
++              Commissions credited / month
++            </CardTitle>
++            <MiniChart
++              points={kpis.commissionsCredited}
++              kind="bar"
++              format={(n) => formatINR(n)}
++              empty="No commissions credited yet."
++            />
++            <p className="text-xs text-muted">
++              Snapshot: {formatINR(kpis.commissionsHeldInPaise)} held ·{" "}
++              {formatINR(kpis.commissionsAvailableInPaise)} available (DR-025).
++            </p>
++          </Card>
++          <Card className="space-y-2">
++            <CardTitle className="text-base">Withdrawals by status</CardTitle>
++            <MiniChart
++              points={kpis.withdrawalsByStatus}
++              kind="bar"
++              format={(n) => n.toLocaleString("en-IN")}
++              empty="No withdrawal requests yet."
++            />
++          </Card>
++          <Card className="space-y-2">
++            <CardTitle className="text-base">KYC pipeline</CardTitle>
++            <MiniChart
++              points={kpis.kycPipeline}
++              kind="bar"
++              format={(n) => n.toLocaleString("en-IN")}
++              empty="No KYC submissions yet."
++            />
++          </Card>
++        </div>
++      </div>
++
+       {/* Pending work — deep-linked queue cards, urgency-highlighted. */}
+       <div>
+         <h2 className="mb-3 font-heading text-lg font-bold text-charcoal">
+diff --git a/app/admin/rewards/actions.ts b/app/admin/rewards/actions.ts
+new file mode 100644
+index 0000000..84aff5e
+--- /dev/null
++++ b/app/admin/rewards/actions.ts
+@@ -0,0 +1,50 @@
++// /admin/rewards server actions (Phase E/D). RBAC re-checked; every mutation audited in the adapter.
++"use server";
++import { z } from "zod";
++import { revalidatePath } from "next/cache";
++import { getAdminUser } from "../../../lib/auth/admin";
++import { createReward, setRewardActive } from "../../../lib/admin/rewards";
++
++export type RewardActionResult = { ok: true } | { ok: false; error: string };
++
++const createSchema = z.object({
++  title: z.string().trim().min(1, "Title is required").max(120),
++  description: z.string().trim().max(300).optional(),
++  target: z.coerce.number().int().positive("Target must be a positive number"),
++  lastDate: z.string().trim().optional(),
++});
++
++export async function createRewardAction(
++  input: z.input<typeof createSchema>,
++): Promise<RewardActionResult> {
++  const admin = await getAdminUser();
++  if (!admin) return { ok: false, error: "Not authorized" };
++  const parsed = createSchema.safeParse(input);
++  if (!parsed.success)
++    return {
++      ok: false,
++      error: parsed.error.issues[0]?.message ?? "Invalid input",
++    };
++  const lastDate = parsed.data.lastDate ? new Date(parsed.data.lastDate) : null;
++  const res = await createReward(admin, {
++    title: parsed.data.title,
++    description: parsed.data.description,
++    target: parsed.data.target,
++    lastDate: lastDate && !isNaN(lastDate.getTime()) ? lastDate : null,
++  });
++  if (!res.ok) return res;
++  revalidatePath("/admin/rewards");
++  return { ok: true };
++}
++
++export async function setRewardActiveAction(
++  id: string,
++  isActive: boolean,
++): Promise<RewardActionResult> {
++  const admin = await getAdminUser();
++  if (!admin) return { ok: false, error: "Not authorized" };
++  const res = await setRewardActive(admin, id, isActive);
++  if (!res.ok) return res;
++  revalidatePath("/admin/rewards");
++  return { ok: true };
++}
+diff --git a/app/admin/rewards/page.tsx b/app/admin/rewards/page.tsx
+new file mode 100644
+index 0000000..7ed218c
+--- /dev/null
++++ b/app/admin/rewards/page.tsx
+@@ -0,0 +1,111 @@
++// /admin/rewards — reward definitions (admin-configurable) + a read-only leaderboard for visibility
++// (Phase E/D). Rank is by completed-referrals (DR-034/DR-035), never earnings. No money, no PII.
++import { listRewardDefinitions } from "../../../lib/admin/rewards";
++import { getLeaderboard } from "../../../lib/affiliate/leaderboard";
++import { PageHeading } from "../../../components/admin/primitives";
++import {
++  CreateRewardForm,
++  ToggleRewardActive,
++} from "../../../components/admin/reward-manager";
++import { Card, CardTitle } from "../../../components/ui/card";
++
++export const dynamic = "force-dynamic";
++
++function fmtDate(d: Date | null): string {
++  return d
++    ? new Intl.DateTimeFormat("en-IN", {
++        dateStyle: "medium",
++        timeZone: "Asia/Kolkata",
++      }).format(d)
++    : "—";
++}
++
++export default async function AdminRewardsPage() {
++  const [rewards, board] = await Promise.all([
++    listRewardDefinitions(),
++    getLeaderboard(10),
++  ]);
++
++  return (
++    <section className="space-y-5">
++      <PageHeading
++        title="Rewards & tiers"
++        subtitle="Configure reward targets. Ranking is by learners-who-completed a course (DR-035), never earnings."
++      />
++
++      <Card className="space-y-3">
++        <CardTitle className="text-base">New reward</CardTitle>
++        <CreateRewardForm />
++      </Card>
++
++      <Card className="space-y-3">
++        <CardTitle className="text-base">
++          Reward definitions · {rewards.length}
++        </CardTitle>
++        {rewards.length === 0 ? (
++          <p className="text-sm text-muted">No rewards defined yet.</p>
++        ) : (
++          <div className="overflow-x-auto">
++            <table className="w-full text-sm">
++              <thead>
++                <tr className="text-left text-xs uppercase tracking-wide text-muted">
++                  <th className="py-2 pr-3 font-medium">Title</th>
++                  <th className="py-2 pr-3 font-medium">Target</th>
++                  <th className="py-2 pr-3 font-medium">Last date</th>
++                  <th className="py-2 pr-3 font-medium">Active</th>
++                  <th className="py-2 font-medium"></th>
++                </tr>
++              </thead>
++              <tbody className="divide-y divide-charcoal/5">
++                {rewards.map((r) => (
++                  <tr key={r.id}>
++                    <td className="py-2 pr-3 font-medium text-charcoal">
++                      {r.title}
++                    </td>
++                    <td className="py-2 pr-3 text-muted">
++                      {r.target} {r.metric.replace(/_/g, " ")}
++                    </td>
++                    <td className="py-2 pr-3 text-muted">
++                      {fmtDate(r.lastDate)}
++                    </td>
++                    <td className="py-2 pr-3 text-muted">
++                      {r.isActive ? "Yes" : "No"}
++                    </td>
++                    <td className="py-2">
++                      <ToggleRewardActive id={r.id} isActive={r.isActive} />
++                    </td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          </div>
++        )}
++      </Card>
++
++      <Card className="space-y-3">
++        <CardTitle className="text-base">Leaderboard (top 10)</CardTitle>
++        {board.length === 0 ? (
++          <p className="text-sm text-muted">
++            No completed referrals yet — nothing to rank.
++          </p>
++        ) : (
++          <ol className="divide-y divide-charcoal/5 text-sm">
++            {board.map((e) => (
++              <li
++                key={e.userId}
++                className="flex items-center justify-between gap-3 py-2"
++              >
++                <span>
++                  #{e.rank} · {e.displayName || "GoSkilled member"}
++                </span>
++                <span className="text-muted">
++                  {e.completedReferrals} completed
++                </span>
++              </li>
++            ))}
++          </ol>
++        )}
++      </Card>
++    </section>
++  );
++}
+diff --git a/app/admin/wallet/[userId]/page.tsx b/app/admin/wallet/[userId]/page.tsx
+new file mode 100644
+index 0000000..733a23a
+--- /dev/null
++++ b/app/admin/wallet/[userId]/page.tsx
+@@ -0,0 +1,98 @@
++// /admin/wallet/[userId] — READ-ONLY affiliate wallet detail (Phase E · E2). Summary + full history
++// from the ledger. No actions, no money movement. Admin-authorized by the /admin layout.
++import { notFound } from "next/navigation";
++import Link from "next/link";
++import { getAffiliateWalletDetail } from "../../../../lib/admin/wallet";
++import { formatINR } from "../../../../lib/money";
++import {
++  PageHeading,
++  fmtDateTime,
++} from "../../../../components/admin/primitives";
++import { Card, CardTitle } from "../../../../components/ui/card";
++
++export const dynamic = "force-dynamic";
++
++export default async function AdminWalletDetailPage({
++  params,
++}: {
++  params: Promise<{ userId: string }>;
++}) {
++  const { userId } = await params;
++  const detail = await getAffiliateWalletDetail(userId);
++  if (!detail) notFound();
++
++  return (
++    <section className="space-y-5">
++      <Link
++        href="/admin/wallet"
++        className="text-sm text-muted hover:text-charcoal"
++      >
++        ← Back to wallets
++      </Link>
++      <PageHeading
++        title={detail.name || "Affiliate wallet"}
++        subtitle={detail.phone ?? undefined}
++      />
++
++      <div className="grid grid-cols-3 gap-3">
++        <Card>
++          <p className="text-xs font-medium uppercase tracking-wide text-muted">
++            Available
++          </p>
++          <p className="font-heading text-xl font-bold text-charcoal">
++            {formatINR(detail.summary.availableInPaise)}
++          </p>
++        </Card>
++        <Card>
++          <p className="text-xs font-medium uppercase tracking-wide text-muted">
++            Held
++          </p>
++          <p className="font-heading text-xl font-bold text-charcoal">
++            {formatINR(detail.summary.heldInPaise)}
++          </p>
++        </Card>
++        <Card>
++          <p className="text-xs font-medium uppercase tracking-wide text-muted">
++            Lifetime
++          </p>
++          <p className="font-heading text-xl font-bold text-charcoal">
++            {formatINR(detail.summary.lifetimeEarnedInPaise)}
++          </p>
++        </Card>
++      </div>
++
++      <Card>
++        <CardTitle className="mb-2 text-base">History</CardTitle>
++        {detail.history.length === 0 ? (
++          <p className="text-sm text-muted">No activity yet.</p>
++        ) : (
++          <ul className="divide-y divide-charcoal/5 text-sm">
++            {detail.history.map((h, i) => (
++              <li
++                key={i}
++                className="flex items-center justify-between gap-3 py-2"
++              >
++                <span className="text-charcoal">{h.label}</span>
++                <span className="flex items-center gap-3">
++                  <span
++                    className={
++                      h.amountInPaise < 0
++                        ? "text-muted"
++                        : "font-medium text-charcoal"
++                    }
++                  >
++                    {h.amountInPaise < 0 ? "−" : "+"}
++                    {formatINR(Math.abs(h.amountInPaise))}
++                  </span>
++                  <span className="text-xs text-muted">
++                    {fmtDateTime(h.date)}
++                  </span>
++                </span>
++              </li>
++            ))}
++          </ul>
++        )}
++      </Card>
++    </section>
++  );
++}
+diff --git a/app/admin/wallet/page.tsx b/app/admin/wallet/page.tsx
+new file mode 100644
+index 0000000..057a572
+--- /dev/null
++++ b/app/admin/wallet/page.tsx
+@@ -0,0 +1,73 @@
++// /admin/wallet — READ-ONLY affiliate wallet overview (Phase E · E2). Lists affiliates with ledger
++// activity + their held/available/total (derived from the ledger). No money movement here — payouts
++// live only in /admin/withdrawals. Admin-authorized by the /admin layout.
++import Link from "next/link";
++import { listAffiliateWallets } from "../../../lib/admin/wallet";
++import { formatINR } from "../../../lib/money";
++import { PageHeading } from "../../../components/admin/primitives";
++import { Card } from "../../../components/ui/card";
++
++export const dynamic = "force-dynamic";
++
++export default async function AdminWalletPage() {
++  const wallets = await listAffiliateWallets();
++
++  return (
++    <section className="space-y-5">
++      <PageHeading
++        title="Wallets"
++        subtitle="Read-only affiliate balances from the ledger. No money moves here."
++      />
++      {wallets.length === 0 ? (
++        <Card>
++          <p className="py-6 text-center text-sm text-muted">
++            No affiliate wallet activity yet.
++          </p>
++        </Card>
++      ) : (
++        <Card className="overflow-x-auto">
++          <table className="w-full text-sm">
++            <thead>
++              <tr className="text-left text-xs uppercase tracking-wide text-muted">
++                <th className="py-2 pr-3 font-medium">Affiliate</th>
++                <th className="py-2 pr-3 font-medium">Available</th>
++                <th className="py-2 pr-3 font-medium">Held</th>
++                <th className="py-2 pr-3 font-medium">Total</th>
++                <th className="py-2 font-medium"></th>
++              </tr>
++            </thead>
++            <tbody className="divide-y divide-charcoal/5">
++              {wallets.map((w) => (
++                <tr key={w.userId}>
++                  <td className="py-2 pr-3">
++                    <span className="font-medium text-charcoal">
++                      {w.name || "—"}
++                    </span>
++                    <span className="block text-xs text-muted">{w.phone}</span>
++                  </td>
++                  <td className="py-2 pr-3 font-semibold text-charcoal">
++                    {formatINR(w.availableInPaise)}
++                  </td>
++                  <td className="py-2 pr-3 text-muted">
++                    {formatINR(w.heldInPaise)}
++                  </td>
++                  <td className="py-2 pr-3 text-muted">
++                    {formatINR(w.totalInPaise)}
++                  </td>
++                  <td className="py-2">
++                    <Link
++                      href={`/admin/wallet/${w.userId}`}
++                      className="font-semibold text-brand hover:underline"
++                    >
++                      View
++                    </Link>
++                  </td>
++                </tr>
++              ))}
++            </tbody>
++          </table>
++        </Card>
++      )}
++    </section>
++  );
++}
+diff --git a/app/dashboard/earn/leaderboard/page.tsx b/app/dashboard/earn/leaderboard/page.tsx
+new file mode 100644
+index 0000000..f0c3f94
+--- /dev/null
++++ b/app/dashboard/earn/leaderboard/page.tsx
+@@ -0,0 +1,78 @@
++// Leaderboard (Phase D · D1). MINIMAL consumer surface (premium redesign is a separate track — do
++// not invest here). Ranks affiliates by completed-referrals (DR-034), never earnings/team-size.
++// Shows first names + counts only (privacy). Honest empty state (D-29).
++import { getCurrentUser } from "../../../../lib/auth/session";
++import { getLeaderboard } from "../../../../lib/affiliate/leaderboard";
++import { completedReferralCount } from "../../../../lib/affiliate/completion";
++import { tierProgress } from "../../../../modules/affiliate/tiers";
++import { Card, CardTitle } from "../../../../components/ui/card";
++
++export const dynamic = "force-dynamic";
++
++export default async function LeaderboardPage() {
++  const user = await getCurrentUser();
++  const [board, myCompleted] = await Promise.all([
++    getLeaderboard(20),
++    completedReferralCount(user!.id),
++  ]);
++  const mine = tierProgress(myCompleted);
++
++  return (
++    <section aria-labelledby="lb-heading" className="space-y-6">
++      <h1 id="lb-heading" className="font-heading text-2xl font-bold">
++        Leaderboard
++      </h1>
++
++      <Card className="bg-gold/10">
++        <p className="text-sm text-muted">
++          Ranked by <strong>learners you referred who finished a course</strong>{" "}
++          — not earnings. Keep helping people learn.
++        </p>
++        <p className="mt-2 text-sm">
++          You&apos;re a <strong>{mine.tier}</strong> with{" "}
++          <strong>{mine.completedReferrals}</strong> completed referral
++          {mine.completedReferrals === 1 ? "" : "s"}.
++          {mine.nextTier && mine.toNext! > 0 && (
++            <>
++              {" "}
++              {mine.toNext} more to reach {mine.nextTier}.
++            </>
++          )}
++        </p>
++      </Card>
++
++      <Card className="space-y-3">
++        <CardTitle className="text-base">Top contributors</CardTitle>
++        {board.length === 0 ? (
++          <p className="rounded-xl bg-charcoal/5 p-4 text-sm text-muted">
++            No completed referrals yet — be the first to help someone finish a
++            course.
++          </p>
++        ) : (
++          <ol className="divide-y divide-charcoal/5">
++            {board.map((e) => (
++              <li
++                key={e.userId}
++                className={
++                  "flex items-center justify-between gap-3 py-2 text-sm " +
++                  (e.userId === user!.id ? "font-semibold text-brand" : "")
++                }
++              >
++                <span className="flex items-center gap-3">
++                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gold/20 text-xs font-bold text-charcoal">
++                    {e.rank}
++                  </span>
++                  {e.displayName || "GoSkilled member"}
++                  {e.userId === user!.id && " (you)"}
++                </span>
++                <span className="text-muted">
++                  {e.completedReferrals} completed
++                </span>
++              </li>
++            ))}
++          </ol>
++        )}
++      </Card>
++    </section>
++  );
++}
+diff --git a/app/dashboard/earn/my-leads/actions.ts b/app/dashboard/earn/my-leads/actions.ts
+new file mode 100644
+index 0000000..df14a0f
+--- /dev/null
++++ b/app/dashboard/earn/my-leads/actions.ts
+@@ -0,0 +1,34 @@
++// My-Leads server actions (Phase D · D3). Owner-scoped: a lead is always created for the signed-in
++// affiliate. Zod-validated at the boundary (U3-E: never trust the client — bounds name/note/email,
++// phone shape re-checked in the adapter). PII is encrypted in the adapter; nothing here logs it.
++"use server";
++import { z } from "zod";
++import { revalidatePath } from "next/cache";
++import { getCurrentUser } from "../../../../lib/auth/session";
++import { createAffiliateLead } from "../../../../lib/affiliate/leads";
++
++export type LeadActionResult = { ok: true } | { ok: false; error: string };
++
++const leadSchema = z.object({
++  name: z.string().trim().max(80).optional(),
++  phone: z.string().trim().min(1, "Enter a mobile number").max(20),
++  email: z.string().trim().max(120).optional(),
++  note: z.string().trim().max(200).optional(),
++});
++
++export async function addAffiliateLead(
++  input: z.input<typeof leadSchema>,
++): Promise<LeadActionResult> {
++  const user = await getCurrentUser();
++  if (!user) return { ok: false, error: "Please sign in." };
++  const parsed = leadSchema.safeParse(input);
++  if (!parsed.success)
++    return {
++      ok: false,
++      error: parsed.error.issues[0]?.message ?? "Invalid details",
++    };
++  const res = await createAffiliateLead(user.id, parsed.data);
++  if (!res.ok) return res;
++  revalidatePath("/dashboard/earn/my-leads");
++  return { ok: true };
++}
+diff --git a/app/dashboard/earn/my-leads/page.tsx b/app/dashboard/earn/my-leads/page.tsx
+new file mode 100644
+index 0000000..34e77a0
+--- /dev/null
++++ b/app/dashboard/earn/my-leads/page.tsx
+@@ -0,0 +1,115 @@
++// My-Leads (Phase D · D3). MINIMAL consumer surface. An affiliate's own uploaded leads, owner-scoped,
++// with a date filter. Phone/email are stored encrypted and decrypted server-side only for the owner.
++// ⚠️ PII surface — flagged for Fable (owner sees full phone of their own leads; retention TBD).
++import Link from "next/link";
++import { getCurrentUser } from "../../../../lib/auth/session";
++import { listAffiliateLeads } from "../../../../lib/affiliate/leads";
++import { AddLeadForm } from "../../../../components/affiliate/add-lead-form";
++import { Card, CardTitle } from "../../../../components/ui/card";
++
++export const dynamic = "force-dynamic";
++
++type Range = "30d" | "90d" | "all";
++
++function fromForRange(range: Range, now: Date): Date | undefined {
++  if (range === "30d") return new Date(now.getTime() - 30 * 864e5);
++  if (range === "90d") return new Date(now.getTime() - 90 * 864e5);
++  return undefined;
++}
++
++function fmtDate(d: Date): string {
++  return new Intl.DateTimeFormat("en-IN", {
++    dateStyle: "medium",
++    timeZone: "Asia/Kolkata",
++  }).format(d);
++}
++
++export default async function MyLeadsPage({
++  searchParams,
++}: {
++  searchParams: Promise<{ range?: string }>;
++}) {
++  const user = await getCurrentUser();
++  const sp = await searchParams;
++  const range: Range =
++    sp.range === "30d" || sp.range === "90d" ? sp.range : "all";
++  const leads = await listAffiliateLeads(user!.id, {
++    from: fromForRange(range, new Date()),
++  });
++
++  return (
++    <section aria-labelledby="ml-heading" className="space-y-6">
++      <h1 id="ml-heading" className="font-heading text-2xl font-bold">
++        My Leads
++      </h1>
++
++      <Card className="space-y-3">
++        <CardTitle className="text-base">Add a lead</CardTitle>
++        <p className="text-sm text-muted">
++          Keep track of people you&apos;re inviting. Only you can see these — we
++          store contact details encrypted.
++        </p>
++        <AddLeadForm />
++      </Card>
++
++      <Card className="space-y-3">
++        <div className="flex items-center justify-between gap-3">
++          <CardTitle className="text-base">
++            Your leads · {leads.length}
++          </CardTitle>
++          <div className="flex gap-1 text-sm">
++            {(["30d", "90d", "all"] as Range[]).map((r) => (
++              <Link
++                key={r}
++                href={`/dashboard/earn/my-leads${r === "all" ? "" : `?range=${r}`}`}
++                aria-current={range === r ? "true" : undefined}
++                className={
++                  "rounded-full px-3 py-1 font-medium " +
++                  (range === r
++                    ? "bg-charcoal text-white"
++                    : "bg-charcoal/5 text-charcoal/70 hover:bg-charcoal/10")
++                }
++              >
++                {r === "all" ? "All" : r === "30d" ? "30d" : "90d"}
++              </Link>
++            ))}
++          </div>
++        </div>
++        {leads.length === 0 ? (
++          <p className="rounded-xl bg-charcoal/5 p-4 text-sm text-muted">
++            No leads in this period yet. Add one above to get started.
++          </p>
++        ) : (
++          <div className="overflow-x-auto">
++            <table className="w-full text-sm">
++              <thead>
++                <tr className="text-left text-xs uppercase tracking-wide text-muted">
++                  <th className="py-2 pr-3 font-medium">Name</th>
++                  <th className="py-2 pr-3 font-medium">Mobile</th>
++                  <th className="py-2 pr-3 font-medium">Email</th>
++                  <th className="py-2 pr-3 font-medium">Added</th>
++                  <th className="py-2 font-medium">Note</th>
++                </tr>
++              </thead>
++              <tbody className="divide-y divide-charcoal/5">
++                {leads.map((l) => (
++                  <tr key={l.id}>
++                    <td className="py-2 pr-3 font-medium text-charcoal">
++                      {l.name || "—"}
++                    </td>
++                    <td className="py-2 pr-3 text-muted">{l.phone}</td>
++                    <td className="py-2 pr-3 text-muted">{l.email || "—"}</td>
++                    <td className="py-2 pr-3 text-muted">
++                      {fmtDate(l.createdAt)}
++                    </td>
++                    <td className="py-2 text-muted">{l.note || "—"}</td>
++                  </tr>
++                ))}
++              </tbody>
++            </table>
++          </div>
++        )}
++      </Card>
++    </section>
++  );
++}
+diff --git a/app/dashboard/earn/rewards/page.tsx b/app/dashboard/earn/rewards/page.tsx
+new file mode 100644
+index 0000000..a59bd2a
+--- /dev/null
++++ b/app/dashboard/earn/rewards/page.tsx
+@@ -0,0 +1,91 @@
++// Rewards (Phase D · D2). MINIMAL consumer surface. Shows the affiliate's contribution tier + their
++// progress toward each ACTIVE admin-defined reward, derived from completed-referrals (DR-035). No
++// earnings framing, no fabricated numbers (D-29). Premium styling deferred to the redesign track.
++import { getCurrentUser } from "../../../../lib/auth/session";
++import { getRewardProgress } from "../../../../lib/affiliate/rewards";
++import { completedReferralCount } from "../../../../lib/affiliate/completion";
++import { tierProgress } from "../../../../modules/affiliate/tiers";
++import { Card, CardTitle } from "../../../../components/ui/card";
++
++export const dynamic = "force-dynamic";
++
++function fmtDate(d: Date): string {
++  return new Intl.DateTimeFormat("en-IN", {
++    dateStyle: "medium",
++    timeZone: "Asia/Kolkata",
++  }).format(d);
++}
++
++export default async function RewardsPage() {
++  const user = await getCurrentUser();
++  const [rewards, completed] = await Promise.all([
++    getRewardProgress(user!.id),
++    completedReferralCount(user!.id),
++  ]);
++  const mine = tierProgress(completed);
++
++  return (
++    <section aria-labelledby="rw-heading" className="space-y-6">
++      <h1 id="rw-heading" className="font-heading text-2xl font-bold">
++        Rewards
++      </h1>
++
++      <Card className="bg-gold/10">
++        <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/60">
++          Your tier
++        </p>
++        <p className="font-heading text-2xl font-extrabold text-charcoal">
++          {mine.tier}
++        </p>
++        <p className="mt-1 text-sm text-muted">
++          {mine.completedReferrals} referred learner
++          {mine.completedReferrals === 1 ? "" : "s"} completed a course.
++          {mine.nextTier && mine.toNext! > 0 && (
++            <>
++              {" "}
++              {mine.toNext} more to become a {mine.nextTier}.
++            </>
++          )}
++        </p>
++      </Card>
++
++      {rewards.length === 0 ? (
++        <Card>
++          <p className="text-sm text-muted">
++            No rewards are running right now. When a reward opens, you&apos;ll
++            see your progress here.
++          </p>
++        </Card>
++      ) : (
++        <div className="space-y-4">
++          {rewards.map((r) => (
++            <Card key={r.id} className="space-y-2">
++              <div className="flex items-baseline justify-between gap-3">
++                <CardTitle className="text-base">{r.title}</CardTitle>
++                {r.achieved && (
++                  <span className="text-xs font-semibold text-brand">
++                    Achieved ✓
++                  </span>
++                )}
++              </div>
++              {r.description && (
++                <p className="text-sm text-muted">{r.description}</p>
++              )}
++              <div className="h-2 w-full overflow-hidden rounded-full bg-charcoal/10">
++                <div
++                  className="h-full rounded-full bg-gold"
++                  style={{ width: `${r.percent}%` }}
++                  aria-hidden
++                />
++              </div>
++              <p className="text-xs text-muted">
++                {r.current} / {r.target} completed referrals
++                {r.lastDate && <> · by {fmtDate(r.lastDate)}</>}
++              </p>
++            </Card>
++          ))}
++        </div>
++      )}
++    </section>
++  );
++}
+diff --git a/app/dashboard/learn/[courseSlug]/page.tsx b/app/dashboard/learn/[courseSlug]/page.tsx
+index 98c57b5..7630460 100644
+--- a/app/dashboard/learn/[courseSlug]/page.tsx
++++ b/app/dashboard/learn/[courseSlug]/page.tsx
+@@ -74,7 +74,9 @@ export default async function CoursePlayerPage({
+       </div>
+ 
+       <div className="grid gap-6 md:grid-cols-[1fr,18rem]">
+-        <div>
++        {/* min-w-0: grid items default to min-width:auto, so the <video>'s intrinsic min-content
++            width couldn't shrink below the 360px column → ~6px horizontal overflow (QA-01). */}
++        <div className="min-w-0">
+           {playback ? (
+             <LessonPlayer
+               courseSlug={courseSlug}
+@@ -119,7 +121,7 @@ export default async function CoursePlayerPage({
+           )}
+         </div>
+ 
+-        <aside aria-label="Lessons" className="space-y-4">
++        <aside aria-label="Lessons" className="min-w-0 space-y-4">
+           {view.modules.map((m) => (
+             <div key={m.id}>
+               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
+diff --git a/app/layout.tsx b/app/layout.tsx
+index ab529ff..930c743 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -53,6 +53,12 @@ export default function RootLayout({
+     <html
+       lang="en"
+       className={`${sora.variable} ${inter.variable} ${devanagari.variable}`}
++      // QA-01 hydration fix: next/font injects the font-variable classNames on <html> and browser
++      // extensions mutate <html>/<body> attributes before React hydrates, so the html element's OWN
++      // attributes can legitimately differ SSR→client (a dev-mode next/font artifact — the QA harness
++      // runs `npm run dev`). This is the Next.js/React-documented remedy and is scoped to <html>'s
++      // attributes only (one level deep): child mismatches still warn, so real bugs are never masked.
++      suppressHydrationWarning
+     >
+       <body className="min-h-dvh bg-offwhite font-body text-charcoal antialiased">
+         <StagingBanner />
+diff --git a/components/admin/admin-nav.tsx b/components/admin/admin-nav.tsx
+index 7b20037..c77a8f7 100644
+--- a/components/admin/admin-nav.tsx
++++ b/components/admin/admin-nav.tsx
+@@ -9,6 +9,8 @@ import {
+   Flag,
+   ShieldCheck,
+   Banknote,
++  Wallet,
++  Trophy,
+   BookOpen,
+   Video,
+   ScrollText,
+@@ -21,7 +23,9 @@ const TABS = [
+   { href: "/admin", label: "Overview", Icon: LayoutDashboard, exact: true },
+   { href: "/admin/kyc", label: "KYC", Icon: ShieldCheck },
+   { href: "/admin/withdrawals", label: "Withdrawals", Icon: Banknote },
++  { href: "/admin/wallet", label: "Wallets", Icon: Wallet },
+   { href: "/admin/payments", label: "Payments", Icon: CreditCard },
++  { href: "/admin/rewards", label: "Rewards", Icon: Trophy },
+   { href: "/admin/users", label: "Users", Icon: Users },
+   { href: "/admin/leads", label: "Leads", Icon: Contact },
+   { href: "/admin/review-queue", label: "Review", Icon: Flag },
+diff --git a/components/admin/reward-manager.tsx b/components/admin/reward-manager.tsx
+new file mode 100644
+index 0000000..bbaf537
+--- /dev/null
++++ b/components/admin/reward-manager.tsx
+@@ -0,0 +1,128 @@
++"use client";
++// Admin reward manager (Phase E/D). Create a reward definition + toggle active. Charcoal admin
++// styling. No money, no PII.
++import { useState } from "react";
++import { useRouter } from "next/navigation";
++import {
++  createRewardAction,
++  setRewardActiveAction,
++} from "../../app/admin/rewards/actions";
++
++export function CreateRewardForm() {
++  const router = useRouter();
++  const [title, setTitle] = useState("");
++  const [description, setDescription] = useState("");
++  const [target, setTarget] = useState("");
++  const [lastDate, setLastDate] = useState("");
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++
++  async function onSubmit(e: React.FormEvent) {
++    e.preventDefault();
++    setBusy(true);
++    setError(null);
++    const res = await createRewardAction({
++      title,
++      description: description.trim() || undefined,
++      target: Number(target),
++      lastDate: lastDate || undefined,
++    });
++    setBusy(false);
++    if (!res.ok) return setError(res.error);
++    setTitle("");
++    setDescription("");
++    setTarget("");
++    setLastDate("");
++    router.refresh();
++  }
++
++  return (
++    <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
++      <label className="text-sm">
++        <span className="mb-1 block font-medium text-charcoal">Title</span>
++        <input
++          value={title}
++          onChange={(e) => setTitle(e.target.value)}
++          maxLength={120}
++          required
++          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
++        />
++      </label>
++      <label className="text-sm">
++        <span className="mb-1 block font-medium text-charcoal">
++          Target (completed referrals)
++        </span>
++        <input
++          type="number"
++          min={1}
++          value={target}
++          onChange={(e) => setTarget(e.target.value)}
++          required
++          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
++        />
++      </label>
++      <label className="text-sm">
++        <span className="mb-1 block font-medium text-charcoal">
++          Description (optional)
++        </span>
++        <input
++          value={description}
++          onChange={(e) => setDescription(e.target.value)}
++          maxLength={300}
++          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
++        />
++      </label>
++      <label className="text-sm">
++        <span className="mb-1 block font-medium text-charcoal">
++          Last date (optional)
++        </span>
++        <input
++          type="date"
++          value={lastDate}
++          onChange={(e) => setLastDate(e.target.value)}
++          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
++        />
++      </label>
++      {error && (
++        <p role="alert" className="text-sm text-red-600 sm:col-span-2">
++          {error}
++        </p>
++      )}
++      <div className="sm:col-span-2">
++        <button
++          type="submit"
++          disabled={busy}
++          className="rounded-lg bg-charcoal px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
++        >
++          {busy ? "Creating…" : "Create reward"}
++        </button>
++      </div>
++    </form>
++  );
++}
++
++export function ToggleRewardActive({
++  id,
++  isActive,
++}: {
++  id: string;
++  isActive: boolean;
++}) {
++  const router = useRouter();
++  const [busy, setBusy] = useState(false);
++  async function toggle() {
++    setBusy(true);
++    await setRewardActiveAction(id, !isActive);
++    setBusy(false);
++    router.refresh();
++  }
++  return (
++    <button
++      onClick={toggle}
++      disabled={busy}
++      className="rounded-lg border border-charcoal/20 px-3 py-1 text-xs font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
++    >
++      {isActive ? "Deactivate" : "Activate"}
++    </button>
++  );
++}
+diff --git a/components/affiliate/add-lead-form.tsx b/components/affiliate/add-lead-form.tsx
+new file mode 100644
+index 0000000..1943354
+--- /dev/null
++++ b/components/affiliate/add-lead-form.tsx
+@@ -0,0 +1,97 @@
++"use client";
++// Add-lead form (Phase D · D3). MINIMAL. Owner-scoped via the server action; PII encrypted server-
++// side. The client never logs the phone/email.
++import { useState } from "react";
++import { addAffiliateLead } from "../../app/dashboard/earn/my-leads/actions";
++import { Button } from "../ui/button";
++import { Input } from "../ui/input";
++import { Label } from "../ui/label";
++
++export function AddLeadForm() {
++  const [name, setName] = useState("");
++  const [phone, setPhone] = useState("");
++  const [email, setEmail] = useState("");
++  const [note, setNote] = useState("");
++  const [busy, setBusy] = useState(false);
++  const [error, setError] = useState<string | null>(null);
++  const [okMsg, setOkMsg] = useState(false);
++
++  async function onSubmit(e: React.FormEvent) {
++    e.preventDefault();
++    setBusy(true);
++    setError(null);
++    setOkMsg(false);
++    const res = await addAffiliateLead({
++      name: name.trim() || undefined,
++      phone,
++      email: email.trim() || undefined,
++      note: note.trim() || undefined,
++    });
++    setBusy(false);
++    if (!res.ok) return setError(res.error);
++    setName("");
++    setPhone("");
++    setEmail("");
++    setNote("");
++    setOkMsg(true);
++  }
++
++  return (
++    <form onSubmit={onSubmit} className="space-y-3">
++      <div className="grid gap-3 sm:grid-cols-2">
++        <div>
++          <Label htmlFor="lead-name">Name (optional)</Label>
++          <Input
++            id="lead-name"
++            value={name}
++            onChange={(e) => setName(e.target.value)}
++            maxLength={80}
++          />
++        </div>
++        <div>
++          <Label htmlFor="lead-phone">Mobile number</Label>
++          <Input
++            id="lead-phone"
++            inputMode="numeric"
++            value={phone}
++            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
++            maxLength={10}
++            placeholder="10-digit mobile"
++            required
++          />
++        </div>
++        <div>
++          <Label htmlFor="lead-email">Email (optional)</Label>
++          <Input
++            id="lead-email"
++            type="email"
++            value={email}
++            onChange={(e) => setEmail(e.target.value)}
++          />
++        </div>
++        <div>
++          <Label htmlFor="lead-note">Note (optional)</Label>
++          <Input
++            id="lead-note"
++            value={note}
++            onChange={(e) => setNote(e.target.value)}
++            maxLength={200}
++          />
++        </div>
++      </div>
++      {error && (
++        <p role="alert" className="text-sm text-red-600">
++          {error}
++        </p>
++      )}
++      {okMsg && (
++        <p role="status" className="text-sm font-medium text-brand">
++          Lead saved ✓
++        </p>
++      )}
++      <Button type="submit" variant="gold" disabled={busy || phone.length < 10}>
++        {busy ? "Saving…" : "Add lead"}
++      </Button>
++    </form>
++  );
++}
+diff --git a/components/affiliate/earn-subnav.tsx b/components/affiliate/earn-subnav.tsx
+index 122dfc1..16843da 100644
+--- a/components/affiliate/earn-subnav.tsx
++++ b/components/affiliate/earn-subnav.tsx
+@@ -11,6 +11,9 @@ const BASE = [
+   { href: "/dashboard/earn", label: "Overview", exact: true },
+   { href: "/dashboard/earn/referrals", label: "Referrals" },
+   { href: "/dashboard/earn/network", label: "My Network" },
++  { href: "/dashboard/earn/leaderboard", label: "Leaderboard" },
++  { href: "/dashboard/earn/rewards", label: "Rewards" },
++  { href: "/dashboard/earn/my-leads", label: "My Leads" },
+ ];
+ const MONEY = [
+   { href: "/dashboard/earn/wallet", label: "Wallet" },
+diff --git a/docs/LAUNCH_CONFIG.md b/docs/LAUNCH_CONFIG.md
+index b9bc620..ac4bd19 100644
+--- a/docs/LAUNCH_CONFIG.md
++++ b/docs/LAUNCH_CONFIG.md
+@@ -71,6 +71,9 @@
+ | 48 | KYC documents private bucket | Supabase Storage `kyc-docs` — Phase C §3 | External Service | PENDING | Founder | Bucket created **private** (public:false) on first upload via `lib/storage/kyc-docs.ensureKycBucket`; access only via server-authorized short-lived signed URLs. No public URLs ever | Confirm the private bucket exists on the prod Supabase project | LAUNCH (before real uploads) | Pre-launch | Object paths stored AES-256-GCM-encrypted; owner/admin-only access; admin views reveal-logged. |
+ | 49 | KYC address-proof document types | KYC (`lib/kyc/doc-types.ts`) — Phase C §3 | Content | PENDING | Founder | Placeholder list: Aadhaar / Driving licence / Voter ID / Passport | Founder-confirmed option list | LAUNCH | Pre-launch | Open point §7. |
+ | 50 | Withdrawal application window | withdraw (`modules/wallet/withdrawal.ts`) — Phase C §4 · DR-001 | Configuration | PENDING | Founder | Apply **anytime** (default); payout **processing cycle = Monday**, manual payout within 24h → Tuesday (DR-001). Statuses Applied→In-Progress→Paid | Confirm anytime vs Monday-only | LAUNCH | Pre-launch | Open point §7 — anytime recommended. UPI optional (default). Real disbursement stays OFF (D-01). |
++| 51 | Contribution tier thresholds | affiliate (`modules/affiliate/tiers.ts`) — Phase D | Configuration | PENDING | Founder | Contributor / Mentor (≥5) / Community Champion (≥15) completed-referrals; override via `TIER_MENTOR_AT` / `TIER_CHAMPION_AT` | Founder-confirmed thresholds | OPTIONAL | Pre-launch | Safe defaults in code. Tiers rank by learning contribution (DR-035), never earnings. |
++| 52 | My-Leads PII policy | affiliate (`lib/affiliate/leads.ts`) — Phase D | **Legal/PII → Fable** | PENDING | Founder + Counsel | Affiliate-uploaded leads: phone/email AES-256-GCM encrypted at rest, owner-scoped; the OWNER currently sees their own leads' FULL phone (decrypted). Retention undefined | Confirm: mask even to owner? retention window? consent copy? | LAUNCH | Pre-launch | ⚠️ Flagged for Fable. RLS-on table; never logged. |
++| 53 | Reward definitions (content) | admin (`/admin/rewards`, `RewardDefinition`) — Phase D | Content | PENDING | Founder | Admin-configurable rewards (title/target/last-date/description); none seeded — empty until the founder creates them (D-29 honest empty) | Founder-created reward set | OPTIONAL | Pre-launch | Metric = completed-referrals (learning-first). No income framing (D-29). |
+ 
+ ---
+ 
+@@ -84,3 +87,4 @@
+ - 2026-07-09 — Phase A Auth+Referral rework (DR-036/DR-038, supersedes DR-030): added #42 (no-code contact channels), #43 (password min-length policy), #44 (Phase A register/login/checkout copy — supersedes register half of #34). Referral code now MANDATORY to register; login gains password + OTP reset; earning gate wired to own confirmed purchase (DR-038). Parked for Fable Tier-A review.
+ - 2026-07-10 — Phase B Referral-Engine+Dashboard (DR-007/DR-038): B1 ACTIVATED the earning gate in the webhook (an upline earns only with their own PAID purchase — Tier-A). Surfacing (B2–B6): added #45 (commission-structure copy), #46 (affiliate labels). Network graphs + L1/L2/L3 tables (L1 exportable, L2/L3 masked+non-exportable) + wallet graph + rewards-structure page. Payouts stay OFF (D-01). Parked for Fable (B1) / Opus (B2–B6).
+ - 2026-07-10 — Phase C KYC+Withdraw (DR-037/DR-025/DR-001): KYC expansion (contact verify flags, doc uploads to a PRIVATE bucket, PAN/account/doc-paths encrypted, admin reveal-logged) + withdraw lifecycle (Applied→In-Progress→Paid, min ₹500/max ₹25k, KYC+available+single-pending+payoutsEnabled gates). Added #47 (verify provider), #48 (private bucket), #49 (doc-type list), #50 (withdrawal window). Additive migration `20260710120000_kyc_phasec_expansion` (applied). **No real disbursement — D-01 OFF gate enforced at mark-paid.** Parked for Fable Tier-A.
++- 2026-07-10 — Phase D/E overnight (admin expansion + engagement engines): leaderboard (ranks by completed-referrals, DR-034/035), tiers, rewards engine, My-Leads (encrypted PII), admin KPI graphs + read-only wallet-manage + rewards admin. Added #51 (tier thresholds), #52 (My-Leads PII policy → **Fable**), #53 (reward definitions content). Additive migration `20260710130000_phasede_rewards_leads` (applied, RLS on both tables). No money moved. Parked — mostly Opus Tier-B; My-Leads PII → Fable.
+diff --git a/docs/review-packets/gps-phasede-overnight.diff b/docs/review-packets/gps-phasede-overnight.diff
+new file mode 100644
+index 0000000..f17780a
+--- /dev/null
++++ b/docs/review-packets/gps-phasede-overnight.diff
+@@ -0,0 +1,2057 @@
++diff --git a/app/admin/page.tsx b/app/admin/page.tsx
++index 2f54dea..36cfb89 100644
++--- a/app/admin/page.tsx
+++++ b/app/admin/page.tsx
++@@ -1,6 +1,7 @@
++ // /admin — dashboard hub (GPS-M4 §2.0). One glance = state of the business today; pending queues
++ // surfaced by urgency; recent audit trail. All real aggregates; zero-states truthful.
++ import { getDashboardData } from "../../lib/admin/queries";
+++import { getAdminKpis } from "../../lib/admin/kpi";
++ import { formatINR } from "../../lib/money";
++ import {
++   PageHeading,
++@@ -8,12 +9,13 @@ import {
++   QueueCard,
++   fmtDateTime,
++ } from "../../components/admin/primitives";
++-import { Card } from "../../components/ui/card";
+++import { MiniChart } from "../../components/affiliate/mini-chart";
+++import { Card, CardTitle } from "../../components/ui/card";
++ 
++ export const dynamic = "force-dynamic";
++ 
++ export default async function AdminDashboardPage() {
++-  const d = await getDashboardData();
+++  const [d, kpis] = await Promise.all([getDashboardData(), getAdminKpis()]);
++ 
++   return (
++     <section className="space-y-6">
++@@ -49,6 +51,66 @@ export default async function AdminDashboardPage() {
++         />
++       </div>
++ 
+++      {/* KPI graphs (E1) — real aggregates, inline-SVG, honest empty states. */}
+++      <div>
+++        <h2 className="mb-3 font-heading text-lg font-bold text-charcoal">
+++          Trends
+++        </h2>
+++        <div className="grid gap-3 lg:grid-cols-2">
+++          <Card className="space-y-2">
+++            <CardTitle className="text-base">Registrations / month</CardTitle>
+++            <MiniChart
+++              points={kpis.registrations}
+++              kind="bar"
+++              format={(n) => n.toLocaleString("en-IN")}
+++              empty="No registrations yet."
+++            />
+++          </Card>
+++          <Card className="space-y-2">
+++            <CardTitle className="text-base">Paid purchases / month</CardTitle>
+++            <MiniChart
+++              points={kpis.purchases}
+++              kind="bar"
+++              format={(n) => n.toLocaleString("en-IN")}
+++              empty="No paid purchases yet."
+++            />
+++          </Card>
+++          <Card className="space-y-2">
+++            <CardTitle className="text-base">
+++              Commissions credited / month
+++            </CardTitle>
+++            <MiniChart
+++              points={kpis.commissionsCredited}
+++              kind="bar"
+++              format={(n) => formatINR(n)}
+++              empty="No commissions credited yet."
+++            />
+++            <p className="text-xs text-muted">
+++              Snapshot: {formatINR(kpis.commissionsHeldInPaise)} held ·{" "}
+++              {formatINR(kpis.commissionsAvailableInPaise)} available (DR-025).
+++            </p>
+++          </Card>
+++          <Card className="space-y-2">
+++            <CardTitle className="text-base">Withdrawals by status</CardTitle>
+++            <MiniChart
+++              points={kpis.withdrawalsByStatus}
+++              kind="bar"
+++              format={(n) => n.toLocaleString("en-IN")}
+++              empty="No withdrawal requests yet."
+++            />
+++          </Card>
+++          <Card className="space-y-2">
+++            <CardTitle className="text-base">KYC pipeline</CardTitle>
+++            <MiniChart
+++              points={kpis.kycPipeline}
+++              kind="bar"
+++              format={(n) => n.toLocaleString("en-IN")}
+++              empty="No KYC submissions yet."
+++            />
+++          </Card>
+++        </div>
+++      </div>
+++
++       {/* Pending work — deep-linked queue cards, urgency-highlighted. */}
++       <div>
++         <h2 className="mb-3 font-heading text-lg font-bold text-charcoal">
++diff --git a/app/admin/rewards/actions.ts b/app/admin/rewards/actions.ts
++new file mode 100644
++index 0000000..84aff5e
++--- /dev/null
+++++ b/app/admin/rewards/actions.ts
++@@ -0,0 +1,50 @@
+++// /admin/rewards server actions (Phase E/D). RBAC re-checked; every mutation audited in the adapter.
+++"use server";
+++import { z } from "zod";
+++import { revalidatePath } from "next/cache";
+++import { getAdminUser } from "../../../lib/auth/admin";
+++import { createReward, setRewardActive } from "../../../lib/admin/rewards";
+++
+++export type RewardActionResult = { ok: true } | { ok: false; error: string };
+++
+++const createSchema = z.object({
+++  title: z.string().trim().min(1, "Title is required").max(120),
+++  description: z.string().trim().max(300).optional(),
+++  target: z.coerce.number().int().positive("Target must be a positive number"),
+++  lastDate: z.string().trim().optional(),
+++});
+++
+++export async function createRewardAction(
+++  input: z.input<typeof createSchema>,
+++): Promise<RewardActionResult> {
+++  const admin = await getAdminUser();
+++  if (!admin) return { ok: false, error: "Not authorized" };
+++  const parsed = createSchema.safeParse(input);
+++  if (!parsed.success)
+++    return {
+++      ok: false,
+++      error: parsed.error.issues[0]?.message ?? "Invalid input",
+++    };
+++  const lastDate = parsed.data.lastDate ? new Date(parsed.data.lastDate) : null;
+++  const res = await createReward(admin, {
+++    title: parsed.data.title,
+++    description: parsed.data.description,
+++    target: parsed.data.target,
+++    lastDate: lastDate && !isNaN(lastDate.getTime()) ? lastDate : null,
+++  });
+++  if (!res.ok) return res;
+++  revalidatePath("/admin/rewards");
+++  return { ok: true };
+++}
+++
+++export async function setRewardActiveAction(
+++  id: string,
+++  isActive: boolean,
+++): Promise<RewardActionResult> {
+++  const admin = await getAdminUser();
+++  if (!admin) return { ok: false, error: "Not authorized" };
+++  const res = await setRewardActive(admin, id, isActive);
+++  if (!res.ok) return res;
+++  revalidatePath("/admin/rewards");
+++  return { ok: true };
+++}
++diff --git a/app/admin/rewards/page.tsx b/app/admin/rewards/page.tsx
++new file mode 100644
++index 0000000..7ed218c
++--- /dev/null
+++++ b/app/admin/rewards/page.tsx
++@@ -0,0 +1,111 @@
+++// /admin/rewards — reward definitions (admin-configurable) + a read-only leaderboard for visibility
+++// (Phase E/D). Rank is by completed-referrals (DR-034/DR-035), never earnings. No money, no PII.
+++import { listRewardDefinitions } from "../../../lib/admin/rewards";
+++import { getLeaderboard } from "../../../lib/affiliate/leaderboard";
+++import { PageHeading } from "../../../components/admin/primitives";
+++import {
+++  CreateRewardForm,
+++  ToggleRewardActive,
+++} from "../../../components/admin/reward-manager";
+++import { Card, CardTitle } from "../../../components/ui/card";
+++
+++export const dynamic = "force-dynamic";
+++
+++function fmtDate(d: Date | null): string {
+++  return d
+++    ? new Intl.DateTimeFormat("en-IN", {
+++        dateStyle: "medium",
+++        timeZone: "Asia/Kolkata",
+++      }).format(d)
+++    : "—";
+++}
+++
+++export default async function AdminRewardsPage() {
+++  const [rewards, board] = await Promise.all([
+++    listRewardDefinitions(),
+++    getLeaderboard(10),
+++  ]);
+++
+++  return (
+++    <section className="space-y-5">
+++      <PageHeading
+++        title="Rewards & tiers"
+++        subtitle="Configure reward targets. Ranking is by learners-who-completed a course (DR-035), never earnings."
+++      />
+++
+++      <Card className="space-y-3">
+++        <CardTitle className="text-base">New reward</CardTitle>
+++        <CreateRewardForm />
+++      </Card>
+++
+++      <Card className="space-y-3">
+++        <CardTitle className="text-base">
+++          Reward definitions · {rewards.length}
+++        </CardTitle>
+++        {rewards.length === 0 ? (
+++          <p className="text-sm text-muted">No rewards defined yet.</p>
+++        ) : (
+++          <div className="overflow-x-auto">
+++            <table className="w-full text-sm">
+++              <thead>
+++                <tr className="text-left text-xs uppercase tracking-wide text-muted">
+++                  <th className="py-2 pr-3 font-medium">Title</th>
+++                  <th className="py-2 pr-3 font-medium">Target</th>
+++                  <th className="py-2 pr-3 font-medium">Last date</th>
+++                  <th className="py-2 pr-3 font-medium">Active</th>
+++                  <th className="py-2 font-medium"></th>
+++                </tr>
+++              </thead>
+++              <tbody className="divide-y divide-charcoal/5">
+++                {rewards.map((r) => (
+++                  <tr key={r.id}>
+++                    <td className="py-2 pr-3 font-medium text-charcoal">
+++                      {r.title}
+++                    </td>
+++                    <td className="py-2 pr-3 text-muted">
+++                      {r.target} {r.metric.replace(/_/g, " ")}
+++                    </td>
+++                    <td className="py-2 pr-3 text-muted">
+++                      {fmtDate(r.lastDate)}
+++                    </td>
+++                    <td className="py-2 pr-3 text-muted">
+++                      {r.isActive ? "Yes" : "No"}
+++                    </td>
+++                    <td className="py-2">
+++                      <ToggleRewardActive id={r.id} isActive={r.isActive} />
+++                    </td>
+++                  </tr>
+++                ))}
+++              </tbody>
+++            </table>
+++          </div>
+++        )}
+++      </Card>
+++
+++      <Card className="space-y-3">
+++        <CardTitle className="text-base">Leaderboard (top 10)</CardTitle>
+++        {board.length === 0 ? (
+++          <p className="text-sm text-muted">
+++            No completed referrals yet — nothing to rank.
+++          </p>
+++        ) : (
+++          <ol className="divide-y divide-charcoal/5 text-sm">
+++            {board.map((e) => (
+++              <li
+++                key={e.userId}
+++                className="flex items-center justify-between gap-3 py-2"
+++              >
+++                <span>
+++                  #{e.rank} · {e.displayName || "GoSkilled member"}
+++                </span>
+++                <span className="text-muted">
+++                  {e.completedReferrals} completed
+++                </span>
+++              </li>
+++            ))}
+++          </ol>
+++        )}
+++      </Card>
+++    </section>
+++  );
+++}
++diff --git a/app/admin/wallet/[userId]/page.tsx b/app/admin/wallet/[userId]/page.tsx
++new file mode 100644
++index 0000000..733a23a
++--- /dev/null
+++++ b/app/admin/wallet/[userId]/page.tsx
++@@ -0,0 +1,98 @@
+++// /admin/wallet/[userId] — READ-ONLY affiliate wallet detail (Phase E · E2). Summary + full history
+++// from the ledger. No actions, no money movement. Admin-authorized by the /admin layout.
+++import { notFound } from "next/navigation";
+++import Link from "next/link";
+++import { getAffiliateWalletDetail } from "../../../../lib/admin/wallet";
+++import { formatINR } from "../../../../lib/money";
+++import {
+++  PageHeading,
+++  fmtDateTime,
+++} from "../../../../components/admin/primitives";
+++import { Card, CardTitle } from "../../../../components/ui/card";
+++
+++export const dynamic = "force-dynamic";
+++
+++export default async function AdminWalletDetailPage({
+++  params,
+++}: {
+++  params: Promise<{ userId: string }>;
+++}) {
+++  const { userId } = await params;
+++  const detail = await getAffiliateWalletDetail(userId);
+++  if (!detail) notFound();
+++
+++  return (
+++    <section className="space-y-5">
+++      <Link
+++        href="/admin/wallet"
+++        className="text-sm text-muted hover:text-charcoal"
+++      >
+++        ← Back to wallets
+++      </Link>
+++      <PageHeading
+++        title={detail.name || "Affiliate wallet"}
+++        subtitle={detail.phone ?? undefined}
+++      />
+++
+++      <div className="grid grid-cols-3 gap-3">
+++        <Card>
+++          <p className="text-xs font-medium uppercase tracking-wide text-muted">
+++            Available
+++          </p>
+++          <p className="font-heading text-xl font-bold text-charcoal">
+++            {formatINR(detail.summary.availableInPaise)}
+++          </p>
+++        </Card>
+++        <Card>
+++          <p className="text-xs font-medium uppercase tracking-wide text-muted">
+++            Held
+++          </p>
+++          <p className="font-heading text-xl font-bold text-charcoal">
+++            {formatINR(detail.summary.heldInPaise)}
+++          </p>
+++        </Card>
+++        <Card>
+++          <p className="text-xs font-medium uppercase tracking-wide text-muted">
+++            Lifetime
+++          </p>
+++          <p className="font-heading text-xl font-bold text-charcoal">
+++            {formatINR(detail.summary.lifetimeEarnedInPaise)}
+++          </p>
+++        </Card>
+++      </div>
+++
+++      <Card>
+++        <CardTitle className="mb-2 text-base">History</CardTitle>
+++        {detail.history.length === 0 ? (
+++          <p className="text-sm text-muted">No activity yet.</p>
+++        ) : (
+++          <ul className="divide-y divide-charcoal/5 text-sm">
+++            {detail.history.map((h, i) => (
+++              <li
+++                key={i}
+++                className="flex items-center justify-between gap-3 py-2"
+++              >
+++                <span className="text-charcoal">{h.label}</span>
+++                <span className="flex items-center gap-3">
+++                  <span
+++                    className={
+++                      h.amountInPaise < 0
+++                        ? "text-muted"
+++                        : "font-medium text-charcoal"
+++                    }
+++                  >
+++                    {h.amountInPaise < 0 ? "−" : "+"}
+++                    {formatINR(Math.abs(h.amountInPaise))}
+++                  </span>
+++                  <span className="text-xs text-muted">
+++                    {fmtDateTime(h.date)}
+++                  </span>
+++                </span>
+++              </li>
+++            ))}
+++          </ul>
+++        )}
+++      </Card>
+++    </section>
+++  );
+++}
++diff --git a/app/admin/wallet/page.tsx b/app/admin/wallet/page.tsx
++new file mode 100644
++index 0000000..057a572
++--- /dev/null
+++++ b/app/admin/wallet/page.tsx
++@@ -0,0 +1,73 @@
+++// /admin/wallet — READ-ONLY affiliate wallet overview (Phase E · E2). Lists affiliates with ledger
+++// activity + their held/available/total (derived from the ledger). No money movement here — payouts
+++// live only in /admin/withdrawals. Admin-authorized by the /admin layout.
+++import Link from "next/link";
+++import { listAffiliateWallets } from "../../../lib/admin/wallet";
+++import { formatINR } from "../../../lib/money";
+++import { PageHeading } from "../../../components/admin/primitives";
+++import { Card } from "../../../components/ui/card";
+++
+++export const dynamic = "force-dynamic";
+++
+++export default async function AdminWalletPage() {
+++  const wallets = await listAffiliateWallets();
+++
+++  return (
+++    <section className="space-y-5">
+++      <PageHeading
+++        title="Wallets"
+++        subtitle="Read-only affiliate balances from the ledger. No money moves here."
+++      />
+++      {wallets.length === 0 ? (
+++        <Card>
+++          <p className="py-6 text-center text-sm text-muted">
+++            No affiliate wallet activity yet.
+++          </p>
+++        </Card>
+++      ) : (
+++        <Card className="overflow-x-auto">
+++          <table className="w-full text-sm">
+++            <thead>
+++              <tr className="text-left text-xs uppercase tracking-wide text-muted">
+++                <th className="py-2 pr-3 font-medium">Affiliate</th>
+++                <th className="py-2 pr-3 font-medium">Available</th>
+++                <th className="py-2 pr-3 font-medium">Held</th>
+++                <th className="py-2 pr-3 font-medium">Total</th>
+++                <th className="py-2 font-medium"></th>
+++              </tr>
+++            </thead>
+++            <tbody className="divide-y divide-charcoal/5">
+++              {wallets.map((w) => (
+++                <tr key={w.userId}>
+++                  <td className="py-2 pr-3">
+++                    <span className="font-medium text-charcoal">
+++                      {w.name || "—"}
+++                    </span>
+++                    <span className="block text-xs text-muted">{w.phone}</span>
+++                  </td>
+++                  <td className="py-2 pr-3 font-semibold text-charcoal">
+++                    {formatINR(w.availableInPaise)}
+++                  </td>
+++                  <td className="py-2 pr-3 text-muted">
+++                    {formatINR(w.heldInPaise)}
+++                  </td>
+++                  <td className="py-2 pr-3 text-muted">
+++                    {formatINR(w.totalInPaise)}
+++                  </td>
+++                  <td className="py-2">
+++                    <Link
+++                      href={`/admin/wallet/${w.userId}`}
+++                      className="font-semibold text-brand hover:underline"
+++                    >
+++                      View
+++                    </Link>
+++                  </td>
+++                </tr>
+++              ))}
+++            </tbody>
+++          </table>
+++        </Card>
+++      )}
+++    </section>
+++  );
+++}
++diff --git a/app/dashboard/earn/leaderboard/page.tsx b/app/dashboard/earn/leaderboard/page.tsx
++new file mode 100644
++index 0000000..f0c3f94
++--- /dev/null
+++++ b/app/dashboard/earn/leaderboard/page.tsx
++@@ -0,0 +1,78 @@
+++// Leaderboard (Phase D · D1). MINIMAL consumer surface (premium redesign is a separate track — do
+++// not invest here). Ranks affiliates by completed-referrals (DR-034), never earnings/team-size.
+++// Shows first names + counts only (privacy). Honest empty state (D-29).
+++import { getCurrentUser } from "../../../../lib/auth/session";
+++import { getLeaderboard } from "../../../../lib/affiliate/leaderboard";
+++import { completedReferralCount } from "../../../../lib/affiliate/completion";
+++import { tierProgress } from "../../../../modules/affiliate/tiers";
+++import { Card, CardTitle } from "../../../../components/ui/card";
+++
+++export const dynamic = "force-dynamic";
+++
+++export default async function LeaderboardPage() {
+++  const user = await getCurrentUser();
+++  const [board, myCompleted] = await Promise.all([
+++    getLeaderboard(20),
+++    completedReferralCount(user!.id),
+++  ]);
+++  const mine = tierProgress(myCompleted);
+++
+++  return (
+++    <section aria-labelledby="lb-heading" className="space-y-6">
+++      <h1 id="lb-heading" className="font-heading text-2xl font-bold">
+++        Leaderboard
+++      </h1>
+++
+++      <Card className="bg-gold/10">
+++        <p className="text-sm text-muted">
+++          Ranked by <strong>learners you referred who finished a course</strong>{" "}
+++          — not earnings. Keep helping people learn.
+++        </p>
+++        <p className="mt-2 text-sm">
+++          You&apos;re a <strong>{mine.tier}</strong> with{" "}
+++          <strong>{mine.completedReferrals}</strong> completed referral
+++          {mine.completedReferrals === 1 ? "" : "s"}.
+++          {mine.nextTier && mine.toNext! > 0 && (
+++            <>
+++              {" "}
+++              {mine.toNext} more to reach {mine.nextTier}.
+++            </>
+++          )}
+++        </p>
+++      </Card>
+++
+++      <Card className="space-y-3">
+++        <CardTitle className="text-base">Top contributors</CardTitle>
+++        {board.length === 0 ? (
+++          <p className="rounded-xl bg-charcoal/5 p-4 text-sm text-muted">
+++            No completed referrals yet — be the first to help someone finish a
+++            course.
+++          </p>
+++        ) : (
+++          <ol className="divide-y divide-charcoal/5">
+++            {board.map((e) => (
+++              <li
+++                key={e.userId}
+++                className={
+++                  "flex items-center justify-between gap-3 py-2 text-sm " +
+++                  (e.userId === user!.id ? "font-semibold text-brand" : "")
+++                }
+++              >
+++                <span className="flex items-center gap-3">
+++                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gold/20 text-xs font-bold text-charcoal">
+++                    {e.rank}
+++                  </span>
+++                  {e.displayName || "GoSkilled member"}
+++                  {e.userId === user!.id && " (you)"}
+++                </span>
+++                <span className="text-muted">
+++                  {e.completedReferrals} completed
+++                </span>
+++              </li>
+++            ))}
+++          </ol>
+++        )}
+++      </Card>
+++    </section>
+++  );
+++}
++diff --git a/app/dashboard/earn/my-leads/actions.ts b/app/dashboard/earn/my-leads/actions.ts
++new file mode 100644
++index 0000000..8775aa5
++--- /dev/null
+++++ b/app/dashboard/earn/my-leads/actions.ts
++@@ -0,0 +1,22 @@
+++// My-Leads server actions (Phase D · D3). Owner-scoped: a lead is always created for the signed-in
+++// affiliate. PII is encrypted in the adapter; nothing here logs a phone/email.
+++"use server";
+++import { revalidatePath } from "next/cache";
+++import { getCurrentUser } from "../../../../lib/auth/session";
+++import {
+++  createAffiliateLead,
+++  type LeadInput,
+++} from "../../../../lib/affiliate/leads";
+++
+++export type LeadActionResult = { ok: true } | { ok: false; error: string };
+++
+++export async function addAffiliateLead(
+++  input: LeadInput,
+++): Promise<LeadActionResult> {
+++  const user = await getCurrentUser();
+++  if (!user) return { ok: false, error: "Please sign in." };
+++  const res = await createAffiliateLead(user.id, input);
+++  if (!res.ok) return res;
+++  revalidatePath("/dashboard/earn/my-leads");
+++  return { ok: true };
+++}
++diff --git a/app/dashboard/earn/my-leads/page.tsx b/app/dashboard/earn/my-leads/page.tsx
++new file mode 100644
++index 0000000..34e77a0
++--- /dev/null
+++++ b/app/dashboard/earn/my-leads/page.tsx
++@@ -0,0 +1,115 @@
+++// My-Leads (Phase D · D3). MINIMAL consumer surface. An affiliate's own uploaded leads, owner-scoped,
+++// with a date filter. Phone/email are stored encrypted and decrypted server-side only for the owner.
+++// ⚠️ PII surface — flagged for Fable (owner sees full phone of their own leads; retention TBD).
+++import Link from "next/link";
+++import { getCurrentUser } from "../../../../lib/auth/session";
+++import { listAffiliateLeads } from "../../../../lib/affiliate/leads";
+++import { AddLeadForm } from "../../../../components/affiliate/add-lead-form";
+++import { Card, CardTitle } from "../../../../components/ui/card";
+++
+++export const dynamic = "force-dynamic";
+++
+++type Range = "30d" | "90d" | "all";
+++
+++function fromForRange(range: Range, now: Date): Date | undefined {
+++  if (range === "30d") return new Date(now.getTime() - 30 * 864e5);
+++  if (range === "90d") return new Date(now.getTime() - 90 * 864e5);
+++  return undefined;
+++}
+++
+++function fmtDate(d: Date): string {
+++  return new Intl.DateTimeFormat("en-IN", {
+++    dateStyle: "medium",
+++    timeZone: "Asia/Kolkata",
+++  }).format(d);
+++}
+++
+++export default async function MyLeadsPage({
+++  searchParams,
+++}: {
+++  searchParams: Promise<{ range?: string }>;
+++}) {
+++  const user = await getCurrentUser();
+++  const sp = await searchParams;
+++  const range: Range =
+++    sp.range === "30d" || sp.range === "90d" ? sp.range : "all";
+++  const leads = await listAffiliateLeads(user!.id, {
+++    from: fromForRange(range, new Date()),
+++  });
+++
+++  return (
+++    <section aria-labelledby="ml-heading" className="space-y-6">
+++      <h1 id="ml-heading" className="font-heading text-2xl font-bold">
+++        My Leads
+++      </h1>
+++
+++      <Card className="space-y-3">
+++        <CardTitle className="text-base">Add a lead</CardTitle>
+++        <p className="text-sm text-muted">
+++          Keep track of people you&apos;re inviting. Only you can see these — we
+++          store contact details encrypted.
+++        </p>
+++        <AddLeadForm />
+++      </Card>
+++
+++      <Card className="space-y-3">
+++        <div className="flex items-center justify-between gap-3">
+++          <CardTitle className="text-base">
+++            Your leads · {leads.length}
+++          </CardTitle>
+++          <div className="flex gap-1 text-sm">
+++            {(["30d", "90d", "all"] as Range[]).map((r) => (
+++              <Link
+++                key={r}
+++                href={`/dashboard/earn/my-leads${r === "all" ? "" : `?range=${r}`}`}
+++                aria-current={range === r ? "true" : undefined}
+++                className={
+++                  "rounded-full px-3 py-1 font-medium " +
+++                  (range === r
+++                    ? "bg-charcoal text-white"
+++                    : "bg-charcoal/5 text-charcoal/70 hover:bg-charcoal/10")
+++                }
+++              >
+++                {r === "all" ? "All" : r === "30d" ? "30d" : "90d"}
+++              </Link>
+++            ))}
+++          </div>
+++        </div>
+++        {leads.length === 0 ? (
+++          <p className="rounded-xl bg-charcoal/5 p-4 text-sm text-muted">
+++            No leads in this period yet. Add one above to get started.
+++          </p>
+++        ) : (
+++          <div className="overflow-x-auto">
+++            <table className="w-full text-sm">
+++              <thead>
+++                <tr className="text-left text-xs uppercase tracking-wide text-muted">
+++                  <th className="py-2 pr-3 font-medium">Name</th>
+++                  <th className="py-2 pr-3 font-medium">Mobile</th>
+++                  <th className="py-2 pr-3 font-medium">Email</th>
+++                  <th className="py-2 pr-3 font-medium">Added</th>
+++                  <th className="py-2 font-medium">Note</th>
+++                </tr>
+++              </thead>
+++              <tbody className="divide-y divide-charcoal/5">
+++                {leads.map((l) => (
+++                  <tr key={l.id}>
+++                    <td className="py-2 pr-3 font-medium text-charcoal">
+++                      {l.name || "—"}
+++                    </td>
+++                    <td className="py-2 pr-3 text-muted">{l.phone}</td>
+++                    <td className="py-2 pr-3 text-muted">{l.email || "—"}</td>
+++                    <td className="py-2 pr-3 text-muted">
+++                      {fmtDate(l.createdAt)}
+++                    </td>
+++                    <td className="py-2 text-muted">{l.note || "—"}</td>
+++                  </tr>
+++                ))}
+++              </tbody>
+++            </table>
+++          </div>
+++        )}
+++      </Card>
+++    </section>
+++  );
+++}
++diff --git a/app/dashboard/earn/rewards/page.tsx b/app/dashboard/earn/rewards/page.tsx
++new file mode 100644
++index 0000000..a59bd2a
++--- /dev/null
+++++ b/app/dashboard/earn/rewards/page.tsx
++@@ -0,0 +1,91 @@
+++// Rewards (Phase D · D2). MINIMAL consumer surface. Shows the affiliate's contribution tier + their
+++// progress toward each ACTIVE admin-defined reward, derived from completed-referrals (DR-035). No
+++// earnings framing, no fabricated numbers (D-29). Premium styling deferred to the redesign track.
+++import { getCurrentUser } from "../../../../lib/auth/session";
+++import { getRewardProgress } from "../../../../lib/affiliate/rewards";
+++import { completedReferralCount } from "../../../../lib/affiliate/completion";
+++import { tierProgress } from "../../../../modules/affiliate/tiers";
+++import { Card, CardTitle } from "../../../../components/ui/card";
+++
+++export const dynamic = "force-dynamic";
+++
+++function fmtDate(d: Date): string {
+++  return new Intl.DateTimeFormat("en-IN", {
+++    dateStyle: "medium",
+++    timeZone: "Asia/Kolkata",
+++  }).format(d);
+++}
+++
+++export default async function RewardsPage() {
+++  const user = await getCurrentUser();
+++  const [rewards, completed] = await Promise.all([
+++    getRewardProgress(user!.id),
+++    completedReferralCount(user!.id),
+++  ]);
+++  const mine = tierProgress(completed);
+++
+++  return (
+++    <section aria-labelledby="rw-heading" className="space-y-6">
+++      <h1 id="rw-heading" className="font-heading text-2xl font-bold">
+++        Rewards
+++      </h1>
+++
+++      <Card className="bg-gold/10">
+++        <p className="text-xs font-semibold uppercase tracking-wide text-charcoal/60">
+++          Your tier
+++        </p>
+++        <p className="font-heading text-2xl font-extrabold text-charcoal">
+++          {mine.tier}
+++        </p>
+++        <p className="mt-1 text-sm text-muted">
+++          {mine.completedReferrals} referred learner
+++          {mine.completedReferrals === 1 ? "" : "s"} completed a course.
+++          {mine.nextTier && mine.toNext! > 0 && (
+++            <>
+++              {" "}
+++              {mine.toNext} more to become a {mine.nextTier}.
+++            </>
+++          )}
+++        </p>
+++      </Card>
+++
+++      {rewards.length === 0 ? (
+++        <Card>
+++          <p className="text-sm text-muted">
+++            No rewards are running right now. When a reward opens, you&apos;ll
+++            see your progress here.
+++          </p>
+++        </Card>
+++      ) : (
+++        <div className="space-y-4">
+++          {rewards.map((r) => (
+++            <Card key={r.id} className="space-y-2">
+++              <div className="flex items-baseline justify-between gap-3">
+++                <CardTitle className="text-base">{r.title}</CardTitle>
+++                {r.achieved && (
+++                  <span className="text-xs font-semibold text-brand">
+++                    Achieved ✓
+++                  </span>
+++                )}
+++              </div>
+++              {r.description && (
+++                <p className="text-sm text-muted">{r.description}</p>
+++              )}
+++              <div className="h-2 w-full overflow-hidden rounded-full bg-charcoal/10">
+++                <div
+++                  className="h-full rounded-full bg-gold"
+++                  style={{ width: `${r.percent}%` }}
+++                  aria-hidden
+++                />
+++              </div>
+++              <p className="text-xs text-muted">
+++                {r.current} / {r.target} completed referrals
+++                {r.lastDate && <> · by {fmtDate(r.lastDate)}</>}
+++              </p>
+++            </Card>
+++          ))}
+++        </div>
+++      )}
+++    </section>
+++  );
+++}
++diff --git a/components/admin/admin-nav.tsx b/components/admin/admin-nav.tsx
++index 7b20037..c77a8f7 100644
++--- a/components/admin/admin-nav.tsx
+++++ b/components/admin/admin-nav.tsx
++@@ -9,6 +9,8 @@ import {
++   Flag,
++   ShieldCheck,
++   Banknote,
+++  Wallet,
+++  Trophy,
++   BookOpen,
++   Video,
++   ScrollText,
++@@ -21,7 +23,9 @@ const TABS = [
++   { href: "/admin", label: "Overview", Icon: LayoutDashboard, exact: true },
++   { href: "/admin/kyc", label: "KYC", Icon: ShieldCheck },
++   { href: "/admin/withdrawals", label: "Withdrawals", Icon: Banknote },
+++  { href: "/admin/wallet", label: "Wallets", Icon: Wallet },
++   { href: "/admin/payments", label: "Payments", Icon: CreditCard },
+++  { href: "/admin/rewards", label: "Rewards", Icon: Trophy },
++   { href: "/admin/users", label: "Users", Icon: Users },
++   { href: "/admin/leads", label: "Leads", Icon: Contact },
++   { href: "/admin/review-queue", label: "Review", Icon: Flag },
++diff --git a/components/admin/reward-manager.tsx b/components/admin/reward-manager.tsx
++new file mode 100644
++index 0000000..bbaf537
++--- /dev/null
+++++ b/components/admin/reward-manager.tsx
++@@ -0,0 +1,128 @@
+++"use client";
+++// Admin reward manager (Phase E/D). Create a reward definition + toggle active. Charcoal admin
+++// styling. No money, no PII.
+++import { useState } from "react";
+++import { useRouter } from "next/navigation";
+++import {
+++  createRewardAction,
+++  setRewardActiveAction,
+++} from "../../app/admin/rewards/actions";
+++
+++export function CreateRewardForm() {
+++  const router = useRouter();
+++  const [title, setTitle] = useState("");
+++  const [description, setDescription] = useState("");
+++  const [target, setTarget] = useState("");
+++  const [lastDate, setLastDate] = useState("");
+++  const [busy, setBusy] = useState(false);
+++  const [error, setError] = useState<string | null>(null);
+++
+++  async function onSubmit(e: React.FormEvent) {
+++    e.preventDefault();
+++    setBusy(true);
+++    setError(null);
+++    const res = await createRewardAction({
+++      title,
+++      description: description.trim() || undefined,
+++      target: Number(target),
+++      lastDate: lastDate || undefined,
+++    });
+++    setBusy(false);
+++    if (!res.ok) return setError(res.error);
+++    setTitle("");
+++    setDescription("");
+++    setTarget("");
+++    setLastDate("");
+++    router.refresh();
+++  }
+++
+++  return (
+++    <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
+++      <label className="text-sm">
+++        <span className="mb-1 block font-medium text-charcoal">Title</span>
+++        <input
+++          value={title}
+++          onChange={(e) => setTitle(e.target.value)}
+++          maxLength={120}
+++          required
+++          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
+++        />
+++      </label>
+++      <label className="text-sm">
+++        <span className="mb-1 block font-medium text-charcoal">
+++          Target (completed referrals)
+++        </span>
+++        <input
+++          type="number"
+++          min={1}
+++          value={target}
+++          onChange={(e) => setTarget(e.target.value)}
+++          required
+++          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
+++        />
+++      </label>
+++      <label className="text-sm">
+++        <span className="mb-1 block font-medium text-charcoal">
+++          Description (optional)
+++        </span>
+++        <input
+++          value={description}
+++          onChange={(e) => setDescription(e.target.value)}
+++          maxLength={300}
+++          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
+++        />
+++      </label>
+++      <label className="text-sm">
+++        <span className="mb-1 block font-medium text-charcoal">
+++          Last date (optional)
+++        </span>
+++        <input
+++          type="date"
+++          value={lastDate}
+++          onChange={(e) => setLastDate(e.target.value)}
+++          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
+++        />
+++      </label>
+++      {error && (
+++        <p role="alert" className="text-sm text-red-600 sm:col-span-2">
+++          {error}
+++        </p>
+++      )}
+++      <div className="sm:col-span-2">
+++        <button
+++          type="submit"
+++          disabled={busy}
+++          className="rounded-lg bg-charcoal px-4 py-2 text-sm font-semibold text-white disabled:opacity-40"
+++        >
+++          {busy ? "Creating…" : "Create reward"}
+++        </button>
+++      </div>
+++    </form>
+++  );
+++}
+++
+++export function ToggleRewardActive({
+++  id,
+++  isActive,
+++}: {
+++  id: string;
+++  isActive: boolean;
+++}) {
+++  const router = useRouter();
+++  const [busy, setBusy] = useState(false);
+++  async function toggle() {
+++    setBusy(true);
+++    await setRewardActiveAction(id, !isActive);
+++    setBusy(false);
+++    router.refresh();
+++  }
+++  return (
+++    <button
+++      onClick={toggle}
+++      disabled={busy}
+++      className="rounded-lg border border-charcoal/20 px-3 py-1 text-xs font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
+++    >
+++      {isActive ? "Deactivate" : "Activate"}
+++    </button>
+++  );
+++}
++diff --git a/components/affiliate/add-lead-form.tsx b/components/affiliate/add-lead-form.tsx
++new file mode 100644
++index 0000000..1943354
++--- /dev/null
+++++ b/components/affiliate/add-lead-form.tsx
++@@ -0,0 +1,97 @@
+++"use client";
+++// Add-lead form (Phase D · D3). MINIMAL. Owner-scoped via the server action; PII encrypted server-
+++// side. The client never logs the phone/email.
+++import { useState } from "react";
+++import { addAffiliateLead } from "../../app/dashboard/earn/my-leads/actions";
+++import { Button } from "../ui/button";
+++import { Input } from "../ui/input";
+++import { Label } from "../ui/label";
+++
+++export function AddLeadForm() {
+++  const [name, setName] = useState("");
+++  const [phone, setPhone] = useState("");
+++  const [email, setEmail] = useState("");
+++  const [note, setNote] = useState("");
+++  const [busy, setBusy] = useState(false);
+++  const [error, setError] = useState<string | null>(null);
+++  const [okMsg, setOkMsg] = useState(false);
+++
+++  async function onSubmit(e: React.FormEvent) {
+++    e.preventDefault();
+++    setBusy(true);
+++    setError(null);
+++    setOkMsg(false);
+++    const res = await addAffiliateLead({
+++      name: name.trim() || undefined,
+++      phone,
+++      email: email.trim() || undefined,
+++      note: note.trim() || undefined,
+++    });
+++    setBusy(false);
+++    if (!res.ok) return setError(res.error);
+++    setName("");
+++    setPhone("");
+++    setEmail("");
+++    setNote("");
+++    setOkMsg(true);
+++  }
+++
+++  return (
+++    <form onSubmit={onSubmit} className="space-y-3">
+++      <div className="grid gap-3 sm:grid-cols-2">
+++        <div>
+++          <Label htmlFor="lead-name">Name (optional)</Label>
+++          <Input
+++            id="lead-name"
+++            value={name}
+++            onChange={(e) => setName(e.target.value)}
+++            maxLength={80}
+++          />
+++        </div>
+++        <div>
+++          <Label htmlFor="lead-phone">Mobile number</Label>
+++          <Input
+++            id="lead-phone"
+++            inputMode="numeric"
+++            value={phone}
+++            onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+++            maxLength={10}
+++            placeholder="10-digit mobile"
+++            required
+++          />
+++        </div>
+++        <div>
+++          <Label htmlFor="lead-email">Email (optional)</Label>
+++          <Input
+++            id="lead-email"
+++            type="email"
+++            value={email}
+++            onChange={(e) => setEmail(e.target.value)}
+++          />
+++        </div>
+++        <div>
+++          <Label htmlFor="lead-note">Note (optional)</Label>
+++          <Input
+++            id="lead-note"
+++            value={note}
+++            onChange={(e) => setNote(e.target.value)}
+++            maxLength={200}
+++          />
+++        </div>
+++      </div>
+++      {error && (
+++        <p role="alert" className="text-sm text-red-600">
+++          {error}
+++        </p>
+++      )}
+++      {okMsg && (
+++        <p role="status" className="text-sm font-medium text-brand">
+++          Lead saved ✓
+++        </p>
+++      )}
+++      <Button type="submit" variant="gold" disabled={busy || phone.length < 10}>
+++        {busy ? "Saving…" : "Add lead"}
+++      </Button>
+++    </form>
+++  );
+++}
++diff --git a/components/affiliate/earn-subnav.tsx b/components/affiliate/earn-subnav.tsx
++index 122dfc1..16843da 100644
++--- a/components/affiliate/earn-subnav.tsx
+++++ b/components/affiliate/earn-subnav.tsx
++@@ -11,6 +11,9 @@ const BASE = [
++   { href: "/dashboard/earn", label: "Overview", exact: true },
++   { href: "/dashboard/earn/referrals", label: "Referrals" },
++   { href: "/dashboard/earn/network", label: "My Network" },
+++  { href: "/dashboard/earn/leaderboard", label: "Leaderboard" },
+++  { href: "/dashboard/earn/rewards", label: "Rewards" },
+++  { href: "/dashboard/earn/my-leads", label: "My Leads" },
++ ];
++ const MONEY = [
++   { href: "/dashboard/earn/wallet", label: "Wallet" },
++diff --git a/docs/LAUNCH_CONFIG.md b/docs/LAUNCH_CONFIG.md
++index b9bc620..ac4bd19 100644
++--- a/docs/LAUNCH_CONFIG.md
+++++ b/docs/LAUNCH_CONFIG.md
++@@ -71,6 +71,9 @@
++ | 48 | KYC documents private bucket | Supabase Storage `kyc-docs` — Phase C §3 | External Service | PENDING | Founder | Bucket created **private** (public:false) on first upload via `lib/storage/kyc-docs.ensureKycBucket`; access only via server-authorized short-lived signed URLs. No public URLs ever | Confirm the private bucket exists on the prod Supabase project | LAUNCH (before real uploads) | Pre-launch | Object paths stored AES-256-GCM-encrypted; owner/admin-only access; admin views reveal-logged. |
++ | 49 | KYC address-proof document types | KYC (`lib/kyc/doc-types.ts`) — Phase C §3 | Content | PENDING | Founder | Placeholder list: Aadhaar / Driving licence / Voter ID / Passport | Founder-confirmed option list | LAUNCH | Pre-launch | Open point §7. |
++ | 50 | Withdrawal application window | withdraw (`modules/wallet/withdrawal.ts`) — Phase C §4 · DR-001 | Configuration | PENDING | Founder | Apply **anytime** (default); payout **processing cycle = Monday**, manual payout within 24h → Tuesday (DR-001). Statuses Applied→In-Progress→Paid | Confirm anytime vs Monday-only | LAUNCH | Pre-launch | Open point §7 — anytime recommended. UPI optional (default). Real disbursement stays OFF (D-01). |
+++| 51 | Contribution tier thresholds | affiliate (`modules/affiliate/tiers.ts`) — Phase D | Configuration | PENDING | Founder | Contributor / Mentor (≥5) / Community Champion (≥15) completed-referrals; override via `TIER_MENTOR_AT` / `TIER_CHAMPION_AT` | Founder-confirmed thresholds | OPTIONAL | Pre-launch | Safe defaults in code. Tiers rank by learning contribution (DR-035), never earnings. |
+++| 52 | My-Leads PII policy | affiliate (`lib/affiliate/leads.ts`) — Phase D | **Legal/PII → Fable** | PENDING | Founder + Counsel | Affiliate-uploaded leads: phone/email AES-256-GCM encrypted at rest, owner-scoped; the OWNER currently sees their own leads' FULL phone (decrypted). Retention undefined | Confirm: mask even to owner? retention window? consent copy? | LAUNCH | Pre-launch | ⚠️ Flagged for Fable. RLS-on table; never logged. |
+++| 53 | Reward definitions (content) | admin (`/admin/rewards`, `RewardDefinition`) — Phase D | Content | PENDING | Founder | Admin-configurable rewards (title/target/last-date/description); none seeded — empty until the founder creates them (D-29 honest empty) | Founder-created reward set | OPTIONAL | Pre-launch | Metric = completed-referrals (learning-first). No income framing (D-29). |
++ 
++ ---
++ 
++@@ -84,3 +87,4 @@
++ - 2026-07-09 — Phase A Auth+Referral rework (DR-036/DR-038, supersedes DR-030): added #42 (no-code contact channels), #43 (password min-length policy), #44 (Phase A register/login/checkout copy — supersedes register half of #34). Referral code now MANDATORY to register; login gains password + OTP reset; earning gate wired to own confirmed purchase (DR-038). Parked for Fable Tier-A review.
++ - 2026-07-10 — Phase B Referral-Engine+Dashboard (DR-007/DR-038): B1 ACTIVATED the earning gate in the webhook (an upline earns only with their own PAID purchase — Tier-A). Surfacing (B2–B6): added #45 (commission-structure copy), #46 (affiliate labels). Network graphs + L1/L2/L3 tables (L1 exportable, L2/L3 masked+non-exportable) + wallet graph + rewards-structure page. Payouts stay OFF (D-01). Parked for Fable (B1) / Opus (B2–B6).
++ - 2026-07-10 — Phase C KYC+Withdraw (DR-037/DR-025/DR-001): KYC expansion (contact verify flags, doc uploads to a PRIVATE bucket, PAN/account/doc-paths encrypted, admin reveal-logged) + withdraw lifecycle (Applied→In-Progress→Paid, min ₹500/max ₹25k, KYC+available+single-pending+payoutsEnabled gates). Added #47 (verify provider), #48 (private bucket), #49 (doc-type list), #50 (withdrawal window). Additive migration `20260710120000_kyc_phasec_expansion` (applied). **No real disbursement — D-01 OFF gate enforced at mark-paid.** Parked for Fable Tier-A.
+++- 2026-07-10 — Phase D/E overnight (admin expansion + engagement engines): leaderboard (ranks by completed-referrals, DR-034/035), tiers, rewards engine, My-Leads (encrypted PII), admin KPI graphs + read-only wallet-manage + rewards admin. Added #51 (tier thresholds), #52 (My-Leads PII policy → **Fable**), #53 (reward definitions content). Additive migration `20260710130000_phasede_rewards_leads` (applied, RLS on both tables). No money moved. Parked — mostly Opus Tier-B; My-Leads PII → Fable.
++diff --git a/lib/admin/kpi.ts b/lib/admin/kpi.ts
++new file mode 100644
++index 0000000..848dab8
++--- /dev/null
+++++ b/lib/admin/kpi.ts
++@@ -0,0 +1,84 @@
+++// Admin KPI aggregates (Phase E · E1). REAL aggregates from canon only (D-29 — empty in → empty
+++// series, never a fabricated bar). Time series are bucketed by the shared analytics helpers so the
+++// admin graphs reuse MiniChart. Read-only; no money moves.
+++import { prisma } from "../prisma";
+++import {
+++  sumByBucket,
+++  countByBucket,
+++  type SeriesPoint,
+++} from "../affiliate/analytics";
+++import { heldBalanceOf, availableBalanceOf } from "../../modules/ledger/ledger";
+++
+++export interface AdminKpis {
+++  registrations: SeriesPoint[]; // new users by month
+++  purchases: SeriesPoint[]; // PAID orders by month
+++  commissionsCredited: SeriesPoint[]; // positive COMMISSION wallet legs, by month
+++  withdrawalsByStatus: SeriesPoint[]; // categorical counts
+++  kycPipeline: SeriesPoint[]; // categorical counts
+++  commissionsHeldInPaise: number; // snapshot across all affiliate wallets
+++  commissionsAvailableInPaise: number;
+++}
+++
+++const CATEGORY_LABEL = (s: string) =>
+++  s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ");
+++
+++export async function getAdminKpis(): Promise<AdminKpis> {
+++  const [
+++    users,
+++    paidOrders,
+++    commissionLegs,
+++    withdrawalGroups,
+++    kycGroups,
+++    walletEntries,
+++  ] = await Promise.all([
+++    prisma.user.findMany({ select: { createdAt: true } }),
+++    prisma.order.findMany({
+++      where: { status: "PAID" },
+++      select: { paidAt: true, createdAt: true },
+++    }),
+++    prisma.ledgerEntry.findMany({
+++      where: { amountInPaise: { gt: 0 }, transaction: { type: "COMMISSION" } },
+++      select: { amountInPaise: true, createdAt: true },
+++    }),
+++    prisma.withdrawal.groupBy({ by: ["status"], _count: { _all: true } }),
+++    prisma.kyc.groupBy({ by: ["status"], _count: { _all: true } }),
+++    prisma.ledgerEntry.findMany({
+++      where: { account: { type: "USER_WALLET" } },
+++      select: { amountInPaise: true, holdUntil: true },
+++    }),
+++  ]);
+++
+++  return {
+++    registrations: countByBucket(
+++      users.map((u) => u.createdAt),
+++      "month",
+++    ),
+++    purchases: countByBucket(
+++      paidOrders.map((o) => o.paidAt ?? o.createdAt),
+++      "month",
+++    ),
+++    commissionsCredited: sumByBucket(
+++      commissionLegs.map((e) => ({
+++        date: e.createdAt,
+++        value: e.amountInPaise,
+++      })),
+++      "month",
+++    ),
+++    withdrawalsByStatus: withdrawalGroups
+++      .map((g) => ({
+++        key: g.status,
+++        label: CATEGORY_LABEL(g.status),
+++        value: g._count._all,
+++      }))
+++      .sort((a, b) => (a.key < b.key ? -1 : 1)),
+++    kycPipeline: kycGroups
+++      .map((g) => ({
+++        key: g.status,
+++        label: CATEGORY_LABEL(g.status),
+++        value: g._count._all,
+++      }))
+++      .sort((a, b) => (a.key < b.key ? -1 : 1)),
+++    commissionsHeldInPaise: heldBalanceOf(walletEntries),
+++    commissionsAvailableInPaise: availableBalanceOf(walletEntries),
+++  };
+++}
++diff --git a/lib/admin/rewards.ts b/lib/admin/rewards.ts
++new file mode 100644
++index 0000000..134f83c
++--- /dev/null
+++++ b/lib/admin/rewards.ts
++@@ -0,0 +1,85 @@
+++// Admin reward-definition management (Phase D · DR-035). Admin-configurable reward targets. Every
+++// mutation is audited (recordAdminAction). No money, no PII. Validation is server-side.
+++import { prisma } from "../prisma";
+++import type { AdminIdentity } from "../auth/admin";
+++import { recordAdminAction } from "./audit";
+++
+++export interface RewardInput {
+++  title: string;
+++  description?: string | null;
+++  target: number;
+++  metric?: string;
+++  lastDate?: Date | null;
+++}
+++
+++export type RewardResult =
+++  { ok: true; id: string } | { ok: false; error: string };
+++
+++export async function listRewardDefinitions() {
+++  return prisma.rewardDefinition.findMany({ orderBy: { createdAt: "desc" } });
+++}
+++
+++function validate(input: RewardInput): string | null {
+++  if (!input.title?.trim()) return "Title is required.";
+++  if (!Number.isInteger(input.target) || input.target <= 0)
+++    return "Target must be a positive whole number.";
+++  return null;
+++}
+++
+++export async function createReward(
+++  actor: AdminIdentity,
+++  input: RewardInput,
+++): Promise<RewardResult> {
+++  const err = validate(input);
+++  if (err) return { ok: false, error: err };
+++  try {
+++    const id = await prisma.$transaction(async (tx) => {
+++      const r = await tx.rewardDefinition.create({
+++        data: {
+++          title: input.title.trim(),
+++          description: input.description?.trim() || null,
+++          target: input.target,
+++          metric: input.metric?.trim() || "completed_referrals",
+++          lastDate: input.lastDate ?? null,
+++        },
+++        select: { id: true },
+++      });
+++      await recordAdminAction(tx, {
+++        actor,
+++        action: "REWARD_CREATED",
+++        entity: "RewardDefinition",
+++        entityId: r.id,
+++        meta: {
+++          target: input.target,
+++          metric: input.metric ?? "completed_referrals",
+++        },
+++      });
+++      return r.id;
+++    });
+++    return { ok: true, id };
+++  } catch {
+++    return { ok: false, error: "Could not create reward." };
+++  }
+++}
+++
+++export async function setRewardActive(
+++  actor: AdminIdentity,
+++  id: string,
+++  isActive: boolean,
+++): Promise<RewardResult> {
+++  try {
+++    await prisma.$transaction(async (tx) => {
+++      await tx.rewardDefinition.update({ where: { id }, data: { isActive } });
+++      await recordAdminAction(tx, {
+++        actor,
+++        action: "REWARD_UPDATED",
+++        entity: "RewardDefinition",
+++        entityId: id,
+++        meta: { isActive },
+++      });
+++    });
+++    return { ok: true, id };
+++  } catch {
+++    return { ok: false, error: "Could not update reward." };
+++  }
+++}
++diff --git a/lib/admin/wallet.ts b/lib/admin/wallet.ts
++new file mode 100644
++index 0000000..947cb9d
++--- /dev/null
+++++ b/lib/admin/wallet.ts
++@@ -0,0 +1,71 @@
+++// Admin wallet-manage (Phase E · E2) — READ-ONLY. Lets an admin inspect affiliate wallet/ledger
+++// balances + history for support/audit. NO money movement here (payouts live only in
+++// lib/admin/withdrawals). Derived from the ledger; admin-authorized at the page/layer.
+++import { prisma } from "../prisma";
+++import {
+++  balanceOf,
+++  heldBalanceOf,
+++  availableBalanceOf,
+++} from "../../modules/ledger/ledger";
+++import {
+++  getWalletSummaryFor,
+++  getWalletHistory,
+++  type WalletHistoryItem,
+++} from "../wallet/queries";
+++import type { WalletSummary } from "../../modules/wallet/summary";
+++
+++export interface AdminWalletRow {
+++  userId: string;
+++  name: string | null;
+++  phone: string | null;
+++  heldInPaise: number;
+++  availableInPaise: number;
+++  totalInPaise: number;
+++}
+++
+++/** All affiliate wallets with a non-empty balance history, richest available-balance first. */
+++export async function listAffiliateWallets(): Promise<AdminWalletRow[]> {
+++  const accounts = await prisma.ledgerAccount.findMany({
+++    where: { type: "USER_WALLET", userId: { not: null } },
+++    select: {
+++      userId: true,
+++      entries: { select: { amountInPaise: true, holdUntil: true } },
+++      user: { select: { name: true, phone: true } },
+++    },
+++  });
+++  return accounts
+++    .filter((a) => a.entries.length > 0)
+++    .map((a) => ({
+++      userId: a.userId!,
+++      name: a.user?.name ?? null,
+++      phone: a.user?.phone ?? null,
+++      heldInPaise: heldBalanceOf(a.entries),
+++      availableInPaise: availableBalanceOf(a.entries),
+++      totalInPaise: balanceOf(a.entries),
+++    }))
+++    .sort((x, y) => y.availableInPaise - x.availableInPaise);
+++}
+++
+++export interface AdminWalletDetail {
+++  userId: string;
+++  name: string | null;
+++  phone: string | null;
+++  summary: WalletSummary;
+++  history: WalletHistoryItem[];
+++}
+++
+++/** One affiliate's wallet detail (summary + full history). Read-only. Null if the user doesn't exist. */
+++export async function getAffiliateWalletDetail(
+++  userId: string,
+++): Promise<AdminWalletDetail | null> {
+++  const user = await prisma.user.findUnique({
+++    where: { id: userId },
+++    select: { name: true, phone: true },
+++  });
+++  if (!user) return null;
+++  const [summary, history] = await Promise.all([
+++    getWalletSummaryFor(userId),
+++    getWalletHistory(userId),
+++  ]);
+++  return { userId, name: user.name, phone: user.phone, summary, history };
+++}
++diff --git a/lib/affiliate/completion.ts b/lib/affiliate/completion.ts
++new file mode 100644
++index 0000000..8da318c
++--- /dev/null
+++++ b/lib/affiliate/completion.ts
++@@ -0,0 +1,11 @@
+++// Completed-referrals signal (Phase D · DR-034). The one canonical metric behind the leaderboard,
+++// tiers, and rewards: how many of a user's DIRECT referrals have completed a course. "Completed" =
+++// has a Certificate row (issued only on 100% + mandatory quizzes passed — see lib/lms/certificate).
+++// Derived from canon; never stored, never fabricated (D-29).
+++import { prisma } from "../prisma";
+++
+++export async function completedReferralCount(userId: string): Promise<number> {
+++  return prisma.user.count({
+++    where: { referredById: userId, certificates: { some: {} } },
+++  });
+++}
++diff --git a/lib/affiliate/leaderboard.ts b/lib/affiliate/leaderboard.ts
++new file mode 100644
++index 0000000..db69153
++--- /dev/null
+++++ b/lib/affiliate/leaderboard.ts
++@@ -0,0 +1,59 @@
+++// Leaderboard adapter (Phase D · DR-034/DR-035). Tally each affiliate's referred learners who have
+++// completed a course (a Certificate row), then rank by that count only (pure rankLeaderboard). No
+++// earnings, no team size. Privacy: only the affiliate's own FIRST NAME + their count are shown —
+++// never their downlines' identities. Honest empty state (D-29): no completions → empty board.
+++import { prisma } from "../prisma";
+++import {
+++  rankLeaderboard,
+++  type RankedEntry,
+++} from "../../modules/affiliate/leaderboard";
+++
+++/** Tally completed-referrals per referrer across the whole graph (direct edges). */
+++async function completedReferralTally(): Promise<Map<string, number>> {
+++  const learners = await prisma.user.findMany({
+++    where: { referredById: { not: null }, certificates: { some: {} } },
+++    select: { referredById: true },
+++  });
+++  const tally = new Map<string, number>();
+++  for (const l of learners) {
+++    if (!l.referredById) continue;
+++    tally.set(l.referredById, (tally.get(l.referredById) ?? 0) + 1);
+++  }
+++  return tally;
+++}
+++
+++/** Top affiliates ranked by completed-referrals (DR-034). Empty when nobody has completions yet. */
+++export async function getLeaderboard(limit = 20): Promise<RankedEntry[]> {
+++  const tally = await completedReferralTally();
+++  if (tally.size === 0) return [];
+++  const referrers = await prisma.user.findMany({
+++    where: { id: { in: [...tally.keys()] } },
+++    select: { id: true, name: true },
+++  });
+++  const entries = referrers.map((r) => ({
+++    userId: r.id,
+++    displayName: r.name?.trim().split(/\s+/)[0] || null,
+++    completedReferrals: tally.get(r.id) ?? 0,
+++  }));
+++  return rankLeaderboard(entries).slice(0, Math.max(0, limit));
+++}
+++
+++/** The user's own standing in the full ranking, or null if they have no completed referrals. */
+++export async function getMyLeaderboardStanding(
+++  userId: string,
+++): Promise<RankedEntry | null> {
+++  const tally = await completedReferralTally();
+++  if (!tally.has(userId)) return null;
+++  const referrers = await prisma.user.findMany({
+++    where: { id: { in: [...tally.keys()] } },
+++    select: { id: true, name: true },
+++  });
+++  const ranked = rankLeaderboard(
+++    referrers.map((r) => ({
+++      userId: r.id,
+++      displayName: r.name?.trim().split(/\s+/)[0] || null,
+++      completedReferrals: tally.get(r.id) ?? 0,
+++    })),
+++  );
+++  return ranked.find((e) => e.userId === userId) ?? null;
+++}
++diff --git a/lib/affiliate/leads.ts b/lib/affiliate/leads.ts
++new file mode 100644
++index 0000000..0725ca0
++--- /dev/null
+++++ b/lib/affiliate/leads.ts
++@@ -0,0 +1,101 @@
+++// My-Leads adapter (Phase D · D3). Affiliate-uploaded leads for their own follow-up. PII (phone,
+++// email) is AES-256-GCM encrypted at rest (Phase-C pattern) and decrypted server-side ONLY, for the
+++// OWNER's own list. Owner-scoped everywhere — a query without the ownerId filter is never issued.
+++// Never logged. ⚠️ FLAGGED for Fable: whether the owner should see full vs masked phone, + retention.
+++import { prisma } from "../prisma";
+++import { encryptPii, decryptPii, maskLast4 } from "../pii";
+++import { normalizeWhatsapp, isValidEmail } from "../../modules/kyc/verify";
+++
+++export interface LeadInput {
+++  name?: string;
+++  phone: string;
+++  email?: string;
+++  note?: string;
+++}
+++
+++export interface LeadRow {
+++  id: string;
+++  name: string | null;
+++  phone: string; // full, decrypted for the owner (their own uploaded lead)
+++  email: string | null;
+++  note: string | null;
+++  status: string;
+++  createdAt: Date;
+++}
+++
+++export interface LeadFilters {
+++  from?: Date;
+++  to?: Date;
+++}
+++
+++export type CreateLeadResult =
+++  { ok: true; id: string } | { ok: false; error: string };
+++
+++/** Create an owner-scoped lead. Phone required + validated; phone/email encrypted before storage. */
+++export async function createAffiliateLead(
+++  ownerId: string,
+++  input: LeadInput,
+++): Promise<CreateLeadResult> {
+++  const phone = normalizeWhatsapp(input.phone);
+++  if (!phone)
+++    return { ok: false, error: "Enter a valid 10-digit mobile number." };
+++  const rawEmail = input.email?.trim();
+++  let emailEnc: string | null = null;
+++  if (rawEmail) {
+++    if (!isValidEmail(rawEmail))
+++      return { ok: false, error: "Enter a valid email or leave it blank." };
+++    emailEnc = encryptPii(rawEmail.toLowerCase());
+++  }
+++  try {
+++    const lead = await prisma.affiliateLead.create({
+++      data: {
+++        ownerId,
+++        name: input.name?.trim() || null,
+++        phoneEnc: encryptPii(phone),
+++        emailEnc,
+++        note: input.note?.trim() || null,
+++      },
+++      select: { id: true },
+++    });
+++    return { ok: true, id: lead.id };
+++  } catch {
+++    return { ok: false, error: "Could not save the lead. Please try again." };
+++  }
+++}
+++
+++function safeDecrypt(payload: string): string {
+++  try {
+++    return decryptPii(payload);
+++  } catch {
+++    return "•••• ????"; // never surface ciphertext or throw into the UI
+++  }
+++}
+++
+++/** The owner's leads (newest first), optionally filtered by created date. Owner-scoped. */
+++export async function listAffiliateLeads(
+++  ownerId: string,
+++  filters: LeadFilters = {},
+++): Promise<LeadRow[]> {
+++  const createdAt =
+++    filters.from || filters.to
+++      ? { gte: filters.from, lte: filters.to }
+++      : undefined;
+++  const rows = await prisma.affiliateLead.findMany({
+++    where: { ownerId, ...(createdAt ? { createdAt } : {}) },
+++    orderBy: { createdAt: "desc" },
+++  });
+++  return rows.map((r) => ({
+++    id: r.id,
+++    name: r.name,
+++    phone: safeDecrypt(r.phoneEnc),
+++    email: r.emailEnc ? safeDecrypt(r.emailEnc) : null,
+++    note: r.note,
+++    status: r.status,
+++    createdAt: r.createdAt,
+++  }));
+++}
+++
+++/** Admin/aggregate-safe masked view of a lead phone (if ever surfaced outside the owner). */
+++export function maskLeadPhone(fullPhone: string): string {
+++  return maskLast4(fullPhone);
+++}
++diff --git a/lib/affiliate/rewards.ts b/lib/affiliate/rewards.ts
++new file mode 100644
++index 0000000..9c325a6
++--- /dev/null
+++++ b/lib/affiliate/rewards.ts
++@@ -0,0 +1,46 @@
+++// Rewards progress (Phase D · DR-035). Consumer-side read: for each ACTIVE admin-defined reward,
+++// compute the affiliate's progress from canon (completed-referrals). No stored progress, no
+++// fabricated numbers (D-29). Learning-first framing — never earnings.
+++import { prisma } from "../prisma";
+++import { completedReferralCount } from "./completion";
+++
+++export interface RewardProgress {
+++  id: string;
+++  title: string;
+++  description: string | null;
+++  metric: string;
+++  target: number;
+++  lastDate: Date | null;
+++  current: number;
+++  achieved: boolean;
+++  percent: number; // 0..100 (clamped)
+++}
+++
+++export async function getRewardProgress(
+++  userId: string,
+++): Promise<RewardProgress[]> {
+++  const rewards = await prisma.rewardDefinition.findMany({
+++    where: { isActive: true },
+++    orderBy: { target: "asc" },
+++  });
+++  if (rewards.length === 0) return [];
+++  // Only "completed_referrals" is wired today; other metrics read 0 until implemented (honest).
+++  const completed = await completedReferralCount(userId);
+++  return rewards.map((r) => {
+++    const current = r.metric === "completed_referrals" ? completed : 0;
+++    return {
+++      id: r.id,
+++      title: r.title,
+++      description: r.description,
+++      metric: r.metric,
+++      target: r.target,
+++      lastDate: r.lastDate,
+++      current,
+++      achieved: current >= r.target,
+++      percent:
+++        r.target > 0
+++          ? Math.min(100, Math.round((current / r.target) * 100))
+++          : 0,
+++    };
+++  });
+++}
++diff --git a/modules/affiliate/leaderboard.ts b/modules/affiliate/leaderboard.ts
++new file mode 100644
++index 0000000..2835b1b
++--- /dev/null
+++++ b/modules/affiliate/leaderboard.ts
++@@ -0,0 +1,36 @@
+++// Leaderboard ranking — PURE domain (Phase D · DR-034/DR-035). The ONLY ranking signal is
+++// "completed referrals" = referred learners who have completed a course. It is NEVER earnings and
+++// NEVER raw team/network size (DR-035 compliance-safe, learning-first). This module is framework/
+++// DB-free and unit-tested; the adapter (lib/affiliate/leaderboard.ts) supplies the counts from canon.
+++
+++export interface LeaderboardEntry {
+++  userId: string;
+++  displayName: string | null; // first name only (privacy)
+++  completedReferrals: number; // referred learners who completed ≥1 course (DR-034)
+++}
+++
+++export interface RankedEntry extends LeaderboardEntry {
+++  rank: number;
+++}
+++
+++/**
+++ * Rank by completedReferrals DESC (DR-034). Equal counts share a rank (competition ranking: 1,2,2,4).
+++ * Ties are ordered deterministically by userId so the output is stable. NEVER sorts by earnings or
+++ * team size — those aren't even inputs here (DR-035).
+++ */
+++export function rankLeaderboard(entries: LeaderboardEntry[]): RankedEntry[] {
+++  const sorted = [...entries].sort(
+++    (a, b) =>
+++      b.completedReferrals - a.completedReferrals ||
+++      (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0),
+++  );
+++  let rank = 0;
+++  let prevCount: number | null = null;
+++  return sorted.map((e, i) => {
+++    if (prevCount === null || e.completedReferrals !== prevCount) {
+++      rank = i + 1; // competition ranking — skip after ties
+++      prevCount = e.completedReferrals;
+++    }
+++    return { ...e, rank };
+++  });
+++}
++diff --git a/modules/affiliate/tiers.ts b/modules/affiliate/tiers.ts
++new file mode 100644
++index 0000000..c00f5e0
++--- /dev/null
+++++ b/modules/affiliate/tiers.ts
++@@ -0,0 +1,71 @@
+++// Contribution tiers — PURE domain (Phase D · DR-035). Tiers reflect learning contribution
+++// (referred learners who completed a course), NEVER earnings or team size. Thresholds are
+++// configurable (LAUNCH_CONFIG — flagged); progress is derived from canon, never stored/fabricated.
+++
+++export type Tier = "Contributor" | "Mentor" | "Community Champion";
+++
+++export interface TierThresholds {
+++  mentor: number; // completed-referrals to reach Mentor
+++  champion: number; // completed-referrals to reach Community Champion
+++}
+++
+++// Safe defaults — FLAGGED for the founder (LAUNCH_CONFIG). Learning-first framing (DR-035).
+++export const DEFAULT_TIER_THRESHOLDS: TierThresholds = {
+++  mentor: 5,
+++  champion: 15,
+++};
+++
+++/** Read thresholds from env (TIER_MENTOR_AT / TIER_CHAMPION_AT), falling back to safe defaults. */
+++export function tierThresholds(): TierThresholds {
+++  const mentor = Number(process.env.TIER_MENTOR_AT);
+++  const champion = Number(process.env.TIER_CHAMPION_AT);
+++  return {
+++    mentor:
+++      Number.isInteger(mentor) && mentor > 0
+++        ? mentor
+++        : DEFAULT_TIER_THRESHOLDS.mentor,
+++    champion:
+++      Number.isInteger(champion) && champion > 0
+++        ? champion
+++        : DEFAULT_TIER_THRESHOLDS.champion,
+++  };
+++}
+++
+++export function computeTier(
+++  completedReferrals: number,
+++  t: TierThresholds = tierThresholds(),
+++): Tier {
+++  if (completedReferrals >= t.champion) return "Community Champion";
+++  if (completedReferrals >= t.mentor) return "Mentor";
+++  return "Contributor";
+++}
+++
+++export interface TierProgress {
+++  tier: Tier;
+++  completedReferrals: number;
+++  nextTier: Tier | null; // null when already at the top
+++  toNext: number | null; // how many more completions to reach the next tier
+++}
+++
+++/** Current tier + how far to the next one. All derived — honest, no fabricated numbers. */
+++export function tierProgress(
+++  completedReferrals: number,
+++  t: TierThresholds = tierThresholds(),
+++): TierProgress {
+++  const tier = computeTier(completedReferrals, t);
+++  if (tier === "Community Champion")
+++    return { tier, completedReferrals, nextTier: null, toNext: null };
+++  if (tier === "Mentor")
+++    return {
+++      tier,
+++      completedReferrals,
+++      nextTier: "Community Champion",
+++      toNext: Math.max(0, t.champion - completedReferrals),
+++    };
+++  return {
+++    tier,
+++    completedReferrals,
+++    nextTier: "Mentor",
+++    toNext: Math.max(0, t.mentor - completedReferrals),
+++  };
+++}
++diff --git a/prisma/migrations/20260710130000_phasede_rewards_leads/migration.sql b/prisma/migrations/20260710130000_phasede_rewards_leads/migration.sql
++new file mode 100644
++index 0000000..62f8860
++--- /dev/null
+++++ b/prisma/migrations/20260710130000_phasede_rewards_leads/migration.sql
++@@ -0,0 +1,51 @@
+++-- Phase D — Rewards/Tiers + My-Leads. ADDITIVE ONLY, idempotent. Two new tables, both RLS-enabled.
+++
+++-- ── RewardDefinition (admin-configurable reward targets) ────────────────────────────────────
+++CREATE TABLE IF NOT EXISTS "RewardDefinition" (
+++    "id"          TEXT NOT NULL,
+++    "title"       TEXT NOT NULL,
+++    "description" TEXT,
+++    "metric"      TEXT NOT NULL DEFAULT 'completed_referrals',
+++    "target"      INTEGER NOT NULL,
+++    "lastDate"    TIMESTAMP(3),
+++    "isActive"    BOOLEAN NOT NULL DEFAULT true,
+++    "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+++    "updatedAt"   TIMESTAMP(3) NOT NULL,
+++    CONSTRAINT "RewardDefinition_pkey" PRIMARY KEY ("id")
+++);
+++
+++-- ── AffiliateLead (affiliate-uploaded leads; phone/email encrypted) ─────────────────────────
+++DO $$
+++BEGIN
+++    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AffiliateLeadStatus') THEN
+++        CREATE TYPE "AffiliateLeadStatus" AS ENUM ('NEW', 'CONTACTED', 'CONVERTED', 'LOST');
+++    END IF;
+++END $$;
+++
+++CREATE TABLE IF NOT EXISTS "AffiliateLead" (
+++    "id"        TEXT NOT NULL,
+++    "ownerId"   TEXT NOT NULL,
+++    "name"      TEXT,
+++    "phoneEnc"  TEXT NOT NULL,
+++    "emailEnc"  TEXT,
+++    "note"      TEXT,
+++    "status"    "AffiliateLeadStatus" NOT NULL DEFAULT 'NEW',
+++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+++    CONSTRAINT "AffiliateLead_pkey" PRIMARY KEY ("id")
+++);
+++
+++CREATE INDEX IF NOT EXISTS "AffiliateLead_ownerId_createdAt_idx"
+++    ON "AffiliateLead"("ownerId", "createdAt");
+++
+++DO $$
+++BEGIN
+++    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AffiliateLead_ownerId_fkey') THEN
+++        ALTER TABLE "AffiliateLead"
+++            ADD CONSTRAINT "AffiliateLead_ownerId_fkey"
+++            FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+++    END IF;
+++END $$;
+++
+++-- RLS: every new public table ships RLS ENABLED, deny-all (no policies) — golden rule 15.
+++ALTER TABLE "RewardDefinition" ENABLE ROW LEVEL SECURITY;
+++ALTER TABLE "AffiliateLead" ENABLE ROW LEVEL SECURITY;
++diff --git a/prisma/schema.prisma b/prisma/schema.prisma
++index 46f9098..1de9bc4 100644
++--- a/prisma/schema.prisma
+++++ b/prisma/schema.prisma
++@@ -66,6 +66,7 @@ model User {
++   guruMessages  GuruMessage[]
++   emailLogs     EmailLog[]
++   contactVerifications ContactVerification[]
+++  affiliateLeads AffiliateLead[]
++ }
++ 
++ // ─────────────── Catalog / LMS ───────────────
++@@ -521,3 +522,43 @@ model EmailLog {
++   sentAt    DateTime @default(now())
++   @@index([userId])
++ }
+++
+++// ─────────────── Phase D — Rewards / Tiers (DR-034/DR-035) ───────────────
+++// Admin-configurable reward definitions. `metric` names what `target` measures (default:
+++// completed-referrals — learning-first, NEVER earnings/team-size, DR-035). Per-affiliate progress
+++// is DERIVED from canon (no stored progress column → never stale, never fabricated).
+++model RewardDefinition {
+++  id          String    @id @default(cuid())
+++  title       String
+++  description String?
+++  metric      String    @default("completed_referrals") // what `target` counts
+++  target      Int                                        // e.g. 10 completed referrals
+++  lastDate    DateTime?                                  // optional deadline
+++  isActive    Boolean   @default(true)
+++  createdAt   DateTime  @default(now())
+++  updatedAt   DateTime  @updatedAt
+++}
+++
+++// ─────────────── Phase D — My-Leads (affiliate-uploaded, owner-scoped, PII) ───────────────
+++// Distinct from the CRM `Lead` (public funnel). These are leads an AFFILIATE uploads for their own
+++// follow-up. Phone/email are PII → AES-256-GCM encrypted at rest (lib/pii), masked on display,
+++// owner-scoped access, never logged. (Flagged for Fable — PII policy.)
+++enum AffiliateLeadStatus {
+++  NEW
+++  CONTACTED
+++  CONVERTED
+++  LOST
+++}
+++
+++model AffiliateLead {
+++  id        String              @id @default(cuid())
+++  ownerId   String                                        // the affiliate who uploaded this lead
+++  owner     User                @relation(fields: [ownerId], references: [id])
+++  name      String?
+++  phoneEnc  String                                        // AES-256-GCM ciphertext (PII)
+++  emailEnc  String?                                       // optional PII, encrypted
+++  note      String?
+++  status    AffiliateLeadStatus @default(NEW)
+++  createdAt DateTime            @default(now())
+++  @@index([ownerId, createdAt])
+++}
++diff --git a/tests/leaderboard.test.ts b/tests/leaderboard.test.ts
++new file mode 100644
++index 0000000..eb719ce
++--- /dev/null
+++++ b/tests/leaderboard.test.ts
++@@ -0,0 +1,43 @@
+++// Phase D · D1 — leaderboard ranking (DR-034/DR-035). Pure. The ONLY signal is completed-referrals;
+++// earnings/team-size are not even inputs.
+++import { describe, it, expect } from "vitest";
+++import { rankLeaderboard } from "@/modules/affiliate/leaderboard";
+++
+++describe("rankLeaderboard", () => {
+++  it("ranks by completedReferrals DESC; ties share a rank (competition ranking 1,1,3,4)", () => {
+++    const r = rankLeaderboard([
+++      { userId: "a", displayName: "A", completedReferrals: 2 },
+++      { userId: "b", displayName: "B", completedReferrals: 5 },
+++      { userId: "c", displayName: "C", completedReferrals: 5 },
+++      { userId: "d", displayName: "D", completedReferrals: 1 },
+++    ]);
+++    expect(r.map((e) => [e.userId, e.rank])).toEqual([
+++      ["b", 1],
+++      ["c", 1],
+++      ["a", 3],
+++      ["d", 4],
+++    ]);
+++  });
+++
+++  it("is deterministic on ties (ordered by userId)", () => {
+++    const r = rankLeaderboard([
+++      { userId: "z", displayName: null, completedReferrals: 3 },
+++      { userId: "a", displayName: null, completedReferrals: 3 },
+++    ]);
+++    expect(r.map((e) => e.userId)).toEqual(["a", "z"]);
+++    expect(r.every((e) => e.rank === 1)).toBe(true);
+++  });
+++
+++  it("only completions drive order — highest completions first regardless of input order (DR-035)", () => {
+++    const r = rankLeaderboard([
+++      { userId: "few", displayName: null, completedReferrals: 1 },
+++      { userId: "many", displayName: null, completedReferrals: 9 },
+++    ]);
+++    expect(r[0].userId).toBe("many");
+++    expect(r[0].rank).toBe(1);
+++  });
+++
+++  it("empty input → empty board (D-29 honest)", () => {
+++    expect(rankLeaderboard([])).toEqual([]);
+++  });
+++});
++diff --git a/tests/phasede.integration.test.ts b/tests/phasede.integration.test.ts
++new file mode 100644
++index 0000000..0527b3e
++--- /dev/null
+++++ b/tests/phasede.integration.test.ts
++@@ -0,0 +1,140 @@
+++// Phase D/E (integration, live DB) — leaderboard ranks by COMPLETION not team-size (DR-034/035),
+++// rewards progress derives from canon, affiliate leads encrypt PII + are owner-scoped, admin KPIs
+++// aggregate real data. No money moves.
+++import { describe, it, expect, beforeAll } from "vitest";
+++import { prisma } from "@/lib/prisma";
+++import { getMyLeaderboardStanding } from "@/lib/affiliate/leaderboard";
+++import { completedReferralCount } from "@/lib/affiliate/completion";
+++import { getRewardProgress } from "@/lib/affiliate/rewards";
+++import { createAffiliateLead, listAffiliateLeads } from "@/lib/affiliate/leads";
+++import { getAdminKpis } from "@/lib/admin/kpi";
+++
+++const HAS_DB = !!process.env.DATABASE_URL;
+++const runId = String(Date.now()).slice(-8);
+++let seq = 0;
+++const uniquePhone = () =>
+++  `+91${9_000_000_000 + ((Number(runId) + seq++) % 1_000_000_000)}`;
+++
+++async function makeUser(referredById: string | null): Promise<string> {
+++  const u = await prisma.user.create({
+++    data: {
+++      phone: uniquePhone(),
+++      referralCode: `PDE${runId}${seq}`.toUpperCase(),
+++      referredById,
+++    },
+++    select: { id: true },
+++  });
+++  return u.id;
+++}
+++async function complete(userId: string, courseId: string) {
+++  await prisma.certificate.create({
+++    data: { userId, courseId, serial: `CERT-${runId}-${seq++}` },
+++  });
+++}
+++
+++describe.skipIf(!HAS_DB)("Phase D/E (integration)", () => {
+++  let courseId: string;
+++  let referrer: string; // 2 completed referrals
+++  let bigTeamNoCompletions: string; // 5 downlines, 0 completions
+++
+++  beforeAll(async () => {
+++    process.env.PII_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
+++    const c = await prisma.course.upsert({
+++      where: { slug: "ai-prompt-mastery" },
+++      update: {},
+++      create: {
+++        slug: "ai-prompt-mastery",
+++        title: "AI Prompt Mastery",
+++        status: "PUBLISHED",
+++      },
+++      select: { id: true },
+++    });
+++    courseId = c.id;
+++
+++    referrer = await makeUser(null);
+++    const d1 = await makeUser(referrer);
+++    const d2 = await makeUser(referrer);
+++    await makeUser(referrer); // a 3rd downline who has NOT completed
+++    await complete(d1, courseId);
+++    await complete(d2, courseId);
+++
+++    // A referrer with a BIG team but ZERO completions — must NOT rank (team-size ≠ ranking, DR-035).
+++    bigTeamNoCompletions = await makeUser(null);
+++    for (let i = 0; i < 5; i++) await makeUser(bigTeamNoCompletions);
+++  });
+++
+++  it("leaderboard counts referred learners who COMPLETED a course (DR-034)", async () => {
+++    expect(await completedReferralCount(referrer)).toBe(2);
+++    const standing = await getMyLeaderboardStanding(referrer);
+++    expect(standing?.completedReferrals).toBe(2);
+++  });
+++
+++  it("a big team with zero completions does NOT rank (team-size never ranks, DR-035)", async () => {
+++    expect(await completedReferralCount(bigTeamNoCompletions)).toBe(0);
+++    expect(await getMyLeaderboardStanding(bigTeamNoCompletions)).toBeNull();
+++  });
+++
+++  it("reward progress derives from completed-referrals", async () => {
+++    const reward = await prisma.rewardDefinition.create({
+++      data: {
+++        title: `R${runId}`,
+++        target: 2,
+++        metric: "completed_referrals",
+++        isActive: true,
+++      },
+++      select: { id: true },
+++    });
+++    const progress = await getRewardProgress(referrer);
+++    const mine = progress.find((p) => p.id === reward.id);
+++    expect(mine).toBeTruthy();
+++    expect(mine!.current).toBe(2);
+++    expect(mine!.achieved).toBe(true);
+++    expect(mine!.percent).toBe(100);
+++  });
+++
+++  it("affiliate leads encrypt PII at rest and are owner-scoped", async () => {
+++    const owner = await makeUser(null);
+++    const other = await makeUser(null);
+++    const created = await createAffiliateLead(owner, {
+++      name: "Priya",
+++      phone: "9876500011",
+++      email: "priya@example.com",
+++    });
+++    expect(created.ok).toBe(true);
+++
+++    // Stored ciphertext, not the raw number.
+++    const raw = await prisma.affiliateLead.findFirstOrThrow({
+++      where: { ownerId: owner },
+++      select: { phoneEnc: true },
+++    });
+++    expect(raw.phoneEnc).not.toContain("9876500011");
+++    expect(raw.phoneEnc.split(":")).toHaveLength(3);
+++
+++    // Owner sees their own lead decrypted; another affiliate sees none of them.
+++    const mine = await listAffiliateLeads(owner);
+++    expect(mine).toHaveLength(1);
+++    expect(mine[0].phone).toBe("+919876500011");
+++    expect(await listAffiliateLeads(other)).toHaveLength(0);
+++  });
+++
+++  it("invalid lead phone is rejected before storage", async () => {
+++    const owner = await makeUser(null);
+++    const bad = await createAffiliateLead(owner, { phone: "123" });
+++    expect(bad.ok).toBe(false);
+++    expect(await listAffiliateLeads(owner)).toHaveLength(0);
+++  });
+++
+++  it("admin KPIs aggregate real data into series + snapshots (no throw, honest shape)", async () => {
+++    const kpis = await getAdminKpis();
+++    expect(Array.isArray(kpis.registrations)).toBe(true);
+++    expect(Array.isArray(kpis.withdrawalsByStatus)).toBe(true);
+++    expect(typeof kpis.commissionsHeldInPaise).toBe("number");
+++    expect(typeof kpis.commissionsAvailableInPaise).toBe("number");
+++    // Each categorical point is well-formed.
+++    for (const p of kpis.kycPipeline) {
+++      expect(p).toHaveProperty("key");
+++      expect(p).toHaveProperty("value");
+++      expect(p.value).toBeGreaterThanOrEqual(0);
+++    }
+++  });
+++});
++diff --git a/tests/tiers.test.ts b/tests/tiers.test.ts
++new file mode 100644
++index 0000000..bc4093a
++--- /dev/null
+++++ b/tests/tiers.test.ts
++@@ -0,0 +1,51 @@
+++// Phase D · D2 — contribution tiers (DR-035). Pure.
+++import { describe, it, expect } from "vitest";
+++import {
+++  computeTier,
+++  tierProgress,
+++  DEFAULT_TIER_THRESHOLDS,
+++} from "@/modules/affiliate/tiers";
+++
+++const T = { mentor: 5, champion: 15 };
+++
+++describe("computeTier", () => {
+++  it("maps completed-referrals to the three tiers by threshold", () => {
+++    expect(computeTier(0, T)).toBe("Contributor");
+++    expect(computeTier(4, T)).toBe("Contributor");
+++    expect(computeTier(5, T)).toBe("Mentor");
+++    expect(computeTier(14, T)).toBe("Mentor");
+++    expect(computeTier(15, T)).toBe("Community Champion");
+++    expect(computeTier(99, T)).toBe("Community Champion");
+++  });
+++  it("has sane defaults", () => {
+++    expect(DEFAULT_TIER_THRESHOLDS.mentor).toBeGreaterThan(0);
+++    expect(DEFAULT_TIER_THRESHOLDS.champion).toBeGreaterThan(
+++      DEFAULT_TIER_THRESHOLDS.mentor,
+++    );
+++  });
+++});
+++
+++describe("tierProgress", () => {
+++  it("reports the next tier + how many more completions to reach it", () => {
+++    expect(tierProgress(3, T)).toEqual({
+++      tier: "Contributor",
+++      completedReferrals: 3,
+++      nextTier: "Mentor",
+++      toNext: 2,
+++    });
+++    expect(tierProgress(7, T)).toEqual({
+++      tier: "Mentor",
+++      completedReferrals: 7,
+++      nextTier: "Community Champion",
+++      toNext: 8,
+++    });
+++  });
+++  it("tops out at Community Champion (no next tier)", () => {
+++    expect(tierProgress(20, T)).toEqual({
+++      tier: "Community Champion",
+++      completedReferrals: 20,
+++      nextTier: null,
+++      toNext: null,
+++    });
+++  });
+++});
+diff --git a/docs/review-packets/gps-phasede-overnight.md b/docs/review-packets/gps-phasede-overnight.md
+new file mode 100644
+index 0000000..b4f0b4e
+--- /dev/null
++++ b/docs/review-packets/gps-phasede-overnight.md
+@@ -0,0 +1,67 @@
++# Morning Packet — Overnight Build: Phase E (Admin) + Phase D (Engines)
++
++**Branch:** `gps-phasede-overnight` — cut off the **`gps-phasec-kyc-withdraw`** tip (`d5e18f4`), so it stacks on the still-parked Phase C. **`main` is untouched (`9704092`); nothing merged.**
++**Spec:** `docs/specs/PhaseDE_Overnight_v1.0.md` (FROZEN). **Diff (D/E only):** `docs/review-packets/gps-phasede-overnight.diff`.
++**Routing:** most units → **Opus Tier-B**; **My-Leads PII → Fable**.
++
++---
++
++## ☀️ TL;DR — what I built / what needs your call
++
++**Built (all tested, parked):**
++- **Phase D engines:** Leaderboard (ranks by *learners you referred who completed a course* — DR-034/035, never earnings/team-size) · Tiers (Contributor/Mentor/Champion) · Rewards engine (admin-configurable) · My-Leads (affiliate-uploaded, owner-scoped, **PII encrypted**). Minimal plain consumer surfaces (premium redesign deferred, per your scope guard).
++- **Phase E admin:** `/admin` real-aggregate KPI graphs (inline-SVG, honest empty states) · read-only `/admin/wallet` (affiliate balances + history, **no money movement**) · admin `/admin/rewards` (configure rewards + leaderboard visibility) · nav wired · KYC/withdrawals/webinar confirmed coherent.
++- **Non-regression:** existing money suites all green; **no ledger/commission/withdraw logic changed.** Payouts stay OFF (D-01).
++
++**Needs your call (flagged, safe defaults shipped — nothing blocked):**
++1. **My-Leads PII policy → Fable** (LC #52): leads' phone/email are encrypted at rest + owner-scoped, but the owner currently sees their own leads' **full** phone. Mask even to owner? Retention window? Consent copy?
++2. **Tier thresholds** (LC #51): defaulted Mentor ≥5 / Champion ≥15 completed-referrals. Confirm numbers.
++3. **Reward definitions** (LC #53): none seeded (honest empty) — you create them in `/admin/rewards`.
++
++---
++
++## Per-unit summary
++
++### Schema (`1a41ade`) — additive migration `20260710130000_phasede_rewards_leads` (applied; RLS on both)
++`RewardDefinition` (admin-configurable: title/description/metric/target/lastDate/isActive) · `AffiliateLead` (owner + encrypted phone/email + status). Named `AffiliateLead` (not `Lead`) to avoid clobbering the existing CRM `Lead` table.
++
++### Phase D engines + consumer surfaces (`3affaf0`)
++- **Leaderboard** (`modules/affiliate/leaderboard.ts` pure + `lib/affiliate/leaderboard.ts`): ranks affiliates by count of direct referrals with a `Certificate` (completed a course). **Earnings/team-size aren't even inputs** (DR-035). Privacy: first names + counts only.
++- **Tiers** (`modules/affiliate/tiers.ts`): pure `computeTier`/`tierProgress`; thresholds config (LC #51).
++- **Rewards** (`lib/affiliate/rewards.ts` + admin CRUD `lib/admin/rewards.ts`): progress derived from completed-referrals; admin-configurable definitions.
++- **My-Leads** (`lib/affiliate/leads.ts`): owner-scoped; phone/email **AES-256-GCM encrypted** (Phase-C pattern), validated, never logged. ⚠️ PII → Fable.
++- **Consumer surfaces** (`/dashboard/earn/{leaderboard,rewards,my-leads}`): plain/logic-clean, ready to restyle in the redesign; honest empty states (D-29).
++
++### Phase E admin (`b3e7138`)
++- **E1 KPI graphs** (`lib/admin/kpi.ts` + `/admin`): registrations, purchases, commissions-credited, withdrawals-by-status, KYC pipeline — all from real aggregates via the existing `MiniChart`; held/available snapshot (DR-025). Empty in → empty chart.
++- **E2 wallet-manage** (`lib/admin/wallet.ts` + `/admin/wallet[/[userId]]`): **read-only** affiliate balances + history from the ledger. No actions, no money movement.
++- **E3 consistency + nav:** admin rewards page (+ leaderboard visibility); `Wallets` + `Rewards` nav tabs added. KYC (Phase-C fields/docs), Withdrawals (In-Progress), Webinar confirmed complete/coherent — no changes needed.
++
++## Tests & gates
++```
++Test Files  59 passed (59)
++     Tests  401 passed (401)
++```
++New: `leaderboard` (4), `tiers` (4), `phasede.integration` (6 — completion-not-team-size, reward progress, **lead PII encryption + owner-scoping**, KPI shape). `tsc` clean · eslint **0 errors** (4 pre-existing warnings) · prettier clean.
++**Non-regression:** all money suites (money-flow, checkout-mock, withdrawal-payout, earning-gate, hold-clawback) green — **no money logic touched.**
++
++## Flagged decisions
++| # | Item | Routed to | Safe default shipped |
++|---|---|---|---|
++| LC #52 | My-Leads PII: mask-to-owner? retention? consent? | **Fable** | Encrypted + owner-scoped; owner sees full phone; no retention limit |
++| LC #51 | Tier thresholds (Mentor/Champion) | Opus | 5 / 15 completed-referrals |
++| LC #53 | Reward definitions content | Opus/Founder | None seeded (honest empty) |
++| — | Leaderboard "completed" = has a Certificate | Opus | Certificate row = course completed |
++
++## Notes / honest gaps
++- **Stacks on parked Phase C** (`d5e18f4`) — this branch can't merge until Phase C merges first. Diff is D/E-only.
++- Auth-gated dashboard/admin pages verified via typecheck + integration tests of their adapters (no preview login session in an autonomous run).
++- Two additive migrations were **applied to the shared Supabase** (Phase C's + this one) so integration tests run; the files land on `main` when the respective branches merge.
++- `getMyLeaderboardStanding` does a full-population scan (fine pre-launch; optimize if the population grows).
++
++## Checklist
++- [x] `tsc` clean · 401/401 tests · eslint 0 errors · prettier clean
++- [x] Additive only; RLS on new tables; no money logic changed; payouts stay OFF (D-01)
++- [x] No fabricated data — real aggregates or honest empty states (D-29)
++- [x] Commits parked; **`main` untouched (`9704092`)**; nothing merged
++- [ ] Opus Tier-B review (D/E) · [ ] **Fable** (My-Leads PII) · [ ] founder authorization (GATE) — all pending
+diff --git a/lib/admin/kpi.ts b/lib/admin/kpi.ts
+new file mode 100644
+index 0000000..848dab8
+--- /dev/null
++++ b/lib/admin/kpi.ts
+@@ -0,0 +1,84 @@
++// Admin KPI aggregates (Phase E · E1). REAL aggregates from canon only (D-29 — empty in → empty
++// series, never a fabricated bar). Time series are bucketed by the shared analytics helpers so the
++// admin graphs reuse MiniChart. Read-only; no money moves.
++import { prisma } from "../prisma";
++import {
++  sumByBucket,
++  countByBucket,
++  type SeriesPoint,
++} from "../affiliate/analytics";
++import { heldBalanceOf, availableBalanceOf } from "../../modules/ledger/ledger";
++
++export interface AdminKpis {
++  registrations: SeriesPoint[]; // new users by month
++  purchases: SeriesPoint[]; // PAID orders by month
++  commissionsCredited: SeriesPoint[]; // positive COMMISSION wallet legs, by month
++  withdrawalsByStatus: SeriesPoint[]; // categorical counts
++  kycPipeline: SeriesPoint[]; // categorical counts
++  commissionsHeldInPaise: number; // snapshot across all affiliate wallets
++  commissionsAvailableInPaise: number;
++}
++
++const CATEGORY_LABEL = (s: string) =>
++  s.charAt(0) + s.slice(1).toLowerCase().replace(/_/g, " ");
++
++export async function getAdminKpis(): Promise<AdminKpis> {
++  const [
++    users,
++    paidOrders,
++    commissionLegs,
++    withdrawalGroups,
++    kycGroups,
++    walletEntries,
++  ] = await Promise.all([
++    prisma.user.findMany({ select: { createdAt: true } }),
++    prisma.order.findMany({
++      where: { status: "PAID" },
++      select: { paidAt: true, createdAt: true },
++    }),
++    prisma.ledgerEntry.findMany({
++      where: { amountInPaise: { gt: 0 }, transaction: { type: "COMMISSION" } },
++      select: { amountInPaise: true, createdAt: true },
++    }),
++    prisma.withdrawal.groupBy({ by: ["status"], _count: { _all: true } }),
++    prisma.kyc.groupBy({ by: ["status"], _count: { _all: true } }),
++    prisma.ledgerEntry.findMany({
++      where: { account: { type: "USER_WALLET" } },
++      select: { amountInPaise: true, holdUntil: true },
++    }),
++  ]);
++
++  return {
++    registrations: countByBucket(
++      users.map((u) => u.createdAt),
++      "month",
++    ),
++    purchases: countByBucket(
++      paidOrders.map((o) => o.paidAt ?? o.createdAt),
++      "month",
++    ),
++    commissionsCredited: sumByBucket(
++      commissionLegs.map((e) => ({
++        date: e.createdAt,
++        value: e.amountInPaise,
++      })),
++      "month",
++    ),
++    withdrawalsByStatus: withdrawalGroups
++      .map((g) => ({
++        key: g.status,
++        label: CATEGORY_LABEL(g.status),
++        value: g._count._all,
++      }))
++      .sort((a, b) => (a.key < b.key ? -1 : 1)),
++    kycPipeline: kycGroups
++      .map((g) => ({
++        key: g.status,
++        label: CATEGORY_LABEL(g.status),
++        value: g._count._all,
++      }))
++      .sort((a, b) => (a.key < b.key ? -1 : 1)),
++    commissionsHeldInPaise: heldBalanceOf(walletEntries),
++    commissionsAvailableInPaise: availableBalanceOf(walletEntries),
++  };
++}
+diff --git a/lib/admin/rewards.ts b/lib/admin/rewards.ts
+new file mode 100644
+index 0000000..134f83c
+--- /dev/null
++++ b/lib/admin/rewards.ts
+@@ -0,0 +1,85 @@
++// Admin reward-definition management (Phase D · DR-035). Admin-configurable reward targets. Every
++// mutation is audited (recordAdminAction). No money, no PII. Validation is server-side.
++import { prisma } from "../prisma";
++import type { AdminIdentity } from "../auth/admin";
++import { recordAdminAction } from "./audit";
++
++export interface RewardInput {
++  title: string;
++  description?: string | null;
++  target: number;
++  metric?: string;
++  lastDate?: Date | null;
++}
++
++export type RewardResult =
++  { ok: true; id: string } | { ok: false; error: string };
++
++export async function listRewardDefinitions() {
++  return prisma.rewardDefinition.findMany({ orderBy: { createdAt: "desc" } });
++}
++
++function validate(input: RewardInput): string | null {
++  if (!input.title?.trim()) return "Title is required.";
++  if (!Number.isInteger(input.target) || input.target <= 0)
++    return "Target must be a positive whole number.";
++  return null;
++}
++
++export async function createReward(
++  actor: AdminIdentity,
++  input: RewardInput,
++): Promise<RewardResult> {
++  const err = validate(input);
++  if (err) return { ok: false, error: err };
++  try {
++    const id = await prisma.$transaction(async (tx) => {
++      const r = await tx.rewardDefinition.create({
++        data: {
++          title: input.title.trim(),
++          description: input.description?.trim() || null,
++          target: input.target,
++          metric: input.metric?.trim() || "completed_referrals",
++          lastDate: input.lastDate ?? null,
++        },
++        select: { id: true },
++      });
++      await recordAdminAction(tx, {
++        actor,
++        action: "REWARD_CREATED",
++        entity: "RewardDefinition",
++        entityId: r.id,
++        meta: {
++          target: input.target,
++          metric: input.metric ?? "completed_referrals",
++        },
++      });
++      return r.id;
++    });
++    return { ok: true, id };
++  } catch {
++    return { ok: false, error: "Could not create reward." };
++  }
++}
++
++export async function setRewardActive(
++  actor: AdminIdentity,
++  id: string,
++  isActive: boolean,
++): Promise<RewardResult> {
++  try {
++    await prisma.$transaction(async (tx) => {
++      await tx.rewardDefinition.update({ where: { id }, data: { isActive } });
++      await recordAdminAction(tx, {
++        actor,
++        action: "REWARD_UPDATED",
++        entity: "RewardDefinition",
++        entityId: id,
++        meta: { isActive },
++      });
++    });
++    return { ok: true, id };
++  } catch {
++    return { ok: false, error: "Could not update reward." };
++  }
++}
+diff --git a/lib/admin/wallet.ts b/lib/admin/wallet.ts
+new file mode 100644
+index 0000000..947cb9d
+--- /dev/null
++++ b/lib/admin/wallet.ts
+@@ -0,0 +1,71 @@
++// Admin wallet-manage (Phase E · E2) — READ-ONLY. Lets an admin inspect affiliate wallet/ledger
++// balances + history for support/audit. NO money movement here (payouts live only in
++// lib/admin/withdrawals). Derived from the ledger; admin-authorized at the page/layer.
++import { prisma } from "../prisma";
++import {
++  balanceOf,
++  heldBalanceOf,
++  availableBalanceOf,
++} from "../../modules/ledger/ledger";
++import {
++  getWalletSummaryFor,
++  getWalletHistory,
++  type WalletHistoryItem,
++} from "../wallet/queries";
++import type { WalletSummary } from "../../modules/wallet/summary";
++
++export interface AdminWalletRow {
++  userId: string;
++  name: string | null;
++  phone: string | null;
++  heldInPaise: number;
++  availableInPaise: number;
++  totalInPaise: number;
++}
++
++/** All affiliate wallets with a non-empty balance history, richest available-balance first. */
++export async function listAffiliateWallets(): Promise<AdminWalletRow[]> {
++  const accounts = await prisma.ledgerAccount.findMany({
++    where: { type: "USER_WALLET", userId: { not: null } },
++    select: {
++      userId: true,
++      entries: { select: { amountInPaise: true, holdUntil: true } },
++      user: { select: { name: true, phone: true } },
++    },
++  });
++  return accounts
++    .filter((a) => a.entries.length > 0)
++    .map((a) => ({
++      userId: a.userId!,
++      name: a.user?.name ?? null,
++      phone: a.user?.phone ?? null,
++      heldInPaise: heldBalanceOf(a.entries),
++      availableInPaise: availableBalanceOf(a.entries),
++      totalInPaise: balanceOf(a.entries),
++    }))
++    .sort((x, y) => y.availableInPaise - x.availableInPaise);
++}
++
++export interface AdminWalletDetail {
++  userId: string;
++  name: string | null;
++  phone: string | null;
++  summary: WalletSummary;
++  history: WalletHistoryItem[];
++}
++
++/** One affiliate's wallet detail (summary + full history). Read-only. Null if the user doesn't exist. */
++export async function getAffiliateWalletDetail(
++  userId: string,
++): Promise<AdminWalletDetail | null> {
++  const user = await prisma.user.findUnique({
++    where: { id: userId },
++    select: { name: true, phone: true },
++  });
++  if (!user) return null;
++  const [summary, history] = await Promise.all([
++    getWalletSummaryFor(userId),
++    getWalletHistory(userId),
++  ]);
++  return { userId, name: user.name, phone: user.phone, summary, history };
++}
+diff --git a/lib/affiliate/completion.ts b/lib/affiliate/completion.ts
+new file mode 100644
+index 0000000..8da318c
+--- /dev/null
++++ b/lib/affiliate/completion.ts
+@@ -0,0 +1,11 @@
++// Completed-referrals signal (Phase D · DR-034). The one canonical metric behind the leaderboard,
++// tiers, and rewards: how many of a user's DIRECT referrals have completed a course. "Completed" =
++// has a Certificate row (issued only on 100% + mandatory quizzes passed — see lib/lms/certificate).
++// Derived from canon; never stored, never fabricated (D-29).
++import { prisma } from "../prisma";
++
++export async function completedReferralCount(userId: string): Promise<number> {
++  return prisma.user.count({
++    where: { referredById: userId, certificates: { some: {} } },
++  });
++}
+diff --git a/lib/affiliate/eligibility.ts b/lib/affiliate/eligibility.ts
+index a02ec78..a9b6e1b 100644
+--- a/lib/affiliate/eligibility.ts
++++ b/lib/affiliate/eligibility.ts
+@@ -3,15 +3,26 @@
+ // commission engine's Phase-B gate (documented hook in lib/payments/webhook.ts CREDIT_COMMISSIONS)
+ // and directly by any surface that needs to show/act on affiliate earning-eligibility.
+ import { prisma } from "../prisma";
++import type { Prisma, PrismaClient } from "../generated/prisma";
+ import { canEarnCommission } from "../../modules/affiliate/eligibility";
+ 
++/** A Prisma client OR a transaction client — so callers inside a $transaction reuse this helper. */
++type Db = PrismaClient | Prisma.TransactionClient;
++
+ /**
+  * DR-038: true iff the user has ≥1 confirmed (PAID) order — i.e. their own purchase is complete.
+  * "Confirmed" = Order.status "PAID" (the only state set by a Razorpay-verified webhook, Golden Rule 2).
+  * REFUNDED orders do not count (status flips away from PAID on refund) — a refunded buyer is not eligible.
++ *
++ * `db` defaults to the shared client but accepts a transaction client, so the commission-credit path
++ * (lib/payments/webhook.ts CREDIT_COMMISSIONS) can call THIS SAME helper inside its $transaction
++ * instead of duplicating the query — removing the inline-query drift risk (Fable's Phase-B note).
+  */
+-export async function hasConfirmedPurchase(userId: string): Promise<boolean> {
+-  const paid = await prisma.order.count({ where: { userId, status: "PAID" } });
++export async function hasConfirmedPurchase(
++  userId: string,
++  db: Db = prisma,
++): Promise<boolean> {
++  const paid = await db.order.count({ where: { userId, status: "PAID" } });
+   return paid > 0;
+ }
+ 
+diff --git a/lib/affiliate/leaderboard.ts b/lib/affiliate/leaderboard.ts
+new file mode 100644
+index 0000000..db69153
+--- /dev/null
++++ b/lib/affiliate/leaderboard.ts
+@@ -0,0 +1,59 @@
++// Leaderboard adapter (Phase D · DR-034/DR-035). Tally each affiliate's referred learners who have
++// completed a course (a Certificate row), then rank by that count only (pure rankLeaderboard). No
++// earnings, no team size. Privacy: only the affiliate's own FIRST NAME + their count are shown —
++// never their downlines' identities. Honest empty state (D-29): no completions → empty board.
++import { prisma } from "../prisma";
++import {
++  rankLeaderboard,
++  type RankedEntry,
++} from "../../modules/affiliate/leaderboard";
++
++/** Tally completed-referrals per referrer across the whole graph (direct edges). */
++async function completedReferralTally(): Promise<Map<string, number>> {
++  const learners = await prisma.user.findMany({
++    where: { referredById: { not: null }, certificates: { some: {} } },
++    select: { referredById: true },
++  });
++  const tally = new Map<string, number>();
++  for (const l of learners) {
++    if (!l.referredById) continue;
++    tally.set(l.referredById, (tally.get(l.referredById) ?? 0) + 1);
++  }
++  return tally;
++}
++
++/** Top affiliates ranked by completed-referrals (DR-034). Empty when nobody has completions yet. */
++export async function getLeaderboard(limit = 20): Promise<RankedEntry[]> {
++  const tally = await completedReferralTally();
++  if (tally.size === 0) return [];
++  const referrers = await prisma.user.findMany({
++    where: { id: { in: [...tally.keys()] } },
++    select: { id: true, name: true },
++  });
++  const entries = referrers.map((r) => ({
++    userId: r.id,
++    displayName: r.name?.trim().split(/\s+/)[0] || null,
++    completedReferrals: tally.get(r.id) ?? 0,
++  }));
++  return rankLeaderboard(entries).slice(0, Math.max(0, limit));
++}
++
++/** The user's own standing in the full ranking, or null if they have no completed referrals. */
++export async function getMyLeaderboardStanding(
++  userId: string,
++): Promise<RankedEntry | null> {
++  const tally = await completedReferralTally();
++  if (!tally.has(userId)) return null;
++  const referrers = await prisma.user.findMany({
++    where: { id: { in: [...tally.keys()] } },
++    select: { id: true, name: true },
++  });
++  const ranked = rankLeaderboard(
++    referrers.map((r) => ({
++      userId: r.id,
++      displayName: r.name?.trim().split(/\s+/)[0] || null,
++      completedReferrals: tally.get(r.id) ?? 0,
++    })),
++  );
++  return ranked.find((e) => e.userId === userId) ?? null;
++}
+diff --git a/lib/affiliate/leads.ts b/lib/affiliate/leads.ts
+new file mode 100644
+index 0000000..0725ca0
+--- /dev/null
++++ b/lib/affiliate/leads.ts
+@@ -0,0 +1,101 @@
++// My-Leads adapter (Phase D · D3). Affiliate-uploaded leads for their own follow-up. PII (phone,
++// email) is AES-256-GCM encrypted at rest (Phase-C pattern) and decrypted server-side ONLY, for the
++// OWNER's own list. Owner-scoped everywhere — a query without the ownerId filter is never issued.
++// Never logged. ⚠️ FLAGGED for Fable: whether the owner should see full vs masked phone, + retention.
++import { prisma } from "../prisma";
++import { encryptPii, decryptPii, maskLast4 } from "../pii";
++import { normalizeWhatsapp, isValidEmail } from "../../modules/kyc/verify";
++
++export interface LeadInput {
++  name?: string;
++  phone: string;
++  email?: string;
++  note?: string;
++}
++
++export interface LeadRow {
++  id: string;
++  name: string | null;
++  phone: string; // full, decrypted for the owner (their own uploaded lead)
++  email: string | null;
++  note: string | null;
++  status: string;
++  createdAt: Date;
++}
++
++export interface LeadFilters {
++  from?: Date;
++  to?: Date;
++}
++
++export type CreateLeadResult =
++  { ok: true; id: string } | { ok: false; error: string };
++
++/** Create an owner-scoped lead. Phone required + validated; phone/email encrypted before storage. */
++export async function createAffiliateLead(
++  ownerId: string,
++  input: LeadInput,
++): Promise<CreateLeadResult> {
++  const phone = normalizeWhatsapp(input.phone);
++  if (!phone)
++    return { ok: false, error: "Enter a valid 10-digit mobile number." };
++  const rawEmail = input.email?.trim();
++  let emailEnc: string | null = null;
++  if (rawEmail) {
++    if (!isValidEmail(rawEmail))
++      return { ok: false, error: "Enter a valid email or leave it blank." };
++    emailEnc = encryptPii(rawEmail.toLowerCase());
++  }
++  try {
++    const lead = await prisma.affiliateLead.create({
++      data: {
++        ownerId,
++        name: input.name?.trim() || null,
++        phoneEnc: encryptPii(phone),
++        emailEnc,
++        note: input.note?.trim() || null,
++      },
++      select: { id: true },
++    });
++    return { ok: true, id: lead.id };
++  } catch {
++    return { ok: false, error: "Could not save the lead. Please try again." };
++  }
++}
++
++function safeDecrypt(payload: string): string {
++  try {
++    return decryptPii(payload);
++  } catch {
++    return "•••• ????"; // never surface ciphertext or throw into the UI
++  }
++}
++
++/** The owner's leads (newest first), optionally filtered by created date. Owner-scoped. */
++export async function listAffiliateLeads(
++  ownerId: string,
++  filters: LeadFilters = {},
++): Promise<LeadRow[]> {
++  const createdAt =
++    filters.from || filters.to
++      ? { gte: filters.from, lte: filters.to }
++      : undefined;
++  const rows = await prisma.affiliateLead.findMany({
++    where: { ownerId, ...(createdAt ? { createdAt } : {}) },
++    orderBy: { createdAt: "desc" },
++  });
++  return rows.map((r) => ({
++    id: r.id,
++    name: r.name,
++    phone: safeDecrypt(r.phoneEnc),
++    email: r.emailEnc ? safeDecrypt(r.emailEnc) : null,
++    note: r.note,
++    status: r.status,
++    createdAt: r.createdAt,
++  }));
++}
++
++/** Admin/aggregate-safe masked view of a lead phone (if ever surfaced outside the owner). */
++export function maskLeadPhone(fullPhone: string): string {
++  return maskLast4(fullPhone);
++}
+diff --git a/lib/affiliate/rewards.ts b/lib/affiliate/rewards.ts
+new file mode 100644
+index 0000000..9c325a6
+--- /dev/null
++++ b/lib/affiliate/rewards.ts
+@@ -0,0 +1,46 @@
++// Rewards progress (Phase D · DR-035). Consumer-side read: for each ACTIVE admin-defined reward,
++// compute the affiliate's progress from canon (completed-referrals). No stored progress, no
++// fabricated numbers (D-29). Learning-first framing — never earnings.
++import { prisma } from "../prisma";
++import { completedReferralCount } from "./completion";
++
++export interface RewardProgress {
++  id: string;
++  title: string;
++  description: string | null;
++  metric: string;
++  target: number;
++  lastDate: Date | null;
++  current: number;
++  achieved: boolean;
++  percent: number; // 0..100 (clamped)
++}
++
++export async function getRewardProgress(
++  userId: string,
++): Promise<RewardProgress[]> {
++  const rewards = await prisma.rewardDefinition.findMany({
++    where: { isActive: true },
++    orderBy: { target: "asc" },
++  });
++  if (rewards.length === 0) return [];
++  // Only "completed_referrals" is wired today; other metrics read 0 until implemented (honest).
++  const completed = await completedReferralCount(userId);
++  return rewards.map((r) => {
++    const current = r.metric === "completed_referrals" ? completed : 0;
++    return {
++      id: r.id,
++      title: r.title,
++      description: r.description,
++      metric: r.metric,
++      target: r.target,
++      lastDate: r.lastDate,
++      current,
++      achieved: current >= r.target,
++      percent:
++        r.target > 0
++          ? Math.min(100, Math.round((current / r.target) * 100))
++          : 0,
++    };
++  });
++}
+diff --git a/lib/payments/webhook.ts b/lib/payments/webhook.ts
+index 92eb347..ecc2ea5 100644
+--- a/lib/payments/webhook.ts
++++ b/lib/payments/webhook.ts
+@@ -18,6 +18,7 @@ import { resolveUplines } from "../../modules/affiliate/upline";
+ import { buildCommissionTxns } from "../../modules/affiliate/credit";
+ import { buildClawbackTxns } from "../../modules/affiliate/clawback";
+ import { canEarnCommission } from "../../modules/affiliate/eligibility";
++import { hasConfirmedPurchase } from "../affiliate/eligibility";
+ import { coursesToEnroll } from "../../modules/lms/entitlement";
+ import type { PackageSlug } from "../../modules/affiliate/commission";
+ import { executeTxSpec } from "../../modules/ledger/persist";
+@@ -209,10 +210,9 @@ async function executeAction(
+       // keys, HELD lifecycle (DR-025), clawback and DR-007 amounts are all preserved unchanged.
+       const uplines = [];
+       for (const hop of resolved) {
+-        const ownPaid = await tx.order.count({
+-          where: { userId: hop.userId, status: "PAID" },
+-        });
+-        if (canEarnCommission({ hasOwnConfirmedPurchase: ownPaid > 0 }))
++        // Reuse the shared eligibility helper INSIDE this tx (no inline-query drift — Fable's note).
++        const ownConfirmed = await hasConfirmedPurchase(hop.userId, tx);
++        if (canEarnCommission({ hasOwnConfirmedPurchase: ownConfirmed }))
+           uplines.push(hop);
+       }
+       if (uplines.length === 0) return;
+diff --git a/modules/affiliate/leaderboard.ts b/modules/affiliate/leaderboard.ts
+new file mode 100644
+index 0000000..2835b1b
+--- /dev/null
++++ b/modules/affiliate/leaderboard.ts
+@@ -0,0 +1,36 @@
++// Leaderboard ranking — PURE domain (Phase D · DR-034/DR-035). The ONLY ranking signal is
++// "completed referrals" = referred learners who have completed a course. It is NEVER earnings and
++// NEVER raw team/network size (DR-035 compliance-safe, learning-first). This module is framework/
++// DB-free and unit-tested; the adapter (lib/affiliate/leaderboard.ts) supplies the counts from canon.
++
++export interface LeaderboardEntry {
++  userId: string;
++  displayName: string | null; // first name only (privacy)
++  completedReferrals: number; // referred learners who completed ≥1 course (DR-034)
++}
++
++export interface RankedEntry extends LeaderboardEntry {
++  rank: number;
++}
++
++/**
++ * Rank by completedReferrals DESC (DR-034). Equal counts share a rank (competition ranking: 1,2,2,4).
++ * Ties are ordered deterministically by userId so the output is stable. NEVER sorts by earnings or
++ * team size — those aren't even inputs here (DR-035).
++ */
++export function rankLeaderboard(entries: LeaderboardEntry[]): RankedEntry[] {
++  const sorted = [...entries].sort(
++    (a, b) =>
++      b.completedReferrals - a.completedReferrals ||
++      (a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0),
++  );
++  let rank = 0;
++  let prevCount: number | null = null;
++  return sorted.map((e, i) => {
++    if (prevCount === null || e.completedReferrals !== prevCount) {
++      rank = i + 1; // competition ranking — skip after ties
++      prevCount = e.completedReferrals;
++    }
++    return { ...e, rank };
++  });
++}
+diff --git a/modules/affiliate/tiers.ts b/modules/affiliate/tiers.ts
+new file mode 100644
+index 0000000..c00f5e0
+--- /dev/null
++++ b/modules/affiliate/tiers.ts
+@@ -0,0 +1,71 @@
++// Contribution tiers — PURE domain (Phase D · DR-035). Tiers reflect learning contribution
++// (referred learners who completed a course), NEVER earnings or team size. Thresholds are
++// configurable (LAUNCH_CONFIG — flagged); progress is derived from canon, never stored/fabricated.
++
++export type Tier = "Contributor" | "Mentor" | "Community Champion";
++
++export interface TierThresholds {
++  mentor: number; // completed-referrals to reach Mentor
++  champion: number; // completed-referrals to reach Community Champion
++}
++
++// Safe defaults — FLAGGED for the founder (LAUNCH_CONFIG). Learning-first framing (DR-035).
++export const DEFAULT_TIER_THRESHOLDS: TierThresholds = {
++  mentor: 5,
++  champion: 15,
++};
++
++/** Read thresholds from env (TIER_MENTOR_AT / TIER_CHAMPION_AT), falling back to safe defaults. */
++export function tierThresholds(): TierThresholds {
++  const mentor = Number(process.env.TIER_MENTOR_AT);
++  const champion = Number(process.env.TIER_CHAMPION_AT);
++  return {
++    mentor:
++      Number.isInteger(mentor) && mentor > 0
++        ? mentor
++        : DEFAULT_TIER_THRESHOLDS.mentor,
++    champion:
++      Number.isInteger(champion) && champion > 0
++        ? champion
++        : DEFAULT_TIER_THRESHOLDS.champion,
++  };
++}
++
++export function computeTier(
++  completedReferrals: number,
++  t: TierThresholds = tierThresholds(),
++): Tier {
++  if (completedReferrals >= t.champion) return "Community Champion";
++  if (completedReferrals >= t.mentor) return "Mentor";
++  return "Contributor";
++}
++
++export interface TierProgress {
++  tier: Tier;
++  completedReferrals: number;
++  nextTier: Tier | null; // null when already at the top
++  toNext: number | null; // how many more completions to reach the next tier
++}
++
++/** Current tier + how far to the next one. All derived — honest, no fabricated numbers. */
++export function tierProgress(
++  completedReferrals: number,
++  t: TierThresholds = tierThresholds(),
++): TierProgress {
++  const tier = computeTier(completedReferrals, t);
++  if (tier === "Community Champion")
++    return { tier, completedReferrals, nextTier: null, toNext: null };
++  if (tier === "Mentor")
++    return {
++      tier,
++      completedReferrals,
++      nextTier: "Community Champion",
++      toNext: Math.max(0, t.champion - completedReferrals),
++    };
++  return {
++    tier,
++    completedReferrals,
++    nextTier: "Mentor",
++    toNext: Math.max(0, t.mentor - completedReferrals),
++  };
++}
+diff --git a/prisma/migrations/20260710130000_phasede_rewards_leads/migration.sql b/prisma/migrations/20260710130000_phasede_rewards_leads/migration.sql
+new file mode 100644
+index 0000000..62f8860
+--- /dev/null
++++ b/prisma/migrations/20260710130000_phasede_rewards_leads/migration.sql
+@@ -0,0 +1,51 @@
++-- Phase D — Rewards/Tiers + My-Leads. ADDITIVE ONLY, idempotent. Two new tables, both RLS-enabled.
++
++-- ── RewardDefinition (admin-configurable reward targets) ────────────────────────────────────
++CREATE TABLE IF NOT EXISTS "RewardDefinition" (
++    "id"          TEXT NOT NULL,
++    "title"       TEXT NOT NULL,
++    "description" TEXT,
++    "metric"      TEXT NOT NULL DEFAULT 'completed_referrals',
++    "target"      INTEGER NOT NULL,
++    "lastDate"    TIMESTAMP(3),
++    "isActive"    BOOLEAN NOT NULL DEFAULT true,
++    "createdAt"   TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updatedAt"   TIMESTAMP(3) NOT NULL,
++    CONSTRAINT "RewardDefinition_pkey" PRIMARY KEY ("id")
++);
++
++-- ── AffiliateLead (affiliate-uploaded leads; phone/email encrypted) ─────────────────────────
++DO $$
++BEGIN
++    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'AffiliateLeadStatus') THEN
++        CREATE TYPE "AffiliateLeadStatus" AS ENUM ('NEW', 'CONTACTED', 'CONVERTED', 'LOST');
++    END IF;
++END $$;
++
++CREATE TABLE IF NOT EXISTS "AffiliateLead" (
++    "id"        TEXT NOT NULL,
++    "ownerId"   TEXT NOT NULL,
++    "name"      TEXT,
++    "phoneEnc"  TEXT NOT NULL,
++    "emailEnc"  TEXT,
++    "note"      TEXT,
++    "status"    "AffiliateLeadStatus" NOT NULL DEFAULT 'NEW',
++    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    CONSTRAINT "AffiliateLead_pkey" PRIMARY KEY ("id")
++);
++
++CREATE INDEX IF NOT EXISTS "AffiliateLead_ownerId_createdAt_idx"
++    ON "AffiliateLead"("ownerId", "createdAt");
++
++DO $$
++BEGIN
++    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'AffiliateLead_ownerId_fkey') THEN
++        ALTER TABLE "AffiliateLead"
++            ADD CONSTRAINT "AffiliateLead_ownerId_fkey"
++            FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++    END IF;
++END $$;
++
++-- RLS: every new public table ships RLS ENABLED, deny-all (no policies) — golden rule 15.
++ALTER TABLE "RewardDefinition" ENABLE ROW LEVEL SECURITY;
++ALTER TABLE "AffiliateLead" ENABLE ROW LEVEL SECURITY;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 46f9098..1de9bc4 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -66,6 +66,7 @@ model User {
+   guruMessages  GuruMessage[]
+   emailLogs     EmailLog[]
+   contactVerifications ContactVerification[]
++  affiliateLeads AffiliateLead[]
+ }
+ 
+ // ─────────────── Catalog / LMS ───────────────
+@@ -521,3 +522,43 @@ model EmailLog {
+   sentAt    DateTime @default(now())
+   @@index([userId])
+ }
++
++// ─────────────── Phase D — Rewards / Tiers (DR-034/DR-035) ───────────────
++// Admin-configurable reward definitions. `metric` names what `target` measures (default:
++// completed-referrals — learning-first, NEVER earnings/team-size, DR-035). Per-affiliate progress
++// is DERIVED from canon (no stored progress column → never stale, never fabricated).
++model RewardDefinition {
++  id          String    @id @default(cuid())
++  title       String
++  description String?
++  metric      String    @default("completed_referrals") // what `target` counts
++  target      Int                                        // e.g. 10 completed referrals
++  lastDate    DateTime?                                  // optional deadline
++  isActive    Boolean   @default(true)
++  createdAt   DateTime  @default(now())
++  updatedAt   DateTime  @updatedAt
++}
++
++// ─────────────── Phase D — My-Leads (affiliate-uploaded, owner-scoped, PII) ───────────────
++// Distinct from the CRM `Lead` (public funnel). These are leads an AFFILIATE uploads for their own
++// follow-up. Phone/email are PII → AES-256-GCM encrypted at rest (lib/pii), masked on display,
++// owner-scoped access, never logged. (Flagged for Fable — PII policy.)
++enum AffiliateLeadStatus {
++  NEW
++  CONTACTED
++  CONVERTED
++  LOST
++}
++
++model AffiliateLead {
++  id        String              @id @default(cuid())
++  ownerId   String                                        // the affiliate who uploaded this lead
++  owner     User                @relation(fields: [ownerId], references: [id])
++  name      String?
++  phoneEnc  String                                        // AES-256-GCM ciphertext (PII)
++  emailEnc  String?                                       // optional PII, encrypted
++  note      String?
++  status    AffiliateLeadStatus @default(NEW)
++  createdAt DateTime            @default(now())
++  @@index([ownerId, createdAt])
++}
+diff --git a/tests/guardrail-strings.test.ts b/tests/guardrail-strings.test.ts
+new file mode 100644
+index 0000000..9d43816
+--- /dev/null
++++ b/tests/guardrail-strings.test.ts
+@@ -0,0 +1,25 @@
++// Unit 3 (§2.5) — LOCK the guardrail's exact prescribed strings. The existing guru-domain test
++// asserts `answer === GURU_INCOME_REDIRECT` (both sides move together, so a silent edit passes).
++// This locks the LITERAL text + the D-29 invariants so the money-safety copy can't drift unnoticed.
++import { describe, it, expect } from "vitest";
++import { GURU_INCOME_REDIRECT } from "@/modules/ai/guru/guardrail";
++
++describe("Guru income-redirect string is LOCKED (D-29)", () => {
++  it("matches the exact prescribed Hinglish copy", () => {
++    expect(GURU_INCOME_REDIRECT).toBe(
++      "Main aapka course tutor hoon — paise ya kamai ki baat main nahi kar sakta. " +
++        "Chalo is lesson ka koi bhi concept clear karte hain, jo bhi doubt ho pooch lo!",
++    );
++  });
++
++  it("contains NO number or currency (D-29 floor: never a figure)", () => {
++    expect(GURU_INCOME_REDIRECT).not.toMatch(/\d/);
++    expect(GURU_INCOME_REDIRECT).not.toMatch(/[₹$]/);
++  });
++
++  it("makes no income promise (no earn/income/guarantee/payout words in English)", () => {
++    expect(GURU_INCOME_REDIRECT.toLowerCase()).not.toMatch(
++      /\b(earn|income|guarantee|guaranteed|payout|commission|salary|profit)\b/,
++    );
++  });
++});
+diff --git a/tests/leaderboard.test.ts b/tests/leaderboard.test.ts
+new file mode 100644
+index 0000000..eb719ce
+--- /dev/null
++++ b/tests/leaderboard.test.ts
+@@ -0,0 +1,43 @@
++// Phase D · D1 — leaderboard ranking (DR-034/DR-035). Pure. The ONLY signal is completed-referrals;
++// earnings/team-size are not even inputs.
++import { describe, it, expect } from "vitest";
++import { rankLeaderboard } from "@/modules/affiliate/leaderboard";
++
++describe("rankLeaderboard", () => {
++  it("ranks by completedReferrals DESC; ties share a rank (competition ranking 1,1,3,4)", () => {
++    const r = rankLeaderboard([
++      { userId: "a", displayName: "A", completedReferrals: 2 },
++      { userId: "b", displayName: "B", completedReferrals: 5 },
++      { userId: "c", displayName: "C", completedReferrals: 5 },
++      { userId: "d", displayName: "D", completedReferrals: 1 },
++    ]);
++    expect(r.map((e) => [e.userId, e.rank])).toEqual([
++      ["b", 1],
++      ["c", 1],
++      ["a", 3],
++      ["d", 4],
++    ]);
++  });
++
++  it("is deterministic on ties (ordered by userId)", () => {
++    const r = rankLeaderboard([
++      { userId: "z", displayName: null, completedReferrals: 3 },
++      { userId: "a", displayName: null, completedReferrals: 3 },
++    ]);
++    expect(r.map((e) => e.userId)).toEqual(["a", "z"]);
++    expect(r.every((e) => e.rank === 1)).toBe(true);
++  });
++
++  it("only completions drive order — highest completions first regardless of input order (DR-035)", () => {
++    const r = rankLeaderboard([
++      { userId: "few", displayName: null, completedReferrals: 1 },
++      { userId: "many", displayName: null, completedReferrals: 9 },
++    ]);
++    expect(r[0].userId).toBe("many");
++    expect(r[0].rank).toBe(1);
++  });
++
++  it("empty input → empty board (D-29 honest)", () => {
++    expect(rankLeaderboard([])).toEqual([]);
++  });
++});
+diff --git a/tests/phasede.integration.test.ts b/tests/phasede.integration.test.ts
+new file mode 100644
+index 0000000..0527b3e
+--- /dev/null
++++ b/tests/phasede.integration.test.ts
+@@ -0,0 +1,140 @@
++// Phase D/E (integration, live DB) — leaderboard ranks by COMPLETION not team-size (DR-034/035),
++// rewards progress derives from canon, affiliate leads encrypt PII + are owner-scoped, admin KPIs
++// aggregate real data. No money moves.
++import { describe, it, expect, beforeAll } from "vitest";
++import { prisma } from "@/lib/prisma";
++import { getMyLeaderboardStanding } from "@/lib/affiliate/leaderboard";
++import { completedReferralCount } from "@/lib/affiliate/completion";
++import { getRewardProgress } from "@/lib/affiliate/rewards";
++import { createAffiliateLead, listAffiliateLeads } from "@/lib/affiliate/leads";
++import { getAdminKpis } from "@/lib/admin/kpi";
++
++const HAS_DB = !!process.env.DATABASE_URL;
++const runId = String(Date.now()).slice(-8);
++let seq = 0;
++const uniquePhone = () =>
++  `+91${9_000_000_000 + ((Number(runId) + seq++) % 1_000_000_000)}`;
++
++async function makeUser(referredById: string | null): Promise<string> {
++  const u = await prisma.user.create({
++    data: {
++      phone: uniquePhone(),
++      referralCode: `PDE${runId}${seq}`.toUpperCase(),
++      referredById,
++    },
++    select: { id: true },
++  });
++  return u.id;
++}
++async function complete(userId: string, courseId: string) {
++  await prisma.certificate.create({
++    data: { userId, courseId, serial: `CERT-${runId}-${seq++}` },
++  });
++}
++
++describe.skipIf(!HAS_DB)("Phase D/E (integration)", () => {
++  let courseId: string;
++  let referrer: string; // 2 completed referrals
++  let bigTeamNoCompletions: string; // 5 downlines, 0 completions
++
++  beforeAll(async () => {
++    process.env.PII_ENCRYPTION_KEY = Buffer.alloc(32, 9).toString("base64");
++    const c = await prisma.course.upsert({
++      where: { slug: "ai-prompt-mastery" },
++      update: {},
++      create: {
++        slug: "ai-prompt-mastery",
++        title: "AI Prompt Mastery",
++        status: "PUBLISHED",
++      },
++      select: { id: true },
++    });
++    courseId = c.id;
++
++    referrer = await makeUser(null);
++    const d1 = await makeUser(referrer);
++    const d2 = await makeUser(referrer);
++    await makeUser(referrer); // a 3rd downline who has NOT completed
++    await complete(d1, courseId);
++    await complete(d2, courseId);
++
++    // A referrer with a BIG team but ZERO completions — must NOT rank (team-size ≠ ranking, DR-035).
++    bigTeamNoCompletions = await makeUser(null);
++    for (let i = 0; i < 5; i++) await makeUser(bigTeamNoCompletions);
++  });
++
++  it("leaderboard counts referred learners who COMPLETED a course (DR-034)", async () => {
++    expect(await completedReferralCount(referrer)).toBe(2);
++    const standing = await getMyLeaderboardStanding(referrer);
++    expect(standing?.completedReferrals).toBe(2);
++  });
++
++  it("a big team with zero completions does NOT rank (team-size never ranks, DR-035)", async () => {
++    expect(await completedReferralCount(bigTeamNoCompletions)).toBe(0);
++    expect(await getMyLeaderboardStanding(bigTeamNoCompletions)).toBeNull();
++  });
++
++  it("reward progress derives from completed-referrals", async () => {
++    const reward = await prisma.rewardDefinition.create({
++      data: {
++        title: `R${runId}`,
++        target: 2,
++        metric: "completed_referrals",
++        isActive: true,
++      },
++      select: { id: true },
++    });
++    const progress = await getRewardProgress(referrer);
++    const mine = progress.find((p) => p.id === reward.id);
++    expect(mine).toBeTruthy();
++    expect(mine!.current).toBe(2);
++    expect(mine!.achieved).toBe(true);
++    expect(mine!.percent).toBe(100);
++  });
++
++  it("affiliate leads encrypt PII at rest and are owner-scoped", async () => {
++    const owner = await makeUser(null);
++    const other = await makeUser(null);
++    const created = await createAffiliateLead(owner, {
++      name: "Priya",
++      phone: "9876500011",
++      email: "priya@example.com",
++    });
++    expect(created.ok).toBe(true);
++
++    // Stored ciphertext, not the raw number.
++    const raw = await prisma.affiliateLead.findFirstOrThrow({
++      where: { ownerId: owner },
++      select: { phoneEnc: true },
++    });
++    expect(raw.phoneEnc).not.toContain("9876500011");
++    expect(raw.phoneEnc.split(":")).toHaveLength(3);
++
++    // Owner sees their own lead decrypted; another affiliate sees none of them.
++    const mine = await listAffiliateLeads(owner);
++    expect(mine).toHaveLength(1);
++    expect(mine[0].phone).toBe("+919876500011");
++    expect(await listAffiliateLeads(other)).toHaveLength(0);
++  });
++
++  it("invalid lead phone is rejected before storage", async () => {
++    const owner = await makeUser(null);
++    const bad = await createAffiliateLead(owner, { phone: "123" });
++    expect(bad.ok).toBe(false);
++    expect(await listAffiliateLeads(owner)).toHaveLength(0);
++  });
++
++  it("admin KPIs aggregate real data into series + snapshots (no throw, honest shape)", async () => {
++    const kpis = await getAdminKpis();
++    expect(Array.isArray(kpis.registrations)).toBe(true);
++    expect(Array.isArray(kpis.withdrawalsByStatus)).toBe(true);
++    expect(typeof kpis.commissionsHeldInPaise).toBe("number");
++    expect(typeof kpis.commissionsAvailableInPaise).toBe("number");
++    // Each categorical point is well-formed.
++    for (const p of kpis.kycPipeline) {
++      expect(p).toHaveProperty("key");
++      expect(p).toHaveProperty("value");
++      expect(p.value).toBeGreaterThanOrEqual(0);
++    }
++  });
++});
+diff --git a/tests/refund-mirror.integration.test.ts b/tests/refund-mirror.integration.test.ts
+new file mode 100644
+index 0000000..553d07b
+--- /dev/null
++++ b/tests/refund-mirror.integration.test.ts
+@@ -0,0 +1,203 @@
++// Unit 3 (§2.5) — DR-038 refund-mirror edge (Phase B). When an upline EARNS a commission on a
++// downline's purchase and then their OWN purchase is refunded:
++//   • the ALREADY-EARNED commission is KEPT (clawback is keyed to the refunded order, which had no
++//     commission to the upline — eligibility is evaluated at credit-time, no retroactive removal), and
++//   • FUTURE eligibility is LOST (hasConfirmedPurchase → false), so the next downline purchase does
++//     NOT credit them.
++// Drives the REAL webhook — no money logic changed; a pure non-regression + edge assertion.
++import { describe, it, expect, beforeAll } from "vitest";
++import { createHmac } from "node:crypto";
++import { prisma } from "@/lib/prisma";
++import { startCheckout } from "@/lib/payments/checkout";
++import { handleRazorpayWebhook } from "@/lib/payments/webhook";
++import { hasConfirmedPurchase } from "@/lib/affiliate/eligibility";
++
++const HAS_DB = !!process.env.DATABASE_URL;
++const SECRET = "whsec_refund_mirror_test";
++const CB_PRICE = 219900;
++const CB_L1 = 125000; // career-booster L1 commission (paise)
++
++const runId = `rm${Date.now()}`;
++let seq = 0;
++const nextId = () => `${runId}${seq++}`;
++const sign = (b: string) =>
++  createHmac("sha256", SECRET).update(b).digest("hex");
++const uniquePhone = () =>
++  `+91${9_000_000_000 + ((Number(String(Date.now()).slice(-9)) + seq) % 1_000_000_000)}`;
++
++async function mkUser(
++  referredById: string | null,
++): Promise<{ id: string; phone: string }> {
++  const phone = uniquePhone();
++  const u = await prisma.user.create({
++    data: { phone, referralCode: `GRM${nextId()}`.toUpperCase(), referredById },
++    select: { id: true },
++  });
++  return { id: u.id, phone };
++}
++
++function capturedBody(razorpayOrderId: string, paymentId: string) {
++  return JSON.stringify({
++    event: "payment.captured",
++    payload: {
++      payment: {
++        entity: {
++          id: paymentId,
++          order_id: razorpayOrderId,
++          amount: CB_PRICE,
++          status: "captured",
++        },
++      },
++    },
++  });
++}
++
++/** Buy career-booster as `phone10`, capture the webhook → PAID. Returns ids. */
++async function buyAndCapture(
++  phone10: string,
++): Promise<{ orderId: string; paymentId: string }> {
++  const tag = nextId();
++  const order = await startCheckout(
++    { packageSlug: "career-booster", phone: phone10 },
++    async () => ({ id: `order_rzp_${tag}` }),
++  );
++  const paymentId = `pay_${tag}`;
++  const body = capturedBody(order.razorpayOrderId, paymentId);
++  const res = await handleRazorpayWebhook(body, sign(body), `evt_${tag}`);
++  expect(res.status).toBe(200);
++  return { orderId: order.orderId, paymentId };
++}
++
++async function commissionToUser(
++  orderId: string,
++  userId: string,
++): Promise<number> {
++  const txns = await prisma.ledgerTransaction.findMany({
++    where: { type: "COMMISSION", refType: "Order", refId: orderId },
++    include: {
++      entries: {
++        include: { account: { select: { userId: true, type: true } } },
++      },
++    },
++  });
++  let sum = 0;
++  for (const t of txns)
++    for (const e of t.entries)
++      if (
++        e.amountInPaise > 0 &&
++        e.account.type === "USER_WALLET" &&
++        e.account.userId === userId
++      )
++        sum += e.amountInPaise;
++  return sum;
++}
++
++describe.skipIf(!HAS_DB)("DR-038 refund-mirror edge (Unit 3 §2.5)", () => {
++  beforeAll(async () => {
++    process.env.RAZORPAY_WEBHOOK_SECRET = SECRET;
++    process.env.PAYMENT_PROVIDER = "mock";
++    const ai = await prisma.course.upsert({
++      where: { slug: "ai-prompt-mastery" },
++      update: {},
++      create: {
++        slug: "ai-prompt-mastery",
++        title: "AI Prompt Mastery",
++        status: "PUBLISHED",
++      },
++      select: { id: true },
++    });
++    const dm = await prisma.course.upsert({
++      where: { slug: "digital-marketing" },
++      update: {},
++      create: {
++        slug: "digital-marketing",
++        title: "Digital Marketing",
++        status: "COMING_SOON",
++      },
++      select: { id: true },
++    });
++    const cb = await prisma.package.upsert({
++      where: { slug: "career-booster" },
++      update: {
++        priceInPaise: CB_PRICE,
++        includesFutureCourses: true,
++        isActive: true,
++      },
++      create: {
++        slug: "career-booster",
++        name: "Career Booster",
++        priceInPaise: CB_PRICE,
++        includesFutureCourses: true,
++        isActive: true,
++      },
++      select: { id: true },
++    });
++    for (const courseId of [ai.id, dm.id])
++      await prisma.packageCourse.upsert({
++        where: { packageId_courseId: { packageId: cb.id, courseId } },
++        update: {},
++        create: { packageId: cb.id, courseId },
++      });
++    for (const type of [
++      "REVENUE",
++      "COMMISSION_PAYABLE",
++      "PAYOUT_CLEARING",
++      "GST_PAYABLE",
++    ] as const) {
++      const exists = await prisma.ledgerAccount.findFirst({
++        where: { type, userId: null },
++        select: { id: true },
++      });
++      if (!exists) await prisma.ledgerAccount.create({ data: { type } });
++    }
++  });
++
++  it("earned commission is KEPT after the upline's own order refunds; future eligibility is LOST", async () => {
++    // U buys (own purchase → eligible). U has no upline, so this credits nobody.
++    const upline = await mkUser(null);
++    const uOrder = await buyAndCapture(upline.phone.replace("+91", ""));
++    expect(await hasConfirmedPurchase(upline.id)).toBe(true);
++
++    // Downline D1 (referred by U) buys → U is eligible at credit-time → U earns L1.
++    const d1 = await mkUser(upline.id);
++    const d1Order = await buyAndCapture(d1.phone.replace("+91", ""));
++    expect(await commissionToUser(d1Order.orderId, upline.id)).toBe(CB_L1);
++
++    // U's OWN order is refunded. Clawback is keyed to U's order (which paid U nothing).
++    const refundBody = JSON.stringify({
++      event: "refund.processed",
++      payload: {
++        refund: {
++          entity: {
++            id: `rfnd_${nextId()}`,
++            payment_id: uOrder.paymentId,
++            amount: CB_PRICE,
++          },
++        },
++      },
++    });
++    const rf = await handleRazorpayWebhook(
++      refundBody,
++      sign(refundBody),
++      `evt_rf_${nextId()}`,
++    );
++    expect(rf.status).toBe(200);
++    expect(
++      (
++        await prisma.order.findUniqueOrThrow({
++          where: { id: uOrder.orderId },
++          select: { status: true },
++        })
++      ).status,
++    ).toBe("REFUNDED");
++
++    // KEPT: U's commission from D1's order is untouched by refunding U's OWN order.
++    expect(await commissionToUser(d1Order.orderId, upline.id)).toBe(CB_L1);
++
++    // LOST: U now has no confirmed purchase → future downline purchase does NOT credit U.
++    expect(await hasConfirmedPurchase(upline.id)).toBe(false);
++    const d2 = await mkUser(upline.id);
++    const d2Order = await buyAndCapture(d2.phone.replace("+91", ""));
++    expect(await commissionToUser(d2Order.orderId, upline.id)).toBe(0);
++  });
++});
+diff --git a/tests/tiers.test.ts b/tests/tiers.test.ts
+new file mode 100644
+index 0000000..bc4093a
+--- /dev/null
++++ b/tests/tiers.test.ts
+@@ -0,0 +1,51 @@
++// Phase D · D2 — contribution tiers (DR-035). Pure.
++import { describe, it, expect } from "vitest";
++import {
++  computeTier,
++  tierProgress,
++  DEFAULT_TIER_THRESHOLDS,
++} from "@/modules/affiliate/tiers";
++
++const T = { mentor: 5, champion: 15 };
++
++describe("computeTier", () => {
++  it("maps completed-referrals to the three tiers by threshold", () => {
++    expect(computeTier(0, T)).toBe("Contributor");
++    expect(computeTier(4, T)).toBe("Contributor");
++    expect(computeTier(5, T)).toBe("Mentor");
++    expect(computeTier(14, T)).toBe("Mentor");
++    expect(computeTier(15, T)).toBe("Community Champion");
++    expect(computeTier(99, T)).toBe("Community Champion");
++  });
++  it("has sane defaults", () => {
++    expect(DEFAULT_TIER_THRESHOLDS.mentor).toBeGreaterThan(0);
++    expect(DEFAULT_TIER_THRESHOLDS.champion).toBeGreaterThan(
++      DEFAULT_TIER_THRESHOLDS.mentor,
++    );
++  });
++});
++
++describe("tierProgress", () => {
++  it("reports the next tier + how many more completions to reach it", () => {
++    expect(tierProgress(3, T)).toEqual({
++      tier: "Contributor",
++      completedReferrals: 3,
++      nextTier: "Mentor",
++      toNext: 2,
++    });
++    expect(tierProgress(7, T)).toEqual({
++      tier: "Mentor",
++      completedReferrals: 7,
++      nextTier: "Community Champion",
++      toNext: 8,
++    });
++  });
++  it("tops out at Community Champion (no next tier)", () => {
++    expect(tierProgress(20, T)).toEqual({
++      tier: "Community Champion",
++      completedReferrals: 20,
++      nextTier: null,
++      toNext: null,
++    });
++  });
++});
