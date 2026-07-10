@@ -2,15 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Menu,
-  Bell,
-  Sparkles,
-  Share2,
-  LogOut,
-  MessageCircle,
-  ChevronRight,
-} from "lucide-react";
+import { Menu, Bell, Share2, LogOut, ArrowLeft } from "lucide-react";
 import { cn } from "../../lib/utils";
 import {
   visibleWorkspaces,
@@ -33,7 +25,7 @@ export interface AppShellProps {
   children: React.ReactNode;
 }
 
-// Active-workspace accent for the switcher pill (green Learn / gold Earn / neutral else).
+// Active-workspace accent (green Learn / gold Earn / neutral Home·Account).
 const activePill: Record<Workspace["theme"], string> = {
   neutral: "bg-charcoal/5 text-ink",
   learn: "bg-green-600/10 text-green-800",
@@ -49,12 +41,12 @@ function longestActiveHref(hrefs: string[], pathname: string): string | null {
 }
 
 /**
- * The GoSkilled app shell (Redesign U2 · IA v2.0). Left sidebar (workspace switcher + active-
- * workspace sub-nav + persistent Share) · sticky top bar (title · Guru entry · notifications ·
- * profile) · mobile drawer + 4-item bottom bar (Home · Learn · Earn · Share). Presentational chrome
- * only — it wraps the existing pages without touching any route or business logic. The active
- * workspace themes the subtree via `[data-theme]`. Guru is a floating entry everywhere (full chat
- * wiring is Phase 5); Feature-Visibility recomposition is stubbed (Phase 7).
+ * The GoSkilled app shell (Nav_Workspace_Architecture v1.1 — LOCKED). ONE nav system: a THIN
+ * persistent workspace switcher (a left icon-rail on desktop; the bottom bar on mobile) + a
+ * CONTEXTUAL sidebar that lists ONLY the active workspace's pages. No all-workspaces list, no
+ * separate sub-nav, no Guru. Persistent Share lives in the top bar (+ the desktop rail). Presentational
+ * chrome only — wraps the existing pages without touching any route or business logic; the active
+ * workspace themes the subtree via `[data-theme]`.
  */
 export function AppShell({
   userName,
@@ -62,20 +54,15 @@ export function AppShell({
   shareUrl,
   children,
 }: AppShellProps) {
-  const pathname = usePathname() ?? "/dashboard";
+  const pathname = usePathname() ?? "/dashboard/home";
   const workspaces = visibleWorkspaces();
   const activeKey = activeWorkspaceKey(pathname);
   const active = workspaces.find((w) => w.key === activeKey) ?? workspaces[0];
-  const dataTheme = active.theme; // "learn" | "earn" | "neutral"
+  const hasContext = active.items.length > 0;
+  const dataTheme = active.theme;
 
   const [drawerOpen, setDrawerOpen] = React.useState(false);
-  const [guruOpen, setGuruOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
-
-  const openGuru = () => {
-    setDrawerOpen(false);
-    setGuruOpen(true);
-  };
   const openShare = () => {
     setDrawerOpen(false);
     setShareOpen(true);
@@ -86,123 +73,121 @@ export function AppShell({
     pathname,
   );
 
-  const nav = (collapsed = false, onNavigate?: () => void) => (
-    <div className="flex h-full flex-col">
-      <div className="flex h-16 items-center px-4">
+  // The persistent workspace switcher (icon rail on desktop, bottom bar on mobile).
+  const switcher = (variant: "rail" | "bar") =>
+    workspaces.map((ws) => {
+      const isActive = ws.key === activeKey;
+      return (
+        <Link
+          key={ws.key}
+          href={ws.href}
+          aria-current={isActive ? "page" : undefined}
+          className={cn(
+            "flex flex-col items-center justify-center gap-1 font-semibold transition-colors",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2",
+            variant === "rail"
+              ? "w-14 rounded-gs py-2 text-caption"
+              : "min-h-[56px] flex-1 py-1.5 text-caption",
+            isActive
+              ? variant === "rail"
+                ? activePill[ws.theme]
+                : "text-theme-strong"
+              : "text-ink-muted hover:text-ink",
+          )}
+        >
+          <ws.icon className="h-5 w-5" aria-hidden />
+          {ws.label}
+        </Link>
+      );
+    });
+
+  // Contextual page list for the active workspace (drawer + desktop sidebar).
+  const contextNav = (onNavigate?: () => void) => (
+    <nav aria-label={`${active.label} pages`} className="space-y-1">
+      {active.items.map((item) => (
+        <SidebarItem
+          key={item.href}
+          icon={item.icon}
+          label={item.label}
+          href={item.href}
+          active={item.href === activeItemHref}
+        />
+      ))}
+      {active.key !== "home" && (
         <Link
           href="/dashboard/home"
-          className="font-heading text-lg font-extrabold text-brand"
           onClick={onNavigate}
+          className="mt-2 flex items-center gap-3 rounded-gs px-3 py-2.5 text-small font-medium text-ink-muted hover:bg-charcoal/5 hover:text-ink"
         >
-          GoSkilled
+          <ArrowLeft className="h-5 w-5 shrink-0" aria-hidden />
+          Home
         </Link>
-      </div>
-
-      <div className="flex-1 space-y-4 overflow-y-auto px-3 pb-3">
-        {/* Workspace switcher — always shows the active surface (Amendments §A). */}
-        <nav aria-label="Workspaces" className="space-y-1">
-          {workspaces.map((ws) => {
-            const isActive = ws.key === activeKey;
-            const cls = cn(
-              "flex w-full items-center gap-3 rounded-gs px-3 py-2.5 text-small font-semibold transition-colors",
-              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2",
-              isActive
-                ? activePill[ws.theme]
-                : "text-ink-muted hover:bg-charcoal/5 hover:text-ink",
-            );
-            const inner = (
-              <>
-                <ws.icon className="h-5 w-5 shrink-0" aria-hidden />
-                <span className="flex-1 text-left">{ws.label}</span>
-              </>
-            );
-            // Guru has no route — it opens the floating panel instead of navigating.
-            return ws.href === null ? (
-              <button
-                key={ws.key}
-                type="button"
-                onClick={openGuru}
-                className={cls}
-              >
-                {inner}
-              </button>
-            ) : (
-              <Link
-                key={ws.key}
-                href={ws.href}
-                aria-current={isActive ? "page" : undefined}
-                onClick={onNavigate}
-                className={cls}
-              >
-                {inner}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Active-workspace sub-nav (contextual). */}
-        {active.items.length > 0 && (
-          <div className="space-y-1 border-t border-line pt-3">
-            <p className="px-3 pb-1 text-caption font-semibold uppercase tracking-wide text-ink-muted">
-              {active.label}
-            </p>
-            {active.items.map((item) => (
-              <SidebarItem
-                key={item.href}
-                icon={item.icon}
-                label={item.label}
-                href={item.href}
-                active={item.href === activeItemHref}
-                collapsed={collapsed}
-              />
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Persistent Share (DR-039). */}
-      <div className="border-t border-line p-3">
-        <button
-          type="button"
-          onClick={openShare}
-          className="flex w-full items-center gap-2 rounded-gs bg-theme/10 px-3 py-2.5 text-small font-semibold text-theme-strong transition-colors hover:bg-theme/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme"
-        >
-          <Share2 className="h-4 w-4" aria-hidden />
-          Share &amp; earn
-          <ChevronRight className="ml-auto h-4 w-4" aria-hidden />
-        </button>
-      </div>
-    </div>
+      )}
+    </nav>
   );
 
   return (
     <div data-theme={dataTheme} className="min-h-dvh bg-surface">
-      {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[264px] border-r border-line bg-surface-raised md:block">
-        {nav()}
-      </aside>
+      {/* Desktop: thin workspace switcher rail */}
+      <nav
+        aria-label="Workspaces"
+        className="fixed inset-y-0 left-0 z-40 hidden w-[72px] flex-col items-center gap-1 border-r border-line bg-surface-raised py-3 md:flex"
+      >
+        <Link
+          href="/dashboard/home"
+          aria-label="GoSkilled home"
+          className="mb-2 flex h-10 w-10 items-center justify-center rounded-xl bg-brand font-heading text-lg font-extrabold text-brand-fg"
+        >
+          G
+        </Link>
+        {switcher("rail")}
+        <div className="mt-auto">
+          <IconButton
+            aria-label="Share your link"
+            variant="outline"
+            onClick={openShare}
+          >
+            <Share2 className="h-5 w-5" aria-hidden />
+          </IconButton>
+        </div>
+      </nav>
 
-      {/* Mobile drawer */}
+      {/* Desktop: contextual sidebar (only when the workspace has pages) */}
+      {hasContext && (
+        <aside className="fixed inset-y-0 left-[72px] z-30 hidden w-[232px] flex-col border-r border-line bg-surface-raised md:flex">
+          <div className="flex h-16 items-center px-4">
+            <p className="font-heading text-h4 font-bold text-ink">
+              {active.label}
+            </p>
+          </div>
+          <div className="flex-1 overflow-y-auto px-3 pb-3">{contextNav()}</div>
+        </aside>
+      )}
+
+      {/* Mobile drawer — the contextual pages (overflow only). */}
       <Drawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         side="left"
+        title={active.label}
       >
-        {nav(false, () => setDrawerOpen(false))}
+        {contextNav(() => setDrawerOpen(false))}
       </Drawer>
 
       {/* Main column */}
-      <div className="md:pl-[264px]">
+      <div className={cn("md:pl-[72px]", hasContext && "md:pl-[304px]")}>
         <Topbar
           left={
             <>
-              <IconButton
-                aria-label="Open menu"
-                className="md:hidden"
-                onClick={() => setDrawerOpen(true)}
-              >
-                <Menu className="h-5 w-5" aria-hidden />
-              </IconButton>
+              {hasContext && (
+                <IconButton
+                  aria-label="Open menu"
+                  className="md:hidden"
+                  onClick={() => setDrawerOpen(true)}
+                >
+                  <Menu className="h-5 w-5" aria-hidden />
+                </IconButton>
+              )}
               <h1 className="truncate font-heading text-h4 font-bold text-ink">
                 {active.label}
               </h1>
@@ -211,11 +196,11 @@ export function AppShell({
           actions={
             <>
               <IconButton
-                aria-label="Ask Guru"
+                aria-label="Share your link"
                 variant="outline"
-                onClick={openGuru}
+                onClick={openShare}
               >
-                <Sparkles className="h-5 w-5" aria-hidden />
+                <Share2 className="h-5 w-5" aria-hidden />
               </IconButton>
               <IconButton aria-label="Notifications">
                 <Bell className="h-5 w-5" aria-hidden />
@@ -262,65 +247,13 @@ export function AppShell({
         </main>
       </div>
 
-      {/* Mobile bottom bar — Home · Learn · Earn · Share (Share opens the sheet). */}
+      {/* Mobile: workspace switcher bottom bar */}
       <nav
-        aria-label="Primary"
-        className="glass fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-line pb-[env(safe-area-inset-bottom)] md:hidden"
+        aria-label="Workspaces"
+        className="glass fixed inset-x-0 bottom-0 z-40 flex items-stretch border-t border-line pb-[env(safe-area-inset-bottom)] md:hidden"
       >
-        {workspaces
-          .filter((w) => ["home", "learn", "earn"].includes(w.key))
-          .map((w) => {
-            const isActive = w.key === activeKey;
-            return (
-              <Link
-                key={w.key}
-                href={w.href ?? "/dashboard/home"}
-                aria-current={isActive ? "page" : undefined}
-                className={cn(
-                  "flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-caption font-medium",
-                  isActive ? "text-theme-strong" : "text-ink-muted",
-                )}
-              >
-                <w.icon className="h-5 w-5" aria-hidden />
-                {w.label}
-              </Link>
-            );
-          })}
-        <button
-          type="button"
-          onClick={openShare}
-          className="flex min-h-[56px] flex-col items-center justify-center gap-0.5 py-1.5 text-caption font-medium text-ink-muted"
-        >
-          <Share2 className="h-5 w-5" aria-hidden />
-          Share
-        </button>
+        {switcher("bar")}
       </nav>
-
-      {/* Guru floating panel (Phase-5 full wiring). Honest entry to the real in-lesson Guru. */}
-      <Drawer
-        open={guruOpen}
-        onClose={() => setGuruOpen(false)}
-        side="right"
-        title="Guru — your Hinglish study buddy"
-      >
-        <div className="space-y-4">
-          <p className="text-small text-ink-muted">
-            Ask a doubt in plain Hinglish and get unstuck — any time, on any
-            lesson.
-          </p>
-          <Link
-            href="/dashboard/learn"
-            onClick={() => setGuruOpen(false)}
-            className="press inline-flex w-full items-center justify-center gap-2 rounded-xl bg-theme px-4 py-2.5 text-small font-semibold text-theme-fg hover:opacity-90"
-          >
-            <MessageCircle className="h-4 w-4" aria-hidden />
-            Open Guru in your lesson
-          </Link>
-          <p className="text-caption text-ink-muted">
-            A full Guru chat is coming to every screen soon.
-          </p>
-        </div>
-      </Drawer>
 
       {/* Share sheet — the persistent Share affordance opens the full widget. */}
       <Drawer

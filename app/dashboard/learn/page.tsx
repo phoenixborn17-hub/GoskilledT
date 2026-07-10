@@ -10,7 +10,6 @@ import {
   Flame,
   PlayCircle,
   Share2,
-  Sparkles,
   Compass,
   CalendarDays,
   Rocket,
@@ -165,15 +164,8 @@ function Loaded({ d }: { d: LearnDashboard }) {
             label="Refer a friend"
             href="/dashboard/earn"
           />
-          <QuickActionCard
-            icon={Sparkles}
-            label="Ask Guru"
-            href={guruHref(d)}
-          />
         </div>
       </section>
-
-      {d.active && <GuruChips slug={d.active.slug} />}
     </>
   );
 }
@@ -268,41 +260,6 @@ function Overview({ d }: { d: LearnDashboard }) {
       )}
     </div>
   );
-}
-
-// Guru in-context chips (GPS-M5 §1E) — deep-link to the real in-lesson Guru with a ready doubt.
-function GuruChips({ slug }: { slug: string }) {
-  const chips = [
-    "Is lesson ka main concept simple words me samjhao.",
-    "Ek real-life example do is topic ka.",
-    "Mujhe is chapter ka quick summary chahiye.",
-  ];
-  return (
-    <section aria-label="Ask Guru" className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-info" aria-hidden />
-        <h2 className="font-heading text-h4 font-bold text-ink">Ask Guru</h2>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {chips.map((c) => (
-          <Link
-            key={c}
-            href={`/dashboard/learn/${slug}?guru=1&q=${encodeURIComponent(c)}`}
-            className="press inline-flex items-center gap-1.5 rounded-full border border-info/25 bg-info/5 px-3 py-1.5 text-small font-medium text-ink transition-colors hover:bg-info/10"
-          >
-            <Sparkles className="h-3.5 w-3.5 text-info" aria-hidden />
-            {c}
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function guruHref(d: LearnDashboard): string {
-  return d.active
-    ? `/dashboard/learn/${d.active.slug}?guru=1`
-    : "/dashboard/courses";
 }
 
 function ZeroData() {

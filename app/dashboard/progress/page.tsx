@@ -1,7 +1,7 @@
 // Progress tab (Blueprint §3 · Redesign U4) — re-skinned: per-course semicircle gauge + milestones
 // + certificate (with WhatsApp share) + Guru "explain-my-gap" entry. Same data/logic; never blank.
 import Link from "next/link";
-import { Sparkles, BookOpen } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { getCurrentUser } from "../../../lib/auth/session";
 import {
   getEnrolledCourses,
@@ -32,7 +32,7 @@ export default async function ProgressPage() {
         id="progress-heading"
         className="font-heading text-h1 font-bold text-ink"
       >
-        Progress
+        Progress &amp; Certificates
       </h1>
 
       {/* Milestones (GPS-M5 §2.3) — real achievements, warm next-goal (never pressure). */}
@@ -88,19 +88,6 @@ export default async function ProgressPage() {
                   </div>
                 </div>
               </div>
-
-              {/* Guru "explain-my-gap" entry (GPS-M5 §1E) — opens Guru on the resume lesson. */}
-              {c.progress.percent < 100 && (
-                <Link
-                  href={`/dashboard/learn/${c.slug}?guru=1&q=${encodeURIComponent(
-                    "Jo lesson main abhi padh raha hoon, uska main concept simple words me samjhao.",
-                  )}`}
-                  className="press mt-4 inline-flex items-center gap-2 rounded-xl bg-info/5 px-3 py-2 text-small font-semibold text-info"
-                >
-                  <Sparkles className="h-4 w-4" aria-hidden />
-                  Guru se samjho — stuck kahan ho?
-                </Link>
-              )}
 
               {/* Certificate slot (§2.4) + WhatsApp share (§2.7) — existing leak-tested component. */}
               <CertificateCard
