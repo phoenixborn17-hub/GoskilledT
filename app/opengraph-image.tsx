@@ -3,48 +3,14 @@
 // only as a small accent bar (Golden Rule 14: gold is never text).
 import { ImageResponse } from "next/og";
 import { SITE_NAME } from "../lib/seo";
+import { loadSoraFonts } from "../lib/og/fonts";
 
 export const alt = "GoSkilled — practical, job-ready skills in Hinglish";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
-// Fetch the Sora display font for the OG canvas; returns null on any failure so the image still
-// renders with the default font (never breaks the build or the request).
-async function loadSora(weight: number): Promise<ArrayBuffer | null> {
-  try {
-    const css = await fetch(
-      `https://fonts.googleapis.com/css2?family=Sora:wght@${weight}`,
-      { headers: { "User-Agent": "Mozilla/5.0" } },
-    ).then((r) => r.text());
-    const url = css.match(/src: url\(([^)]+)\) format/)?.[1];
-    if (!url) return null;
-    return await fetch(url).then((r) => r.arrayBuffer());
-  } catch {
-    return null;
-  }
-}
-
 export default async function OpengraphImage() {
-  const [bold, extra] = await Promise.all([loadSora(700), loadSora(800)]);
-  const fonts = [
-    bold && {
-      name: "Sora",
-      data: bold,
-      weight: 700 as const,
-      style: "normal" as const,
-    },
-    extra && {
-      name: "Sora",
-      data: extra,
-      weight: 800 as const,
-      style: "normal" as const,
-    },
-  ].filter(Boolean) as {
-    name: string;
-    data: ArrayBuffer;
-    weight: 700 | 800;
-    style: "normal";
-  }[];
+  const fonts = await loadSoraFonts([700, 800]);
 
   return new ImageResponse(
     <div

@@ -9,7 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: SITE_NAME,
     description:
       "Practical, job-ready skills in Hinglish — learn at your own pace.",
-    start_url: "/dashboard",
+    // Landing = the Home hub (DR-039/DR-042); the installed app opens straight to it.
+    start_url: "/dashboard/home",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

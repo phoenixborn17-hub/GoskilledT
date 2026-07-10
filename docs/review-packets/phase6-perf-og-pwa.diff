@@ -1,0 +1,483 @@
+diff --git a/app/courses/[slug]/opengraph-image.tsx b/app/courses/[slug]/opengraph-image.tsx
+new file mode 100644
+index 0000000..758f558
+--- /dev/null
++++ b/app/courses/[slug]/opengraph-image.tsx
+@@ -0,0 +1,217 @@
++// Phase 6 · dynamic OG share image for a course page. When a learner or affiliate shares a
++// /courses/<slug> link on WhatsApp, social platforms render THIS card (title · category · what's
++// inside) instead of the generic site card — a stronger, on-brand preview. D-29 clean: describes
++// the course only, never promises income or outcomes. Unknown/system slug → neutral brand fallback
++// (never renders fabricated data). Mirrors the certificate OG pattern (/verify/[serial]).
++import { ImageResponse } from "next/og";
++import { getCourseDetail } from "../../../lib/catalog/queries";
++import { courseStats } from "../../../lib/catalog/shape";
++import { loadSoraFonts } from "../../../lib/og/fonts";
++import { SITE_NAME } from "../../../lib/seo";
++
++export const runtime = "nodejs"; // course lookup uses Prisma
++export const size = { width: 1200, height: 630 };
++export const contentType = "image/png";
++export const alt = "GoSkilled course";
++
++const GREEN = "#137E49";
++const GOLD = "#EDC825";
++
++export default async function Image({
++  params,
++}: {
++  params: { slug: string };
++}) {
++  const [course, fonts] = await Promise.all([
++    getCourseDetail(params.slug).catch(() => null),
++    loadSoraFonts([400, 700, 800]),
++  ]);
++  const family = fonts.length ? "Sora" : "sans-serif";
++
++  // Neutral brand fallback for an unknown slug (Satori needs display:flex on multi-child nodes).
++  if (!course) {
++    return new ImageResponse(
++      (
++        <div
++          style={{
++            display: "flex",
++            flexDirection: "column",
++            width: "100%",
++            height: "100%",
++            padding: 72,
++            background:
++              "linear-gradient(135deg, #0C5A34 0%, #137E49 55%, #1AA05E 100%)",
++            color: "#FEFEFE",
++            justifyContent: "center",
++            gap: 16,
++            fontFamily: family,
++          }}
++        >
++          <div style={{ display: "flex", fontSize: 44, fontWeight: 800 }}>
++            {SITE_NAME}
++          </div>
++          <div style={{ display: "flex", fontSize: 32 }}>
++            Practical, job-ready skills in simple Hinglish.
++          </div>
++        </div>
++      ),
++      { ...size, fonts },
++    );
++  }
++
++  const comingSoon = course.status === "COMING_SOON";
++  const stats = courseStats(course.modules);
++  // Honest, factual meta line — only render facts we actually have.
++  const facts = [
++    course.modules.length > 0 ? `${course.modules.length} modules` : null,
++    stats.lessonCount > 0 ? `${stats.lessonCount} lessons` : null,
++    stats.totalDurationSec > 0 ? stats.durationLabel : null,
++  ].filter(Boolean) as string[];
++
++  return new ImageResponse(
++    (
++      <div
++        style={{
++          display: "flex",
++          flexDirection: "column",
++          width: "100%",
++          height: "100%",
++          padding: 72,
++          background: "#FEFEFE",
++          justifyContent: "space-between",
++          fontFamily: family,
++        }}
++      >
++        {/* Brand row + optional category pill */}
++        <div
++          style={{
++            display: "flex",
++            alignItems: "center",
++            justifyContent: "space-between",
++          }}
++        >
++          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
++            <div
++              style={{
++                display: "flex",
++                alignItems: "center",
++                justifyContent: "center",
++                width: 56,
++                height: 56,
++                borderRadius: 16,
++                background: GREEN,
++                color: "#fff",
++                fontSize: 34,
++                fontWeight: 800,
++              }}
++            >
++              G
++            </div>
++            <div
++              style={{ display: "flex", fontSize: 30, fontWeight: 800, color: GREEN }}
++            >
++              {SITE_NAME}
++            </div>
++          </div>
++          {course.category ? (
++            <div
++              style={{
++                display: "flex",
++                alignItems: "center",
++                background: "#EAF5EE",
++                color: GREEN,
++                padding: "10px 22px",
++                borderRadius: 999,
++                fontSize: 22,
++                fontWeight: 700,
++              }}
++            >
++              {course.category}
++            </div>
++          ) : (
++            <div style={{ display: "flex" }} />
++          )}
++        </div>
++
++        {/* Title + summary */}
++        <div style={{ display: "flex", flexDirection: "column" }}>
++          <div
++            style={{
++              display: "flex",
++              fontSize: 22,
++              letterSpacing: 3,
++              color: "#8a8f88",
++              fontWeight: 700,
++            }}
++          >
++            {comingSoon ? "COMING SOON" : "COURSE"}
++          </div>
++          <div
++            style={{
++              display: "flex",
++              fontSize: 72,
++              fontWeight: 800,
++              color: "#2A302A",
++              marginTop: 12,
++              lineHeight: 1.05,
++            }}
++          >
++            {course.title}
++          </div>
++          {course.summary ? (
++            <div
++              style={{
++                display: "flex",
++                fontSize: 30,
++                color: "#5b615a",
++                marginTop: 18,
++                lineHeight: 1.3,
++              }}
++            >
++              {course.summary.length > 120
++                ? `${course.summary.slice(0, 117)}…`
++                : course.summary}
++            </div>
++          ) : (
++            <div style={{ display: "flex" }} />
++          )}
++        </div>
++
++        {/* Fact row + trust accent (gold as an accent bar only — Golden Rule 14) */}
++        <div
++          style={{
++            display: "flex",
++            justifyContent: "space-between",
++            alignItems: "flex-end",
++          }}
++        >
++          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
++            <div
++              style={{
++                width: 40,
++                height: 8,
++                borderRadius: 9999,
++                background: GOLD,
++                display: "flex",
++              }}
++            />
++            <div style={{ display: "flex", fontSize: 26, color: "#5b615a" }}>
++              {facts.length ? facts.join("  ·  ") : "Learn in simple Hinglish"}
++            </div>
++          </div>
++          <div
++            style={{
++              display: "flex",
++              fontSize: 22,
++              fontWeight: 700,
++              color: "#8a8f88",
++            }}
++          >
++            GST-inclusive · 48-hour refund
++          </div>
++        </div>
++      </div>
++    ),
++    { ...size, fonts },
++  );
++}
+diff --git a/app/manifest.ts b/app/manifest.ts
+index 9c4da29..cd314ec 100644
+--- a/app/manifest.ts
++++ b/app/manifest.ts
+@@ -9,7 +9,8 @@ export default function manifest(): MetadataRoute.Manifest {
+     short_name: SITE_NAME,
+     description:
+       "Practical, job-ready skills in Hinglish — learn at your own pace.",
+-    start_url: "/dashboard",
++    // Landing = the Home hub (DR-039/DR-042); the installed app opens straight to it.
++    start_url: "/dashboard/home",
+     scope: "/",
+     display: "standalone",
+     orientation: "portrait",
+diff --git a/app/opengraph-image.tsx b/app/opengraph-image.tsx
+index 7077eeb..bac7c96 100644
+--- a/app/opengraph-image.tsx
++++ b/app/opengraph-image.tsx
+@@ -3,48 +3,14 @@
+ // only as a small accent bar (Golden Rule 14: gold is never text).
+ import { ImageResponse } from "next/og";
+ import { SITE_NAME } from "../lib/seo";
++import { loadSoraFonts } from "../lib/og/fonts";
+ 
+ export const alt = "GoSkilled — practical, job-ready skills in Hinglish";
+ export const size = { width: 1200, height: 630 };
+ export const contentType = "image/png";
+ 
+-// Fetch the Sora display font for the OG canvas; returns null on any failure so the image still
+-// renders with the default font (never breaks the build or the request).
+-async function loadSora(weight: number): Promise<ArrayBuffer | null> {
+-  try {
+-    const css = await fetch(
+-      `https://fonts.googleapis.com/css2?family=Sora:wght@${weight}`,
+-      { headers: { "User-Agent": "Mozilla/5.0" } },
+-    ).then((r) => r.text());
+-    const url = css.match(/src: url\(([^)]+)\) format/)?.[1];
+-    if (!url) return null;
+-    return await fetch(url).then((r) => r.arrayBuffer());
+-  } catch {
+-    return null;
+-  }
+-}
+-
+ export default async function OpengraphImage() {
+-  const [bold, extra] = await Promise.all([loadSora(700), loadSora(800)]);
+-  const fonts = [
+-    bold && {
+-      name: "Sora",
+-      data: bold,
+-      weight: 700 as const,
+-      style: "normal" as const,
+-    },
+-    extra && {
+-      name: "Sora",
+-      data: extra,
+-      weight: 800 as const,
+-      style: "normal" as const,
+-    },
+-  ].filter(Boolean) as {
+-    name: string;
+-    data: ArrayBuffer;
+-    weight: 700 | 800;
+-    style: "normal";
+-  }[];
++  const fonts = await loadSoraFonts([700, 800]);
+ 
+   return new ImageResponse(
+     <div
+diff --git a/app/register/opengraph-image.tsx b/app/register/opengraph-image.tsx
+new file mode 100644
+index 0000000..6c0d71e
+--- /dev/null
++++ b/app/register/opengraph-image.tsx
+@@ -0,0 +1,132 @@
++// Phase 6 · OG share card for the invite landing (/register). When someone shares their GoSkilled
++// invite link, this is the WhatsApp/social preview: a warm "you're invited" card that matches the
++// page's own copy (DR-036 invite-only). COMPLIANCE-SAFE by design — it carries NO referrer identity
++// (no PII/attribution — that personalization is Phase 7 / DR-040) and NO income claim (D-29): it
++// only says "invited to learn". Gold is an accent bar only (Golden Rule 14).
++import { ImageResponse } from "next/og";
++import { loadSoraFonts } from "../../lib/og/fonts";
++import { SITE_NAME } from "../../lib/seo";
++
++export const alt = "You're invited to GoSkilled";
++export const size = { width: 1200, height: 630 };
++export const contentType = "image/png";
++
++export default async function Image() {
++  const fonts = await loadSoraFonts([400, 700, 800]);
++  const family = fonts.length ? "Sora" : "sans-serif";
++
++  return new ImageResponse(
++    (
++      <div
++        style={{
++          display: "flex",
++          flexDirection: "column",
++          width: "100%",
++          height: "100%",
++          padding: 72,
++          justifyContent: "space-between",
++          background:
++            "linear-gradient(135deg, #0C5A34 0%, #137E49 55%, #1AA05E 100%)",
++          color: "#FEFEFE",
++          fontFamily: family,
++        }}
++      >
++        {/* Brand row + invite pill */}
++        <div
++          style={{
++            display: "flex",
++            alignItems: "center",
++            justifyContent: "space-between",
++          }}
++        >
++          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
++            <div
++              style={{
++                display: "flex",
++                alignItems: "center",
++                justifyContent: "center",
++                width: 56,
++                height: 56,
++                borderRadius: 16,
++                background: "#FEFEFE",
++                color: "#137E49",
++                fontSize: 34,
++                fontWeight: 800,
++              }}
++            >
++              G
++            </div>
++            <div style={{ display: "flex", fontSize: 30, fontWeight: 800 }}>
++              {SITE_NAME}
++            </div>
++          </div>
++          <div
++            style={{
++              display: "flex",
++              alignItems: "center",
++              background: "#EDC825",
++              color: "#2A302A",
++              padding: "10px 22px",
++              borderRadius: 999,
++              fontSize: 22,
++              fontWeight: 700,
++            }}
++          >
++            Invite-only
++          </div>
++        </div>
++
++        {/* Headline */}
++        <div style={{ display: "flex", flexDirection: "column" }}>
++          <div
++            style={{
++              display: "flex",
++              fontSize: 88,
++              fontWeight: 800,
++              lineHeight: 1.03,
++              letterSpacing: "-1.5px",
++            }}
++          >
++            You&apos;re invited to GoSkilled
++          </div>
++          <div
++            style={{
++              display: "flex",
++              marginTop: 22,
++              fontSize: 34,
++              fontWeight: 700,
++              color: "rgba(254,254,254,0.85)",
++            }}
++          >
++            Practical, job-ready skills in simple Hinglish — learn at your own
++            pace.
++          </div>
++        </div>
++
++        {/* Trust line with gold accent bar */}
++        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
++          <div
++            style={{
++              width: 40,
++              height: 8,
++              borderRadius: 9999,
++              background: "#EDC825",
++              display: "flex",
++            }}
++          />
++          <div
++            style={{
++              display: "flex",
++              fontSize: 24,
++              fontWeight: 700,
++              color: "rgba(254,254,254,0.8)",
++            }}
++          >
++            GST-inclusive pricing · 48-hour refund · We sell skills, not dreams
++          </div>
++        </div>
++      </div>
++    ),
++    { ...size, fonts },
++  );
++}
+diff --git a/lib/og/fonts.ts b/lib/og/fonts.ts
+new file mode 100644
+index 0000000..e904b95
+--- /dev/null
++++ b/lib/og/fonts.ts
+@@ -0,0 +1,47 @@
++// Shared font loader for next/og canvases (Phase 6 · lib/og/**). The OG images render server-side
++// with Satori; loading the brand display font (Sora) keeps every share card on-brand. Every fetch
++// is best-effort: on ANY failure this returns null so the ImageResponse still renders with the
++// default sans-serif — an OG image must NEVER break the build or the request.
++//
++// Google Fonts serves a woff2 whose URL is embedded in the css2 stylesheet; we resolve it once per
++// weight. Callers pass the weights they need and filter out the nulls.
++
++export interface OgFont {
++  name: "Sora";
++  data: ArrayBuffer;
++  weight: 400 | 700 | 800;
++  style: "normal";
++}
++
++/** Fetch a single Sora weight as a font buffer, or null on any failure (never throws). */
++export async function loadSora(weight: 400 | 700 | 800): Promise<ArrayBuffer | null> {
++  try {
++    const css = await fetch(
++      `https://fonts.googleapis.com/css2?family=Sora:wght@${weight}`,
++      { headers: { "User-Agent": "Mozilla/5.0" } },
++    ).then((r) => r.text());
++    const url = css.match(/src: url\(([^)]+)\) format/)?.[1];
++    if (!url) return null;
++    return await fetch(url).then((r) => r.arrayBuffer());
++  } catch {
++    return null;
++  }
++}
++
++/**
++ * Load the requested Sora weights and return only the ones that succeeded, in `ImageResponse`'s
++ * `fonts` shape. An empty array is a valid result (canvas falls back to sans-serif). Use the
++ * returned array's `.length` to pick `fontFamily` ("Sora" vs "sans-serif").
++ */
++export async function loadSoraFonts(
++  weights: (400 | 700 | 800)[],
++): Promise<OgFont[]> {
++  const buffers = await Promise.all(weights.map((w) => loadSora(w)));
++  return weights
++    .map((weight, i) =>
++      buffers[i]
++        ? ({ name: "Sora", data: buffers[i]!, weight, style: "normal" } as const)
++        : null,
++    )
++    .filter((f): f is OgFont => f !== null);
++}
