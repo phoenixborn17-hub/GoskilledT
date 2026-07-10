@@ -35,6 +35,7 @@ import {
 } from "../../../lib/wallet/queries";
 import { getKycStatus } from "../../../lib/kyc/queries";
 import { track, anonId } from "../../../lib/analytics/track";
+import { assertFeatureVisible } from "../../../lib/feature-visibility/context";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
@@ -46,6 +47,7 @@ function fileExt(name: string): string {
 
 // ── Referral share — fires the canonical `referral_share` event (no PII, no ₹). ──
 export async function recordReferralShare(): Promise<ActionResult> {
+  await assertFeatureVisible("earn"); // DR-040: affiliate action unreachable when hidden (404)
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please sign in." };
   await track("referral_share", user.id, { channel: "share" });
@@ -59,6 +61,7 @@ export async function sendKycVerification(
 ): Promise<ActionResult> {
   if (channel !== "email" && channel !== "whatsapp")
     return { ok: false, error: "Invalid channel." };
+  await assertFeatureVisible("earn"); // DR-040
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please sign in." };
   // Reuse the OTP send throttle (per-phone key stands in for per-user here).
@@ -78,6 +81,7 @@ export async function confirmKycVerification(
 ): Promise<ActionResult> {
   if (channel !== "email" && channel !== "whatsapp")
     return { ok: false, error: "Invalid channel." };
+  await assertFeatureVisible("earn"); // DR-040
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please sign in." };
   const res = await confirmContactVerification(user.id, channel, target, code);
@@ -111,6 +115,7 @@ const kycSchema = z.object({
 
 // FormData boundary: KYC now carries file uploads, so the action takes FormData (not a typed object).
 export async function submitKyc(formData: FormData): Promise<ActionResult> {
+  await assertFeatureVisible("earn"); // DR-040
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please sign in." };
 
@@ -217,6 +222,7 @@ export async function requestWithdrawal(
   const parsed = withdrawalSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid amount." };
 
+  await assertFeatureVisible("earn"); // DR-040
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please sign in." };
 

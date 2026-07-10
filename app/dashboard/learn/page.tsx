@@ -15,6 +15,7 @@ import {
   Rocket,
 } from "lucide-react";
 import { getCurrentUser } from "../../../lib/auth/session";
+import { isFeatureVisible } from "../../../lib/feature-visibility/context";
 import {
   getLearnDashboard,
   type LearnDashboard,
@@ -42,7 +43,10 @@ const GOAL_SUBLINE: Record<string, string> = {
 
 export default async function LearnPage() {
   const user = await getCurrentUser();
-  const d = await getLearnDashboard(user!.id);
+  const [d, affiliateVisible] = await Promise.all([
+    getLearnDashboard(user!.id),
+    isFeatureVisible("earn"), // DR-040: gate the cross-cutting referral affordance on Learn
+  ]);
 
   return (
     <div className="space-y-8">
@@ -55,12 +59,22 @@ export default async function LearnPage() {
         </p>
       </header>
 
-      {d.lifecycleNew ? <ZeroData /> : <Loaded d={d} />}
+      {d.lifecycleNew ? (
+        <ZeroData affiliateVisible={affiliateVisible} />
+      ) : (
+        <Loaded d={d} affiliateVisible={affiliateVisible} />
+      )}
     </div>
   );
 }
 
-function Loaded({ d }: { d: LearnDashboard }) {
+function Loaded({
+  d,
+  affiliateVisible,
+}: {
+  d: LearnDashboard;
+  affiliateVisible: boolean;
+}) {
   const remaining = d.active ? d.active.total - d.active.completed : 0;
   const heroAi =
     d.active && d.active.percent > 0 && remaining > 0
@@ -159,11 +173,14 @@ function Loaded({ d }: { d: LearnDashboard }) {
             label="Explore courses"
             href="/courses"
           />
-          <QuickActionCard
-            icon={Share2}
-            label="Refer a friend"
-            href="/dashboard/earn"
-          />
+          {/* Referral is the cross-cutting Affiliate-layer affordance — hidden when Affiliate is off. */}
+          {affiliateVisible && (
+            <QuickActionCard
+              icon={Share2}
+              label="Refer a friend"
+              href="/dashboard/earn"
+            />
+          )}
         </div>
       </section>
     </>
@@ -262,27 +279,34 @@ function Overview({ d }: { d: LearnDashboard }) {
   );
 }
 
-function ZeroData() {
+function ZeroData({ affiliateVisible }: { affiliateVisible: boolean }) {
+  const steps = [
+    {
+      title: "Pick your first course",
+      description: "Browse the catalog and choose what to learn.",
+      action: (
+        <Link href="/courses">
+          <Button className="w-auto">Browse courses</Button>
+        </Link>
+      ),
+    },
+    {
+      title: "Watch your first lesson",
+      description: "Just 2 minutes to your first win.",
+    },
+    ...(affiliateVisible
+      ? [{ title: "Share your referral link with a friend" }]
+      : []),
+  ];
   return (
     <GettingStartedCard
       icon={Rocket}
-      subtitle="3 quick steps to your first win"
-      steps={[
-        {
-          title: "Pick your first course",
-          description: "Browse the catalog and choose what to learn.",
-          action: (
-            <Link href="/courses">
-              <Button className="w-auto">Browse courses</Button>
-            </Link>
-          ),
-        },
-        {
-          title: "Watch your first lesson",
-          description: "Just 2 minutes to your first win.",
-        },
-        { title: "Share your referral link with a friend" },
-      ]}
+      subtitle={
+        affiliateVisible
+          ? "3 quick steps to your first win"
+          : "2 quick steps to your first win"
+      }
+      steps={steps}
     />
   );
 }

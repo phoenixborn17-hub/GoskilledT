@@ -5,12 +5,18 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getCurrentUser } from "../../../../../lib/auth/session";
 import { getL1Export, l1ToCsv } from "../../../../../lib/affiliate/network";
 import { rateLimit } from "../../../../../lib/rate-limit";
+import { isFeatureVisible } from "../../../../../lib/feature-visibility/context";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Not authorized", { status: 401 });
+
+  // DR-040: when the Affiliate layer is hidden for this user, the export is unreachable (404) —
+  // enforced HERE too, since a direct GET bypasses the Earn layout guard.
+  if (!(await isFeatureVisible("earn")))
+    return new NextResponse("Not found", { status: 404 });
 
   const sp = request.nextUrl.searchParams;
   // DR-038: only Level 1 may be exported. Any other level is refused HERE, server-side — the UI

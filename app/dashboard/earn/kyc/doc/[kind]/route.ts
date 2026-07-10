@@ -11,6 +11,7 @@ import {
 } from "@/lib/storage/kyc-docs";
 import { resolveKycDocPath } from "@/lib/kyc/doc-access";
 import { checkActionRate } from "@/lib/auth/action-rate-limit";
+import { isFeatureVisible } from "@/lib/feature-visibility/context";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,10 @@ export async function GET(
 
   const user = await getCurrentUser();
   if (!user) return new NextResponse("Not authorized", { status: 401 });
+
+  // DR-040: KYC-for-payout is part of the Affiliate layer — unreachable (404) when hidden.
+  if (!(await isFeatureVisible("earn")))
+    return new NextResponse("Not found", { status: 404 });
 
   // Abuse throttle (Unit 3) — a document fetch reads decrypted-path → signed URL; cap per user.
   const rl = await checkActionRate("kyc-doc", user.id, 30);

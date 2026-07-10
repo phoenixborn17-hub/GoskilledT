@@ -14,6 +14,7 @@ import {
   BookOpen,
   Video,
   ScrollText,
+  ToggleLeft,
   Settings,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
@@ -32,6 +33,11 @@ const TABS = [
   { href: "/admin/catalog", label: "Catalog", Icon: BookOpen },
   { href: "/admin/webinar", label: "Webinar", Icon: Video },
   { href: "/admin/audit", label: "Audit", Icon: ScrollText },
+  {
+    href: "/admin/feature-visibility",
+    label: "Visibility",
+    Icon: ToggleLeft,
+  },
   { href: "/admin/settings", label: "Settings", Icon: Settings },
 ];
 

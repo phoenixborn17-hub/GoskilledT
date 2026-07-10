@@ -4,7 +4,7 @@
 import { GraduationCap, Users } from "lucide-react";
 import { getEnrolledCourses } from "../../lib/lms/queries";
 import { getReferralTree } from "../../lib/affiliate/referrals";
-import { isFeatureVisible } from "../../lib/feature-visibility";
+import { isFeatureVisible } from "../../lib/feature-visibility/context";
 import { formatCount } from "../../lib/format";
 import { DecisionCard } from "../cards/decision/decision-card";
 import { BentoGrid, BentoItem } from "../cards/decision/bento";
@@ -12,7 +12,7 @@ import { ProgressRing } from "../data/progress-ring";
 import { NetworkNodes } from "../data/network-nodes";
 
 export async function EnterWorkspaces({ userId }: { userId: string }) {
-  const affiliateVisible = isFeatureVisible("earn");
+  const affiliateVisible = await isFeatureVisible("earn");
   const [enrolled, tree] = await Promise.all([
     getEnrolledCourses(userId),
     affiliateVisible ? getReferralTree(userId) : Promise.resolve(null),

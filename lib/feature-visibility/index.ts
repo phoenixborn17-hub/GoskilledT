@@ -1,28 +1,34 @@
-// Feature-Visibility resolver (DR-040) — STUB for Phase 2.
-// Phase 7 builds the real registry + `isFeatureVisible()` resolver (per user/role/global, server-
-// enforced on routes/APIs/actions, with graceful nav recomposition). For now this always returns
-// true so nothing is hidden. The nav is already BUILT through this hook (see lib/nav/workspaces),
-// so enabling visibility in Phase 7 is a resolver change — the shell recomposes with no gaps.
-export type FeatureKey =
-  | "home"
-  | "learn"
-  | "earn" // the Affiliate workspace — the primary DR-040 toggle target
-  | "explore"
-  | "guru"
-  | "account"
-  | "share";
+// Feature Visibility System (DR-040) — CLIENT-SAFE public surface.
+//
+// This barrel re-exports only pure, isomorphic pieces (registry + resolver types/logic) so client
+// components (e.g. the nav shell) can import types + a pure map helper without pulling in server-only
+// code. The SERVER enforcement helpers (getVisibleFeatures / isFeatureVisible / assertFeatureVisible)
+// live in ./context and must be imported from there directly (they are `server-only`).
+export {
+  FEATURES,
+  CONTROLLABLE_FEATURES,
+  isKnownFeature,
+  type FeatureKey,
+  type FeatureDef,
+} from "./registry";
 
-// Stub registry — everything visible. Phase 7 replaces this with a per user/role/global resolver.
-const VISIBLE = new Set<FeatureKey>([
-  "home",
-  "learn",
-  "earn",
-  "explore",
-  "guru",
-  "account",
-  "share",
-]);
+export {
+  resolveFeature,
+  resolveAllFeatures,
+  type FeatureScope,
+  type FeatureOverrideRow,
+  type UserContext,
+} from "./resolver";
 
-export function isFeatureVisible(feature: FeatureKey): boolean {
-  return VISIBLE.has(feature);
+import type { FeatureKey } from "./registry";
+
+/**
+ * Client-side read of a server-resolved visibility map (passed down as a prop). This is presentation
+ * polish ON TOP OF server enforcement — never the only gate. Missing key → treated as hidden.
+ */
+export function isVisibleIn(
+  map: Partial<Record<FeatureKey, boolean>> | undefined,
+  key: FeatureKey,
+): boolean {
+  return map?.[key] === true;
 }
