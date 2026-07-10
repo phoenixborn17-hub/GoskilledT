@@ -8,8 +8,16 @@
    Rules: gold is NEVER text on light backgrounds (rule 14). Every effect has a
    purpose; all motion is CSS-only and gated on prefers-reduced-motion.
    ───────────────────────────────────────────────────────────────────────────── */
+/* ─────────────────────────────────────────────────────────────────────────────
+   SINGLE TOKEN SOURCE OF TRUTH (Experience System v1.0 · Redesign U1).
+   The `--gs-*` namespace is THE canonical design-system source — no dual/parallel
+   token scheme is introduced (DR-039 P0-5 / audit A3). Every existing `--gs-*`
+   name is preserved so all merged surfaces (marketing/LMS/auth/admin) stay byte-
+   identical; U1 only ADDS the missing ramp/semantic/motion/dark tokens. Downstream
+   components consume tokens only — never hard-coded colours.
+   ───────────────────────────────────────────────────────────────────────────── */
 :root {
-  /* Brand */
+  /* ── Brand core (locked, Experience System §2) ───────────────────────────── */
   --gs-green: #137e49;
   --gs-green-deep: #0c5a34;
   --gs-green-bright: #1aa05e;
@@ -17,13 +25,46 @@
   --gs-charcoal: #2a302a;
   --gs-offwhite: #fefefe;
 
-  /* Neutrals ramp (off charcoal — use instead of ad-hoc opacities where possible) */
-  --gs-n-900: #2a302a;
-  --gs-n-700: #4a524a;
-  --gs-n-500: #6e766e;
-  --gs-n-300: #b7bdb7;
-  --gs-n-150: #e2e6e2;
+  /* ── Green ramp 50→900 (Learn). 600 = brand core, 800 = deep, 500 = bright.
+        Text use: 700/800 on light (AA); 50–200 = tint fills/surfaces. ──────── */
+  --gs-green-50: #e7f3ec;
+  --gs-green-100: #c6e3d1;
+  --gs-green-200: #9fd1b4;
+  --gs-green-300: #6fb98c;
+  --gs-green-400: #3fa36b;
+  --gs-green-500: #1aa05e;
+  --gs-green-600: #137e49;
+  --gs-green-700: #0f6b3e;
+  --gs-green-800: #0c5a34;
+  --gs-green-900: #084427;
+
+  /* ── Gold ramp 50→900 (Earn). ACCENT/FILL ONLY — gold is never body text on
+        light (Golden Rule 14). Dark steps trend amber and become text-safe:
+        700 (#8a5a00) clears AA on tint; use `--gs-warning` for gold-context text. */
+  --gs-gold-50: #fdf8e1;
+  --gs-gold-100: #fbefb4;
+  --gs-gold-200: #f7e37f;
+  --gs-gold-300: #f2d64c;
+  --gs-gold-400: #edc825;
+  --gs-gold-500: #d4af12;
+  --gs-gold-600: #b87a00;
+  --gs-gold-700: #8a5a00;
+  --gs-gold-800: #6b4600;
+  --gs-gold-900: #4a3000;
+
+  /* ── Neutral ramp (green-tinted, off charcoal). Existing 050/150/300/500/700/900
+        kept as-is; 100/200/400/600/800 added for a complete 50→900 ramp. ───── */
   --gs-n-050: #f4f6f4;
+  --gs-n-100: #edf0ed;
+  --gs-n-150: #e2e6e2;
+  --gs-n-200: #dce1dc;
+  --gs-n-300: #b7bdb7;
+  --gs-n-400: #8b928b;
+  --gs-n-500: #6e766e;
+  --gs-n-600: #565d56;
+  --gs-n-700: #4a524a;
+  --gs-n-800: #363c36;
+  --gs-n-900: #2a302a;
 
   /* Accessible muted TEXT token — ~6:1 on offwhite (WCAG AA for normal text). Use `text-muted`
      for body/informational text instead of low-opacity charcoal, which fails contrast. */
@@ -36,6 +77,17 @@
   --gs-danger: #c0392b;
   --gs-info: #1d6fa5;
 
+  /* ── Semantic SURFACE tokens (dark-ready). New U1 components use these so enabling
+        dark mode = flip the [data-mode="dark"] flag with no per-component rework.
+        Existing surfaces keep their literals (bg-white/bg-offwhite/text-charcoal). */
+  --gs-surface: #fefefe; /* page background */
+  --gs-surface-raised: #ffffff; /* cards, popovers */
+  --gs-surface-sunken: #f4f6f4; /* wells, table zebra, inset */
+  --gs-text: #2a302a; /* primary text */
+  --gs-text-muted: #5b635b; /* secondary text (AA) */
+  --gs-border: #e2e6e2; /* hairlines, dividers */
+  --gs-brand-fg: #fefefe; /* text/icon on a brand fill */
+
   /* Elevation & shape */
   --gs-radius-sm: 0.5rem;
   --gs-radius: 0.75rem;
@@ -44,17 +96,64 @@
   --gs-shadow: 0 2px 8px rgb(42 48 42 / 0.08);
   --gs-shadow-lg: 0 8px 28px rgb(42 48 42 / 0.12);
 
+  /* ── Motion tokens (Experience System §8). Consumed by the device-tier util +
+        component transitions; durations kept short (fast is a feature). ─────── */
+  --gs-dur-fast: 150ms;
+  --gs-dur-base: 200ms;
+  --gs-dur-slow: 300ms;
+  --gs-dur-celebrate: 500ms;
+  --gs-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --gs-ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+
   /* Fonts (populated by next/font variables in app/layout.tsx) */
   --font-heading: var(--font-sora, "Sora"), system-ui, sans-serif;
   --font-body: var(--font-inter, "Inter"), system-ui, sans-serif;
   --font-hindi: var(--font-devanagari, "Noto Sans Devanagari"), sans-serif;
 
-  /* default theme = green (marketing + LMS) */
+  /* default theme = green (Home neutral + Learn) */
   --brand: var(--gs-green);
+  --brand-strong: var(--gs-green-deep); /* AA brand text on light/tint */
 }
+
+/* ── Workspace themes (Experience System §2 · Amendments §A). `learn`=green,
+      `earn`=gold; `affiliate` kept as an alias so the merged Earn layout is
+      unbroken; `admin`/`neutral` = charcoal-forward. Switching the attribute
+      re-themes the subtree (200ms crossfade handled by call sites). ────────── */
+[data-theme="learn"] {
+  --brand: var(--gs-green);
+  --brand-strong: var(--gs-green-deep);
+}
+[data-theme="earn"],
 [data-theme="affiliate"] {
   --brand: var(--gs-gold);
-} /* gold-forward affiliate surface */
+  --brand-strong: var(--gs-warning); /* text-safe amber for gold context */
+}
+[data-theme="admin"],
+[data-theme="neutral"] {
+  --brand: var(--gs-charcoal);
+  --brand-strong: var(--gs-charcoal);
+}
+
+/* ── Dark tokens — DEFINED NOW, DORMANT (Experience System §2). Light is the launch
+      default; `[data-mode="dark"]` is never set at launch. Every surface/text token
+      has a dark value so enabling dark = flip the flag, no component rework. ─── */
+:root[data-mode="dark"] {
+  --gs-surface: #171b17;
+  --gs-surface-raised: #1f251f;
+  --gs-surface-sunken: #12160f;
+  --gs-text: #edf0ed;
+  --gs-text-muted: #a7b0a7;
+  --gs-border: #2f362f;
+  --gs-muted: #a7b0a7;
+  --gs-green-bright: #2fbf78; /* lifted for contrast on dark surfaces */
+  --brand: var(--gs-green-bright);
+  --brand-strong: #6fd6a2;
+}
+:root[data-mode="dark"][data-theme="earn"],
+:root[data-mode="dark"][data-theme="affiliate"] {
+  --brand: var(--gs-gold);
+  --brand-strong: var(--gs-gold-300);
+}
 
 /* ── Base polish ─────────────────────────────────────────────────────────── */
 ::selection {
@@ -92,6 +191,30 @@ html {
   .glass {
     background: rgb(254 254 254 / 0.96);
   } /* graceful fallback */
+}
+
+/* ── Device-tier fallback (Experience System §8 · Amendments §C — SINGLE definition).
+      `lib/device-tier` stamps `data-device-tier="low"` on <html> when the runtime is
+      low-end (reduced-motion OR saveData OR deviceMemory≤3 OR no backdrop-filter). On
+      low tier: glass→solid · transform-heavy motion off · effects flatten. Governs
+      motion AND glass/blur so every unit degrades identically from one source. ───── */
+:root[data-device-tier="low"] .glass {
+  background: rgb(254 254 254 / 0.96);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+:root[data-device-tier="low"] .lift:hover {
+  transform: none;
+}
+:root[data-device-tier="low"] .press:active {
+  transform: none;
+}
+/* Belt-and-braces: low tier also silences the ambient hero motion + count-up even if
+   the browser reports motion is allowed (saveData / low-memory paths). */
+:root[data-device-tier="low"] .hero-aurora::before,
+:root[data-device-tier="low"] .hero-aurora::after,
+:root[data-device-tier="low"] .text-brand-gradient {
+  animation: none;
 }
 
 /* ── Micro-interactions (CSS-only) ───────────────────────────────────────── */
