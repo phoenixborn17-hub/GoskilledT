@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { RegisterForm } from "./register-form";
+import { AuthShell } from "../../components/marketing/auth-shell";
 import { resolveSponsorByCode } from "../../lib/auth/sponsor";
 import { readRefCookie } from "../../lib/auth/ref-cookie";
 import { isFeatureVisible } from "../../lib/feature-visibility/context";
@@ -42,21 +43,26 @@ export default async function RegisterPage({
     : null;
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
-      <Suspense>
-        <RegisterForm
-          initialCode={initialCode}
-          initialValid={!!sponsor}
-          initialSponsorFirstName={sponsorFirstName}
-          contact={contact}
-        />
-      </Suspense>
-      <p className="mt-6 text-center text-sm text-muted">
-        Already have an account?{" "}
-        <Link href="/login" className="font-semibold text-brand">
-          Log in
-        </Link>
-      </p>
+    <main>
+      <AuthShell
+        heading="Start learning today"
+        subheading="Join the founding batch — practical skills, honest pricing, and a certificate you can verify."
+      >
+        <Suspense>
+          <RegisterForm
+            initialCode={initialCode}
+            initialValid={!!sponsor}
+            initialSponsorFirstName={sponsorFirstName}
+            contact={contact}
+          />
+        </Suspense>
+        <p className="mt-6 text-center text-sm text-muted">
+          Already have an account?{" "}
+          <Link href="/login" className="font-semibold text-brand">
+            Log in
+          </Link>
+        </p>
+      </AuthShell>
     </main>
   );
 }
