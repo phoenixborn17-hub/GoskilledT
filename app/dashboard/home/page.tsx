@@ -87,23 +87,20 @@ export default async function HomePage() {
         </span>
       </Link>
 
-      {summary.lifecycleNew ? (
-        <ZeroData summary={summary} affiliateVisible={affiliateVisible} />
-      ) : (
-        <>
-          <TodaysSummary
-            summary={summary}
-            affiliateVisible={affiliateVisible}
-          />
-          <QuickActions summary={summary} affiliateVisible={affiliateVisible} />
-          <Priorities summary={summary} />
-          <Suspense fallback={<EnterWorkspacesSkeleton />}>
-            <EnterWorkspaces userId={user!.id} />
-          </Suspense>
-          <Announcements />
-          {affiliateVisible && <ShareSection shareUrl={summary.shareUrl} />}
-        </>
+      {/* Rich-Honest-Zero (ThreeState law): the FULL dashboard renders in every lifecycle state — new
+          users get honest zeros + motivating unlock micro-states, never a stripped screen. A single
+          getting-started strip is the one extra element for new users, not the whole page. */}
+      {summary.lifecycleNew && (
+        <GettingStartedStrip affiliateVisible={affiliateVisible} />
       )}
+      <TodaysSummary summary={summary} affiliateVisible={affiliateVisible} />
+      <QuickActions summary={summary} affiliateVisible={affiliateVisible} />
+      <Priorities summary={summary} />
+      <Suspense fallback={<EnterWorkspacesSkeleton />}>
+        <EnterWorkspaces userId={user!.id} />
+      </Suspense>
+      <Announcements />
+      {affiliateVisible && <ShareSection shareUrl={summary.shareUrl} />}
     </div>
   );
 }
@@ -152,15 +149,32 @@ function TodaysSummary({
           )}
         </BentoItem>
 
-        {streak.current > 0 && (
-          <BentoItem size="secondary">
+        {/* Streak always present — New: an honest 0 with a motivating "start today" unlock. */}
+        <BentoItem size="secondary">
+          {streak.current > 0 ? (
             <StreakCard
               href="/dashboard/learn"
               days={streak.current}
               atRisk={streak.atRisk}
             />
-          </BentoItem>
-        )}
+          ) : (
+            <DecisionCard
+              icon={Flame}
+              label="Your streak"
+              accent="green"
+              size="secondary"
+              cta="Start today"
+              href="/dashboard/learn"
+            >
+              <div>
+                <p className="dc-number text-h1 font-bold text-ink">0</p>
+                <p className="mt-1 text-caption text-ink-muted">
+                  Complete a lesson today to start your streak.
+                </p>
+              </div>
+            </DecisionCard>
+          )}
+        </BentoItem>
 
         {webinarToday && (
           <BentoItem size="secondary">
@@ -314,12 +328,11 @@ function ShareSection({ shareUrl }: { shareUrl: string }) {
   );
 }
 
-// ── Zero-data first run (Dashboard §7) — getting-started, never empty widgets ─────
-function ZeroData({
-  summary,
+// ── Getting-started STRIP (ThreeState law) — ONE motivating element above the full dashboard for
+//    new users; it guides, it does not replace the rich cards below. Never empty/fake (D-29). ─────
+function GettingStartedStrip({
   affiliateVisible,
 }: {
-  summary: HomeSummary;
   affiliateVisible: boolean;
 }) {
   const steps = [
@@ -342,17 +355,11 @@ function ZeroData({
       : []),
   ];
   return (
-    <div className="space-y-6">
-      <GettingStartedCard
-        icon={Rocket}
-        subtitle={
-          affiliateVisible
-            ? "3 quick steps to your first win"
-            : "2 quick steps to your first win"
-        }
-        steps={steps}
-      />
-      {affiliateVisible && <ShareSection shareUrl={summary.shareUrl} />}
-    </div>
+    <GettingStartedCard
+      icon={Rocket}
+      title="New here? Start with these"
+      subtitle={`${steps.length} quick steps to your first win`}
+      steps={steps}
+    />
   );
 }

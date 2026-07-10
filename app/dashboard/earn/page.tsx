@@ -50,13 +50,11 @@ export default async function EarnPage() {
         </p>
       </header>
 
-      {!d.eligible ? (
-        <NotEligible />
-      ) : d.tree.l1Count === 0 ? (
-        <EligibleNoReferrals d={d} />
-      ) : (
-        <FullDashboard d={d} />
-      )}
+      {/* NotEligible is an ELIGIBILITY fork (§D/DR-038 — a non-purchaser must never see share-to-earn),
+          NOT a zero-data state. Every ELIGIBLE user gets the FULL rich dashboard at honest zero
+          (₹0 held, 0 friends) with motivating unlock micro-states + one getting-started strip
+          (ThreeState law — no more suppressing the dashboard at zero referrals). */}
+      {!d.eligible ? <NotEligible /> : <FullDashboard d={d} />}
     </div>
   );
 }
@@ -109,37 +107,31 @@ function NotEligible() {
   );
 }
 
-// ── Variant B (Amendments §D): eligible, no referrals yet → the share flow (getting-started).
-function EligibleNoReferrals({ d }: { d: EarnDashboard }) {
-  return (
-    <div className="space-y-6">
-      <PayoutStatusLine open={d.payoutsOpen} />
-      <GettingStartedCard
-        icon={Users}
-        title="Earn your first commission"
-        subtitle={`Share your link → a friend joins & buys → you earn ${COMMISSION_RANGE}`}
-        steps={[
-          {
-            title: "Copy your referral link",
-            description: "It's ready below.",
-          },
-          { title: "Share it with a friend on WhatsApp" },
-          { title: "They join and buy — your commission is credited" },
-        ]}
-      />
-      <ReferralObject d={d} />
-      <NeedsAttention d={d} />
-    </div>
-  );
-}
-
-// ── Full dashboard (eligible + has referrals) ──
+// ── Full dashboard (any ELIGIBLE user) — renders at honest zero with unlock micro-states. ──
 function FullDashboard({ d }: { d: EarnDashboard }) {
   const showAvailable = d.wallet.availableInPaise > 0; // anchor only when > 0 (§D)
+  const noReferralsYet = d.tree.l1Count === 0;
   return (
     <div className="space-y-6">
       <PayoutStatusLine open={d.payoutsOpen} />
       <NeedsAttention d={d} />
+      {/* ONE getting-started strip for a brand-new affiliate (ThreeState law) — the rich dashboard
+          below still renders in full at honest zero. */}
+      {noReferralsYet && (
+        <GettingStartedCard
+          icon={Users}
+          title="Earn your first commission"
+          subtitle={`Share your link → a friend joins & buys → you earn ${COMMISSION_RANGE}`}
+          steps={[
+            {
+              title: "Copy your referral link",
+              description: "It's ready below.",
+            },
+            { title: "Share it with a friend on WhatsApp" },
+            { title: "They join and buy — your commission is credited" },
+          ]}
+        />
+      )}
       <ReferralObject d={d} />
 
       {/* Stat cards — Financial family (gold accent, charcoal tabular numbers, no count-up). */}
@@ -157,20 +149,33 @@ function FullDashboard({ d }: { d: EarnDashboard }) {
           value={safeMoney(d.wallet.heldInPaise)}
           icon={CalendarClock}
           family="financial"
-          hint="Buyer-protected for 48h"
+          hint={
+            d.wallet.heldInPaise > 0
+              ? "Buyer-protected for 48h"
+              : "Ready to receive commissions"
+          }
         />
         <StatCard
           label="Total earned"
           value={safeMoney(d.wallet.totalInPaise)}
           icon={WalletIcon}
           family="financial"
+          hint={
+            d.wallet.totalInPaise === 0
+              ? "Earn when a friend joins & buys"
+              : undefined
+          }
         />
         <StatCard
           label="Active friends"
           value={safeCount(d.tree.l1Count)}
           icon={Users}
           family="financial"
-          hint={`+${d.tree.thisMonth} this month`}
+          hint={
+            d.tree.l1Count === 0
+              ? "Invite your first friend"
+              : `+${d.tree.thisMonth} this month`
+          }
         />
       </div>
 
