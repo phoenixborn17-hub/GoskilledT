@@ -28,6 +28,7 @@ import { pageMetadata, organizationJsonLd } from "../lib/seo";
 import { JsonLd } from "../components/marketing/json-ld";
 import { SiteHeader } from "../components/marketing/site-header";
 import { SiteFooter } from "../components/marketing/site-footer";
+import { ScrollProgress } from "../components/marketing/scroll-progress";
 import { SkillUniverse } from "../components/marketing/skill-universe";
 import { MobileCtaBar } from "../components/marketing/mobile-cta-bar";
 import {
@@ -125,6 +126,7 @@ export default async function HomePage() {
 
   return (
     <>
+      <ScrollProgress />
       <SiteHeader />
       <JsonLd data={organizationJsonLd()} />
       <main>
