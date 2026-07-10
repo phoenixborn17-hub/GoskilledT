@@ -27,6 +27,16 @@ import { DeviceTierProvider } from "../../components/system/device-tier-provider
 import { ToastProvider, useToast } from "../../components/ui/toast";
 import { safeMoney, safeCount } from "../../lib/format";
 
+// Decision Cards (DecisionCard_System v1.0) — the sprint focus.
+import { BentoGrid, BentoItem } from "../../components/cards/decision/bento";
+import { ContinueLearningCard } from "../../components/cards/decision/continue-learning-card";
+import { WalletEarnCard } from "../../components/cards/decision/wallet-earn-card";
+import { NetworkCard } from "../../components/cards/decision/network-card";
+import { RewardsCard } from "../../components/cards/decision/rewards-card";
+import { StreakCard } from "../../components/cards/decision/streak-card";
+import { ProgressCard } from "../../components/cards/decision/progress-card";
+import { AnalyticsCard } from "../../components/cards/decision/analytics-card";
+
 import { Button } from "../../components/ui/button";
 import { IconButton } from "../../components/ui/icon-button";
 import { Badge } from "../../components/ui/badge";
@@ -196,6 +206,134 @@ export default function DesignSystemPage() {
             real data or an honest Error state — never ₹0.
           </p>
         </header>
+
+        <Section
+          title="Decision Cards — sample bento dashboard"
+          subtitle="7 families, distinct layouts + signature viz, real Lucide icons (zero emoji), in-card AI (real trigger only), one CTA, whole-card clickable. Bento hierarchy: hero > primary > secondary > wide."
+        >
+          <BentoGrid>
+            <BentoItem size="hero">
+              <ContinueLearningCard
+                index={0}
+                href="#"
+                courseTitle="Instagram Growth Mastery"
+                lessonLabel="Module 3 · Lesson 5 — Reels that convert"
+                percent={72}
+                aiLine="Finish Lesson 3 today to unlock your first certificate."
+              />
+            </BentoItem>
+            <BentoItem size="primary">
+              <WalletEarnCard
+                index={1}
+                href="#"
+                available={safeMoney(1245000)}
+                pending={safeMoney(45000)}
+                payoutStatus="Recorded & safe · payouts open soon"
+                trend={[4, 6, 5, 9, 8, 12, 15]}
+              />
+            </BentoItem>
+            <BentoItem size="primary">
+              <NetworkCard
+                index={2}
+                href="#"
+                activeL1={8}
+                thisMonth={3}
+                aiLine="Invite 2 more to reach Bronze this week."
+              />
+            </BentoItem>
+            <BentoItem size="secondary">
+              <ProgressCard
+                index={3}
+                href="#"
+                percent={64}
+                nextMilestone="3 lessons to your certificate"
+              />
+            </BentoItem>
+            <BentoItem size="secondary">
+              <StreakCard
+                index={4}
+                href="#"
+                days={5}
+                aiLine="Do 1 lesson today to keep your streak alive."
+              />
+            </BentoItem>
+            <BentoItem size="secondary">
+              <RewardsCard
+                index={5}
+                href="#"
+                tier="Contributor"
+                awayText="1 referral away · Silver"
+                total={4}
+                reached={2}
+                labels={["Bronze", "Silver", "Gold", "Champ"]}
+              />
+            </BentoItem>
+            <BentoItem size="secondary">
+              <StreakCard
+                index={6}
+                href="#"
+                days={12}
+                atRisk
+                aiLine="Your streak ends tonight — a 2-min lesson keeps it going."
+              />
+            </BentoItem>
+            <BentoItem size="wide">
+              <AnalyticsCard
+                index={7}
+                href="#"
+                label="Learning activity"
+                headline={1240}
+                headlineSuffix="min"
+                points={[20, 35, 28, 44, 52, 48, 63]}
+                deltaPct={18.4}
+              />
+            </BentoItem>
+          </BentoGrid>
+        </Section>
+
+        <Section
+          title="Decision Cards — honest states"
+          subtitle="Money-fail-safe (never ₹0), AI line omitted when no real trigger, loading skeleton, calm error+retry."
+        >
+          <BentoGrid>
+            <BentoItem size="secondary">
+              <WalletEarnCard
+                href="#"
+                available={safeMoney(null)}
+                pending={safeMoney(null)}
+                payoutStatus="Recorded & safe · payouts open soon"
+                onRetry={() => undefined}
+              />
+            </BentoItem>
+            <BentoItem size="secondary">
+              {/* No aiLine → the ✨ line is omitted entirely, never faked (D-29). */}
+              <ProgressCard
+                href="#"
+                percent={40}
+                nextMilestone="Keep going — your next badge is close."
+              />
+            </BentoItem>
+            <BentoItem size="secondary">
+              <ContinueLearningCard
+                href="#"
+                size="secondary"
+                courseTitle=""
+                lessonLabel=""
+                percent={0}
+                state="loading"
+              />
+            </BentoItem>
+            <BentoItem size="secondary">
+              <NetworkCard
+                href="#"
+                activeL1={0}
+                thisMonth={0}
+                state="error"
+                onRetry={() => undefined}
+              />
+            </BentoItem>
+          </BentoGrid>
+        </Section>
 
         <Section title="Colour ramps" subtitle="50 → 900, from CSS tokens.">
           <div className="space-y-4">
