@@ -9,6 +9,7 @@ import { getOtpProvider } from "../../lib/auth/otp";
 import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
 import { syncUser } from "../../lib/auth/user-sync";
 import { resolveSponsorByCode } from "../../lib/auth/sponsor";
+import { isFeatureVisible } from "../../lib/feature-visibility/context";
 import {
   passwordIssue,
   setPasswordForCurrentUser,
@@ -56,7 +57,14 @@ export async function validateReferralCode(
 ): Promise<ValidateCodeResult> {
   const sponsor = await resolveSponsorByCode(rawCode);
   if (!sponsor) return { ok: false, error: INVALID_CODE };
-  return { ok: true, sponsorFirstName: sponsor.firstName };
+  // Feature Visibility (DR-040): keep validation intact (a valid code still succeeds → registration
+  // works), but SUPPRESS the "Invited by [name]" reveal when the Affiliate layer is globally hidden —
+  // matching register/page.tsx. Anonymous/public context here → GLOBAL overrides only.
+  const affiliateVisible = await isFeatureVisible("earn");
+  return {
+    ok: true,
+    sponsorFirstName: affiliateVisible ? sponsor.firstName : null,
+  };
 }
 
 export async function sendRegisterOtp(

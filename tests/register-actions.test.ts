@@ -15,6 +15,7 @@ const h = vi.hoisted(() => ({
   findUnique: vi.fn(),
   update: vi.fn(),
   track: vi.fn(),
+  isFeatureVisible: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/sponsor", () => ({
@@ -44,6 +45,10 @@ vi.mock("@/lib/prisma", () => ({
   prisma: { user: { findUnique: h.findUnique, update: h.update } },
 }));
 vi.mock("@/lib/analytics/track", () => ({ track: h.track }));
+// DR-040: validateReferralCode suppresses the sponsor-name reveal when the Affiliate layer is hidden.
+vi.mock("@/lib/feature-visibility/context", () => ({
+  isFeatureVisible: h.isFeatureVisible,
+}));
 
 import {
   validateReferralCode,
@@ -71,6 +76,7 @@ beforeEach(() => {
   h.ensureGettingStartedEnrollment.mockResolvedValue(undefined);
   h.postAuthRedirect.mockResolvedValue("/welcome");
   h.findUnique.mockResolvedValue(null); // brand-new account
+  h.isFeatureVisible.mockResolvedValue(true); // Affiliate visible by default
 });
 
 describe("§8.1 register without a code → blocked", () => {
@@ -124,6 +130,19 @@ describe("§8.2 invalid code → generic block", () => {
     h.resolveSponsorByCode.mockResolvedValueOnce(null);
     const miss = await validateReferralCode("GSNOPE");
     expect(miss.ok).toBe(false);
+  });
+
+  it("validateReferralCode suppresses the sponsor name when Affiliate is hidden (DR-040), but still validates", async () => {
+    h.resolveSponsorByCode.mockResolvedValueOnce({
+      id: "s1",
+      firstName: "Rahul",
+    });
+    h.isFeatureVisible.mockResolvedValueOnce(false); // Affiliate globally hidden
+    // Code is still VALID (registration works) — only the "Invited by [name]" reveal is suppressed.
+    expect(await validateReferralCode(CODE)).toEqual({
+      ok: true,
+      sponsorFirstName: null,
+    });
   });
 });
 
