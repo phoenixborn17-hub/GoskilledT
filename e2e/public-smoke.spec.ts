@@ -77,5 +77,8 @@ test.describe("public website smoke", () => {
     expect(h["x-content-type-options"]).toBe("nosniff");
     expect(h["x-frame-options"]).toBe("SAMEORIGIN");
     expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
+    // Unit 3 (launch hardening): these were configured but untested — lock them in.
+    expect(h["permissions-policy"]).toContain("geolocation=()");
+    expect(h["strict-transport-security"]).toContain("max-age=");
   });
 });

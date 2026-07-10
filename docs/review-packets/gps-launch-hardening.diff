@@ -1,0 +1,537 @@
+diff --git a/app/admin/kyc/[userId]/doc/[kind]/route.ts b/app/admin/kyc/[userId]/doc/[kind]/route.ts
+index c1efc7f..9af4036 100644
+--- a/app/admin/kyc/[userId]/doc/[kind]/route.ts
++++ b/app/admin/kyc/[userId]/doc/[kind]/route.ts
+@@ -7,6 +7,7 @@ import { getAdminUser } from "@/lib/auth/admin";
+ import { recordAdminAction } from "@/lib/admin/audit";
+ import { isKycDocKind, kycDocSignedUrl } from "@/lib/storage/kyc-docs";
+ import { resolveKycDocPath } from "@/lib/kyc/doc-access";
++import { checkActionRate } from "@/lib/auth/action-rate-limit";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -20,6 +21,10 @@ export async function GET(
+   if (!isKycDocKind(kind))
+     return new NextResponse("Not found", { status: 404 });
+ 
++  // Abuse throttle (Unit 3) — admin can view any user's docs; cap the per-admin rate.
++  const rl = await checkActionRate("kyc-doc-admin", admin.supabaseId, 60);
++  if (!rl.ok) return new NextResponse(rl.error, { status: 429 });
++
+   const path = await resolveKycDocPath(userId, kind);
+   if (!path) return new NextResponse("No document", { status: 404 });
+ 
+diff --git a/app/admin/leads/actions.ts b/app/admin/leads/actions.ts
+index cf379dd..58303a9 100644
+--- a/app/admin/leads/actions.ts
++++ b/app/admin/leads/actions.ts
+@@ -1,18 +1,23 @@
+ // /admin/leads mutation (Ticket 6, Task 3). The ONLY lead mutation this ticket allows.
+ // Writes an AdminAction audit row (actor = real admin) via updateLeadStage — no exceptions.
+ "use server";
++import { z } from "zod";
+ import { revalidatePath } from "next/cache";
+ import { getAdminUser } from "../../../lib/auth/admin";
+ import { updateLeadStage } from "../../../lib/crm/leads";
+ import type { LeadStage } from "../../../modules/crm/lead";
+ 
+-const STAGES: LeadStage[] = [
+-  "NEW",
+-  "CONTACTED",
+-  "WEBINAR_REGISTERED",
+-  "CONVERTED",
+-  "LOST",
+-];
++// Zod at the boundary (Unit 3) — validate the id + the stage enum, never trust the client.
++const stageSchema = z.object({
++  leadId: z.string().trim().min(1).max(64),
++  stage: z.enum([
++    "NEW",
++    "CONTACTED",
++    "WEBINAR_REGISTERED",
++    "CONVERTED",
++    "LOST",
++  ]),
++});
+ 
+ export type StageResult = { ok: true } | { ok: false; error: string };
+ 
+@@ -22,10 +27,14 @@ export async function updateLeadStageAction(
+ ): Promise<StageResult> {
+   const admin = await getAdminUser();
+   if (!admin) return { ok: false, error: "Not authorized" }; // defence in depth (middleware also gates)
+-  if (!STAGES.includes(stage as LeadStage))
+-    return { ok: false, error: "Invalid stage" };
++  const parsed = stageSchema.safeParse({ leadId, stage });
++  if (!parsed.success) return { ok: false, error: "Invalid stage" };
+   try {
+-    await updateLeadStage(admin, leadId, stage as LeadStage);
++    await updateLeadStage(
++      admin,
++      parsed.data.leadId,
++      parsed.data.stage as LeadStage,
++    );
+     revalidatePath("/admin/leads");
+     return { ok: true };
+   } catch {
+diff --git a/app/admin/review-queue/actions.ts b/app/admin/review-queue/actions.ts
+index d22743d..19b35cb 100644
+--- a/app/admin/review-queue/actions.ts
++++ b/app/admin/review-queue/actions.ts
+@@ -1,20 +1,24 @@
+ // /admin/review-queue mutation (Ticket 6, Task 3). "Mark resolved" writes its own AdminAction
+ // audit row (actor = real admin). This is where DR-025 post-window refunds & amount mismatches surface.
+ "use server";
++import { z } from "zod";
+ import { revalidatePath } from "next/cache";
+ import { getAdminUser } from "../../../lib/auth/admin";
+ import { resolveReview } from "../../../lib/admin/review";
+ 
+ export type ResolveResult = { ok: true } | { ok: false; error: string };
+ 
++const orderIdSchema = z.string().trim().min(1).max(64);
++
+ export async function resolveReviewAction(
+   orderId: string,
+ ): Promise<ResolveResult> {
+   const admin = await getAdminUser();
+   if (!admin) return { ok: false, error: "Not authorized" };
+-  if (!orderId) return { ok: false, error: "Missing order" };
++  const parsed = orderIdSchema.safeParse(orderId);
++  if (!parsed.success) return { ok: false, error: "Missing order" };
+   try {
+-    await resolveReview(admin, orderId);
++    await resolveReview(admin, parsed.data);
+     revalidatePath("/admin/review-queue");
+     revalidatePath("/admin");
+     return { ok: true };
+diff --git a/app/dashboard/earn/actions.ts b/app/dashboard/earn/actions.ts
+index fb4cc49..07b4e11 100644
+--- a/app/dashboard/earn/actions.ts
++++ b/app/dashboard/earn/actions.ts
+@@ -26,6 +26,7 @@ import {
+ } from "../../../lib/kyc/verify";
+ import type { VerifyChannel } from "../../../modules/kyc/verify";
+ import { checkOtpSendRate } from "../../../lib/auth/otp-rate-limit";
++import { checkActionRate } from "../../../lib/auth/action-rate-limit";
+ import { validateWithdrawal } from "../../../modules/wallet/withdrawal";
+ import { payoutsEnabled } from "../../../lib/env";
+ import {
+@@ -113,6 +114,10 @@ export async function submitKyc(formData: FormData): Promise<ActionResult> {
+   const user = await getCurrentUser();
+   if (!user) return { ok: false, error: "Please sign in." };
+ 
++  // Abuse throttle (Unit 3) — PII write path; caps rapid resubmits. No KYC rule changes.
++  const rl = await checkActionRate("kyc-submit", user.id, 8);
++  if (!rl.ok) return { ok: false, error: rl.error };
++
+   const parsed = kycSchema.safeParse({
+     pan: String(formData.get("pan") ?? ""),
+     accountNumber: String(formData.get("accountNumber") ?? ""),
+@@ -215,6 +220,11 @@ export async function requestWithdrawal(
+   const user = await getCurrentUser();
+   if (!user) return { ok: false, error: "Please sign in." };
+ 
++  // Abuse throttle (Unit 3) — does NOT change any withdrawal rule; single-pending + validateWithdrawal
++  // still own the decision. Dampens rapid-fire submits before we touch the DB.
++  const rl = await checkActionRate("withdraw-request", user.id, 6);
++  if (!rl.ok) return { ok: false, error: rl.error };
++
+   // Load state, then delegate the decision entirely to the domain rule.
+   const [summary, pending, kycStatus] = await Promise.all([
+     getWalletSummaryFor(user.id),
+diff --git a/app/dashboard/earn/kyc/doc/[kind]/route.ts b/app/dashboard/earn/kyc/doc/[kind]/route.ts
+index b396851..f65e739 100644
+--- a/app/dashboard/earn/kyc/doc/[kind]/route.ts
++++ b/app/dashboard/earn/kyc/doc/[kind]/route.ts
+@@ -10,6 +10,7 @@ import {
+   canAccessKycDoc,
+ } from "@/lib/storage/kyc-docs";
+ import { resolveKycDocPath } from "@/lib/kyc/doc-access";
++import { checkActionRate } from "@/lib/auth/action-rate-limit";
+ 
+ export const dynamic = "force-dynamic";
+ 
+@@ -24,6 +25,10 @@ export async function GET(
+   const user = await getCurrentUser();
+   if (!user) return new NextResponse("Not authorized", { status: 401 });
+ 
++  // Abuse throttle (Unit 3) — a document fetch reads decrypted-path → signed URL; cap per user.
++  const rl = await checkActionRate("kyc-doc", user.id, 30);
++  if (!rl.ok) return new NextResponse(rl.error, { status: 429 });
++
+   // Owner-only route (self). The rule is still evaluated explicitly for defence in depth.
+   if (
+     !canAccessKycDoc({ requesterId: user.id, ownerId: user.id, isAdmin: false })
+diff --git a/app/layout.tsx b/app/layout.tsx
+index 930c743..2b49859 100644
+--- a/app/layout.tsx
++++ b/app/layout.tsx
+@@ -61,8 +61,18 @@ export default function RootLayout({
+       suppressHydrationWarning
+     >
+       <body className="min-h-dvh bg-offwhite font-body text-charcoal antialiased">
++        {/* Skip link (WCAG 2.4.1 Bypass Blocks) — first focusable element, hidden until focused.
++            Targets a single layout-level landmark so every route is covered without page edits. */}
++        <a
++          href="#main-content"
++          className="sr-only rounded-lg bg-charcoal px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"
++        >
++          Skip to content
++        </a>
+         <StagingBanner />
+-        {children}
++        <div id="main-content" tabIndex={-1}>
++          {children}
++        </div>
+         <PwaRegister />
+       </body>
+     </html>
+diff --git a/docs/GO_LIVE_CHECKLIST.md b/docs/GO_LIVE_CHECKLIST.md
+new file mode 100644
+index 0000000..2bc2ab2
+--- /dev/null
++++ b/docs/GO_LIVE_CHECKLIST.md
+@@ -0,0 +1,56 @@
++# GoSkilled — Go-Live Checklist (Launch Hardening · Unit 5)
++
++> **Purpose:** the single ordered list of everything a solo, non-developer founder must set to take the
++> app from mock/dev to live. **Every provider is already flip-ready behind an env flag** — going live is
++> an env change + redeploy, never a code change. **This doc adds NO keys and flips NOTHING** (readiness only).
++>
++> **Read alongside `docs/LAUNCH_CONFIG.md`** (the canonical registry — LC #n rows referenced below).
++> **🔴 = money/PII/legal — route to Fable / counsel at the flip. Do NOT flip these casually.**
++
++## How the flip works (mechanics)
++Each external dependency is chosen by an env var (`lib/config/providers.ts`). The default is always the
++safe **mock/console/test** mode. Setting the var to its live value + adding the credential + redeploying
++switches it. A **production build refuses to boot** with any mock provider (`assertProductionProviderSafety`)
++— so you can't accidentally ship half-live. Analytics, email, and AI are the deliberate exceptions (they
++soft-warn instead of throwing, because a degraded log-only mode is not *unsafe*).
++
++## Pre-flight (must be done before ANY live flip)
++- [ ] 🔴 **Legal pages live** — Privacy, Terms, Refund, Disclaimer (LC #2–5). Razorpay activation requires them.
++- [ ] 🔴 **Company/tax structure** — LLP / GST / money-routing decided (LC #6). Gates GST display + payouts.
++- [ ] **Base infra env set** — `DATABASE_URL`, `DIRECT_URL`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY` (validated at boot by `lib/env.ts`).
++- [ ] 🔴 **`PII_ENCRYPTION_KEY`** — a 32-byte base64 key, set in prod (required; KYC PAN/account/doc-paths won't decrypt without the SAME key used at write). **Never rotate after real KYC data exists** without a re-encrypt plan.
++- [ ] **`EMAIL_UNSUBSCRIBE_SECRET`** — dedicated HMAC key in prod (LC #41; else unsubscribe links break on `DATABASE_URL` rotation).
++
++## Provider flips (each is env-only; order below is the recommended sequence)
++
++| Provider | Flag → live value | Also set | LC | Notes |
++|---|---|---|---|---|
++| **Supabase phone+password** | (dashboard setting, not env) | enable Phone auth + password | — | 🔴 Required before password register/login work live (Phase A follow-up). |
++| **OTP / SMS** | `OTP_PROVIDER=live` | `MSG91_AUTH_KEY` | #21 | Throttles already live regardless. Test one real OTP. |
++| **Razorpay (payments)** | `PAYMENT_PROVIDER=razorpay` | `RAZORPAY_KEY_ID` · `RAZORPAY_KEY_SECRET` · `RAZORPAY_WEBHOOK_SECRET` | #19, #33 | 🔴 **Fable at flip.** Needs legal pages first. Do a ₹1 live e2e (checkout → captured webhook → PAID → commissions HELD). Point the Razorpay dashboard webhook at `/api/webhooks/razorpay`. |
++| **Cloudflare Stream (video)** | `VIDEO_PROVIDER=stream` | `CLOUDFLARE_STREAM_CUSTOMER_CODE` | #20 | Upload course + preview videos; set each lesson's `videoAssetId` via `/admin/catalog`. |
++| **Resend (email)** | `EMAIL_PROVIDER=resend` | `RESEND_API_KEY` + verified domain | #22 | 🔴 Soft-warns in prod if left `console`. **Live smoke test at flip:** one real welcome + one cert-ready + working unsubscribe. |
++| **PostHog (analytics)** | `ANALYTICS_PROVIDER=posthog` | `POSTHOG_API_KEY` | #24 | Soft-warns if left `console`. Not unsafe — no money/PII depends on it. |
++| **Anthropic (Guru AI)** | `AI_PROVIDER=live` | `ANTHROPIC_API_KEY` | #35, #36 | 🔴 **Live smoke test (Fable):** a real corpus question, an income-intent question (must redirect per D-29 — see the locked `GURU_INCOME_REDIRECT` string test), and confirm the daily cost caps decrement. Set `GURU_MODEL` + cost caps (#36). |
++| **KYC verify send** | `KYC_VERIFY_PROVIDER=live` | (wire a real email/SMS service — not built) | #47 | 🔴 PII. `live` currently throws until a delivery service is wired. Flow + flag are ready. |
++
++## 🔴 The money flip — payouts (LAST, legal-gated)
++- [ ] 🔴 **`D01_LEGAL_CLEARED=true`** only after written counsel clearance (LC #1) — this is the runtime precondition for the payout-flag ceremony.
++- [ ] 🔴 **`AFFILIATE_PAYOUTS_ENABLED=true`** (LC #18) — flips earnings/withdrawals ON. Until then: `PAYOUTS_DISABLED` is enforced at both request-time (`validateWithdrawal`) AND the money-move site (`canMarkWithdrawalPaid`) — **zero disbursement possible while OFF**. Flip via `/admin/settings` ceremony (typed-confirm + audit). **Fable reviews the flip.**
++- [ ] 🔴 **KYC private bucket** — confirm the `kyc-docs` bucket exists as **private** on the prod Supabase project (LC #48); created on first upload but verify it isn't public.
++
++## Founder decisions still open (non-blocking, safe defaults shipped)
++- [ ] Referral copy pre/post-D-01 (#17) · Register/Login/Checkout copy (#44) · Commission-structure copy (#45).
++- [ ] Tier thresholds (#51, default Mentor≥5/Champion≥15) · Reward definitions (#53, none seeded) · My-Leads PII policy (#52 🔴 Fable).
++- [ ] Withdrawal window: anytime vs Monday-only (#50) · KYC doc-type list (#49) · FAQ pending answers (#12).
++- [ ] Course/preview/welcome videos (#7–10) · instructor bios/photos (#11) · certificate template (#14).
++
++## Post-flip smoke (do once live)
++- [ ] ₹1 Razorpay live purchase → PAID → 3 HELD commissions → 48h → AVAILABLE.
++- [ ] One real OTP register + password login.
++- [ ] One real welcome email + working unsubscribe.
++- [ ] KYC submit with a real doc → admin review → (payouts still OFF until D-01).
++- [ ] Re-run the QA-01 capture against the **production build** (dev over-reports CLS/LCP).
++
++---
++*Generated for launch hardening Unit 5. Adds no keys and flips nothing — readiness + docs only. Money/PII rows are marked 🔴 for Fable/counsel review at the actual flip.*
+diff --git a/e2e/public-smoke.spec.ts b/e2e/public-smoke.spec.ts
+index ca1348d..f2cb99d 100644
+--- a/e2e/public-smoke.spec.ts
++++ b/e2e/public-smoke.spec.ts
+@@ -77,5 +77,8 @@ test.describe("public website smoke", () => {
+     expect(h["x-content-type-options"]).toBe("nosniff");
+     expect(h["x-frame-options"]).toBe("SAMEORIGIN");
+     expect(h["referrer-policy"]).toBe("strict-origin-when-cross-origin");
++    // Unit 3 (launch hardening): these were configured but untested — lock them in.
++    expect(h["permissions-policy"]).toContain("geolocation=()");
++    expect(h["strict-transport-security"]).toContain("max-age=");
+   });
+ });
+diff --git a/lib/auth/action-rate-limit.ts b/lib/auth/action-rate-limit.ts
+new file mode 100644
+index 0000000..1fa5961
+--- /dev/null
++++ b/lib/auth/action-rate-limit.ts
+@@ -0,0 +1,48 @@
++// Per-user + per-IP throttle for AUTHENTICATED write actions (launch hardening, Unit 3). Complements
++// the OTP/login throttles: it dampens abuse on sensitive authenticated endpoints named in the spec —
++// withdraw request, KYC submit, KYC doc-access. This is an ABUSE throttle ONLY: it changes no money
++// rule, no ledger, no validation outcome (those stay in the domain). Pure decision over the shared
++// limiter; `checkActionRate` resolves the request IP. Fails generic — no enumeration.
++import { rateLimit } from "../rate-limit";
++import { clientIp } from "./otp-rate-limit";
++
++export type ActionRateCheck = { ok: true } | { ok: false; error: string };
++
++const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
++
++/** Pure throttle: per-user (primary) + per-IP (secondary, wider). Testable without a request context. */
++export function evaluateActionRate(
++  key: string,
++  userId: string,
++  ip: string,
++  max: number,
++  now: number = Date.now(),
++): ActionRateCheck {
++  const byUser = rateLimit(
++    `${key}:user:${userId}`,
++    { windowMs: WINDOW_MS, max },
++    now,
++  );
++  if (!byUser.ok)
++    return {
++      ok: false,
++      error: "Too many requests. Please wait a few minutes and try again.",
++    };
++  const byIp = rateLimit(
++    `${key}:ip:${ip}`,
++    { windowMs: WINDOW_MS, max: max * 3 },
++    now,
++  );
++  if (!byIp.ok)
++    return { ok: false, error: "Too many requests. Please try again shortly." };
++  return { ok: true };
++}
++
++/** Throttle an authenticated write for `userId` from the current request IP. Call BEFORE the domain work. */
++export async function checkActionRate(
++  key: string,
++  userId: string,
++  max: number,
++): Promise<ActionRateCheck> {
++  return evaluateActionRate(key, userId, await clientIp(), max);
++}
+diff --git a/tests/action-rate-limit.test.ts b/tests/action-rate-limit.test.ts
+new file mode 100644
+index 0000000..f681b13
+--- /dev/null
++++ b/tests/action-rate-limit.test.ts
+@@ -0,0 +1,71 @@
++// Launch hardening Unit 3 — per-user/per-IP throttle for authenticated write actions. Pure decision.
++import { describe, it, expect, beforeEach } from "vitest";
++import { evaluateActionRate } from "@/lib/auth/action-rate-limit";
++import { __resetRateLimits } from "@/lib/rate-limit";
++
++const NOW = 5_000_000;
++
++describe("evaluateActionRate", () => {
++  beforeEach(() => __resetRateLimits());
++
++  it("allows a user up to `max` in the window, then blocks", () => {
++    for (let i = 0; i < 6; i++)
++      expect(
++        evaluateActionRate("withdraw-request", "u1", "1.1.1.1", 6, NOW + i).ok,
++      ).toBe(true);
++    const blocked = evaluateActionRate(
++      "withdraw-request",
++      "u1",
++      "1.1.1.1",
++      6,
++      NOW + 7,
++    );
++    expect(blocked.ok).toBe(false);
++    if (!blocked.ok) expect(blocked.error).toMatch(/too many/i);
++  });
++
++  it("throttles per user independently (a second user is unaffected)", () => {
++    for (let i = 0; i < 6; i++)
++      evaluateActionRate("kyc-submit", "u1", "1.1.1.1", 6, NOW + i);
++    expect(
++      evaluateActionRate("kyc-submit", "u1", "1.1.1.1", 6, NOW + 7).ok,
++    ).toBe(false);
++    // Different user, different IP → fresh budget.
++    expect(
++      evaluateActionRate("kyc-submit", "u2", "2.2.2.2", 6, NOW + 8).ok,
++    ).toBe(true);
++  });
++
++  it("also enforces a wider per-IP cap (max*3) across users behind one IP", () => {
++    // 18 requests from one IP across 18 distinct users (each 1 → never hits the per-user cap).
++    for (let i = 0; i < 18; i++)
++      expect(
++        evaluateActionRate("kyc-doc", `user${i}`, "9.9.9.9", 6, NOW + i).ok,
++      ).toBe(true);
++    const blocked = evaluateActionRate(
++      "kyc-doc",
++      "user999",
++      "9.9.9.9",
++      6,
++      NOW + 19,
++    );
++    expect(blocked.ok).toBe(false);
++  });
++
++  it("recovers after the window elapses", () => {
++    for (let i = 0; i < 6; i++)
++      evaluateActionRate("kyc-submit", "u1", "1.1.1.1", 6, NOW + i);
++    expect(
++      evaluateActionRate("kyc-submit", "u1", "1.1.1.1", 6, NOW + 7).ok,
++    ).toBe(false);
++    expect(
++      evaluateActionRate(
++        "kyc-submit",
++        "u1",
++        "1.1.1.1",
++        6,
++        NOW + 10 * 60 * 1000 + 1,
++      ).ok,
++    ).toBe(true);
++  });
++});
+diff --git a/tests/contact-channels.test.ts b/tests/contact-channels.test.ts
+new file mode 100644
+index 0000000..0013c63
+--- /dev/null
++++ b/tests/contact-channels.test.ts
+@@ -0,0 +1,24 @@
++// Launch hardening Unit 4 — contact channels for the invite-only no-code state (LAUNCH_CONFIG slots).
++import { describe, it, expect } from "vitest";
++import { contactChannels } from "@/lib/config/contact";
++
++// Note: the WhatsApp/email values are module-load-time constants (NEXT_PUBLIC_* set at build), so
++// these tests exercise the DEFAULTS + the per-call formatting, not runtime env overrides.
++describe("contactChannels", () => {
++  it("builds a digits-only wa.me url + mailto-ready email from defaults", () => {
++    const c = contactChannels();
++    expect(c.whatsappUrl).toMatch(/^https:\/\/wa\.me\/\d+$/); // digits only, no '+' or spaces
++    expect(c.whatsappDisplay.startsWith("+")).toBe(true);
++    expect(c.email).toContain("@");
++  });
++
++  it("URL-encodes the optional prefill text", () => {
++    const c = contactChannels("hi there & co");
++    expect(c.whatsappUrl).toContain("?text=");
++    expect(c.whatsappUrl).toContain("hi%20there%20%26%20co");
++  });
++
++  it("omits the text query when no prefill is given", () => {
++    expect(contactChannels().whatsappUrl).not.toContain("?text=");
++  });
++});
+diff --git a/tests/kyc-doc-route.test.ts b/tests/kyc-doc-route.test.ts
+index e7ee691..4056c55 100644
+--- a/tests/kyc-doc-route.test.ts
++++ b/tests/kyc-doc-route.test.ts
+@@ -13,6 +13,11 @@ vi.mock("@/lib/auth/session", () => ({ getCurrentUser: h.getCurrentUser }));
+ vi.mock("@/lib/kyc/doc-access", () => ({
+   resolveKycDocPath: h.resolveKycDocPath,
+ }));
++// The routes now throttle (Unit 3) via clientIp()→headers(), which has no request context in a unit
++// test. Mock the throttle to allow — the auth/404 logic under test runs after it.
++vi.mock("@/lib/auth/action-rate-limit", () => ({
++  checkActionRate: vi.fn(async () => ({ ok: true })),
++}));
+ 
+ import { GET as adminDoc } from "@/app/admin/kyc/[userId]/doc/[kind]/route";
+ import { GET as ownerDoc } from "@/app/dashboard/earn/kyc/doc/[kind]/route";
+diff --git a/tests/withdrawal-rules.test.ts b/tests/withdrawal-rules.test.ts
+new file mode 100644
+index 0000000..e427055
+--- /dev/null
++++ b/tests/withdrawal-rules.test.ts
+@@ -0,0 +1,90 @@
++// Launch hardening Unit 4 — comprehensive coverage of the withdrawal gate ordering (non-regression,
++// pure; asserts EXISTING behaviour of validateWithdrawal — no money-logic change). Every rejection
++// code + the precedence order (payouts → KYC → pending → amount validity → min → max → available).
++import { describe, it, expect } from "vitest";
++import {
++  validateWithdrawal,
++  MIN_WITHDRAWAL_PAISE,
++  MAX_WITHDRAWAL_PAISE,
++} from "@/modules/wallet/withdrawal";
++
++const ok = {
++  payoutsEnabled: true,
++  kycStatus: "APPROVED" as const,
++  hasPendingWithdrawal: false,
++  availableInPaise: 1_000_000,
++  amountInPaise: 100_000,
++};
++
++describe("validateWithdrawal — happy path", () => {
++  it("passes a valid request", () => {
++    expect(validateWithdrawal(ok).ok).toBe(true);
++  });
++  it("min and max are ₹500 / ₹25,000 (boundaries inclusive, with sufficient balance)", () => {
++    expect(MIN_WITHDRAWAL_PAISE).toBe(50_000);
++    expect(MAX_WITHDRAWAL_PAISE).toBe(2_500_000);
++    const rich = { ...ok, availableInPaise: 5_000_000 }; // enough to cover the max
++    expect(
++      validateWithdrawal({ ...rich, amountInPaise: MIN_WITHDRAWAL_PAISE }).ok,
++    ).toBe(true);
++    expect(
++      validateWithdrawal({ ...rich, amountInPaise: MAX_WITHDRAWAL_PAISE }).ok,
++    ).toBe(true);
++  });
++});
++
++describe("validateWithdrawal — rejection codes + precedence", () => {
++  const code = (c: Parameters<typeof validateWithdrawal>[0]) => {
++    const r = validateWithdrawal(c);
++    return r.ok ? "OK" : r.code;
++  };
++
++  it("payouts OFF wins over everything (checked first)", () => {
++    // Even with every other field also invalid, PAYOUTS_DISABLED is returned first.
++    expect(
++      code({
++        payoutsEnabled: false,
++        kycStatus: "DRAFT",
++        hasPendingWithdrawal: true,
++        availableInPaise: 0,
++        amountInPaise: 999_999_999,
++      }),
++    ).toBe("PAYOUTS_DISABLED");
++  });
++  it("KYC not approved → KYC_REQUIRED (before pending/amount)", () => {
++    expect(
++      code({ ...ok, kycStatus: "SUBMITTED", hasPendingWithdrawal: true }),
++    ).toBe("KYC_REQUIRED");
++    expect(code({ ...ok, kycStatus: "DRAFT" })).toBe("KYC_REQUIRED");
++    expect(code({ ...ok, kycStatus: "REJECTED" })).toBe("KYC_REQUIRED");
++  });
++  it("existing pending → PENDING_EXISTS (before amount checks)", () => {
++    expect(code({ ...ok, hasPendingWithdrawal: true, amountInPaise: 0 })).toBe(
++      "PENDING_EXISTS",
++    );
++  });
++  it("non-integer / non-positive → INVALID_AMOUNT", () => {
++    expect(code({ ...ok, amountInPaise: 0 })).toBe("INVALID_AMOUNT");
++    expect(code({ ...ok, amountInPaise: -100 })).toBe("INVALID_AMOUNT");
++    expect(code({ ...ok, amountInPaise: 100.5 })).toBe("INVALID_AMOUNT");
++  });
++  it("below ₹500 → BELOW_MIN", () => {
++    expect(code({ ...ok, amountInPaise: MIN_WITHDRAWAL_PAISE - 1 })).toBe(
++      "BELOW_MIN",
++    );
++  });
++  it("above ₹25,000 → ABOVE_MAX (even if available is huge)", () => {
++    expect(
++      code({
++        ...ok,
++        amountInPaise: MAX_WITHDRAWAL_PAISE + 1,
++        availableInPaise: 9_000_000,
++      }),
++    ).toBe("ABOVE_MAX");
++  });
++  it("exceeds AVAILABLE → INSUFFICIENT (held balance never counts)", () => {
++    expect(
++      code({ ...ok, amountInPaise: 200_000, availableInPaise: 100_000 }),
++    ).toBe("INSUFFICIENT");
++  });
++});

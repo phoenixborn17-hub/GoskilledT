@@ -13,6 +13,11 @@ vi.mock("@/lib/auth/session", () => ({ getCurrentUser: h.getCurrentUser }));
 vi.mock("@/lib/kyc/doc-access", () => ({
   resolveKycDocPath: h.resolveKycDocPath,
 }));
+// The routes now throttle (Unit 3) via clientIp()→headers(), which has no request context in a unit
+// test. Mock the throttle to allow — the auth/404 logic under test runs after it.
+vi.mock("@/lib/auth/action-rate-limit", () => ({
+  checkActionRate: vi.fn(async () => ({ ok: true })),
+}));
 
 import { GET as adminDoc } from "@/app/admin/kyc/[userId]/doc/[kind]/route";
 import { GET as ownerDoc } from "@/app/dashboard/earn/kyc/doc/[kind]/route";

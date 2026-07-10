@@ -7,6 +7,7 @@ import { getAdminUser } from "@/lib/auth/admin";
 import { recordAdminAction } from "@/lib/admin/audit";
 import { isKycDocKind, kycDocSignedUrl } from "@/lib/storage/kyc-docs";
 import { resolveKycDocPath } from "@/lib/kyc/doc-access";
+import { checkActionRate } from "@/lib/auth/action-rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,10 @@ export async function GET(
   if (!admin) return new NextResponse("Not authorized", { status: 403 });
   if (!isKycDocKind(kind))
     return new NextResponse("Not found", { status: 404 });
+
+  // Abuse throttle (Unit 3) — admin can view any user's docs; cap the per-admin rate.
+  const rl = await checkActionRate("kyc-doc-admin", admin.supabaseId, 60);
+  if (!rl.ok) return new NextResponse(rl.error, { status: 429 });
 
   const path = await resolveKycDocPath(userId, kind);
   if (!path) return new NextResponse("No document", { status: 404 });
