@@ -1,14 +1,38 @@
-// Learn tab (DR-030 §2 bottom-nav "Learn") — the learner's course home: Continue Learning + all
-// enrolled courses. Moved here from /dashboard when that route became the Hub (Home). Never blank:
-// shows a checkout CTA when there are no enrollments. The Lesson-0 system course is excluded upstream.
+// Learn workspace dashboard (Redesign U4 · Dashboard §3) — re-skinned onto the Decision Card
+// system + Home-hub patterns. COMPOSITE over existing LMS data (no route/business-logic change).
+// Action-first: Continue hero + ≤4 stat cards, then depth (Activity tab, recommendations, Guru).
+// Zero-data → 3-step getting-started (never empty widgets, D-29).
 import Link from "next/link";
-import { getCurrentUserRecord } from "../../../lib/auth/session";
-import { getEnrolledCourses } from "../../../lib/lms/queries";
-import { ProgressRing } from "../../../components/dashboard/progress-ring";
-import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
+import {
+  BookOpen,
+  Target,
+  Award,
+  Flame,
+  PlayCircle,
+  Share2,
+  Compass,
+  CalendarDays,
+  Rocket,
+} from "lucide-react";
+import { getCurrentUser } from "../../../lib/auth/session";
+import {
+  getLearnDashboard,
+  type LearnDashboard,
+} from "../../../lib/learn/dashboard";
+import { safeCount } from "../../../lib/format";
+
 import { Button } from "../../../components/ui/button";
+import { Tabs } from "../../../components/ui/tabs";
+import { StatCard } from "../../../components/cards/stat-card";
+import { ChartCard } from "../../../components/cards/chart-card";
+import { CourseCard } from "../../../components/cards/course-card";
+import { QuickActionCard } from "../../../components/cards/quick-action-card";
+import { GettingStartedCard } from "../../../components/cards/getting-started-card";
+import { ContinueLearningCard } from "../../../components/cards/decision/continue-learning-card";
+import { AreaChart } from "../../../components/data/area-chart";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Learn" };
 
 const GOAL_SUBLINE: Record<string, string> = {
   SKILL: "Let's sharpen a skill today.",
@@ -17,101 +41,248 @@ const GOAL_SUBLINE: Record<string, string> = {
 };
 
 export default async function LearnPage() {
-  const user = await getCurrentUserRecord();
-  const courses = await getEnrolledCourses(user!.id);
-  const greeting = `Your learning${user?.name ? `, ${user.name}` : ""}`;
-  const subline =
-    (user?.goal && GOAL_SUBLINE[user.goal]) ?? "Continue where you left off.";
-
-  if (courses.length === 0) {
-    return (
-      <section aria-labelledby="learn-heading" className="space-y-5">
-        <h1 id="learn-heading" className="font-heading text-2xl font-bold">
-          Learn
-        </h1>
-        <Card className="text-center">
-          <CardTitle>No courses yet</CardTitle>
-          <CardDescription>
-            Enroll to start learning — your first lesson is a free preview.
-          </CardDescription>
-          <div className="mx-auto mt-5 max-w-xs">
-            <Link href="/packages">
-              <Button>Explore courses</Button>
-            </Link>
-          </div>
-        </Card>
-      </section>
-    );
-  }
-
-  const active = courses.find((c) => c.progress.percent < 100) ?? courses[0];
-  const cta =
-    active.progress.completed === 0
-      ? "Start Lesson 1"
-      : active.resumeLessonId
-        ? "Resume"
-        : "Review";
+  const user = await getCurrentUser();
+  const d = await getLearnDashboard(user!.id);
 
   return (
-    <section aria-labelledby="learn-heading" className="space-y-6">
-      <div>
-        <h1 id="learn-heading" className="font-heading text-2xl font-bold">
-          {greeting}
+    <div className="space-y-8">
+      <header>
+        <h1 className="font-heading text-h1 font-extrabold text-ink">
+          Your learning{d.name ? `, ${d.name}` : ""}
         </h1>
-        <p className="text-sm text-muted">{subline}</p>
+        <p className="mt-1 text-body text-ink-muted">
+          {(d.goal && GOAL_SUBLINE[d.goal]) ?? "Continue where you left off."}
+        </p>
+      </header>
+
+      {d.lifecycleNew ? <ZeroData /> : <Loaded d={d} />}
+    </div>
+  );
+}
+
+function Loaded({ d }: { d: LearnDashboard }) {
+  const remaining = d.active ? d.active.total - d.active.completed : 0;
+  const heroAi =
+    d.active && d.active.percent > 0 && remaining > 0
+      ? `You're ${d.active.percent}% through — ${remaining} ${remaining === 1 ? "lesson" : "lessons"} to your certificate.`
+      : null;
+
+  return (
+    <>
+      {/* Continue hero (action-first, first viewport) */}
+      {d.active ? (
+        <ContinueLearningCard
+          href={d.active.resumeHref}
+          courseTitle={d.active.title}
+          lessonLabel={`${d.active.completed} / ${d.active.total} lessons`}
+          percent={d.active.percent}
+          aiLine={heroAi}
+        />
+      ) : null}
+
+      {/* ≤4 stat cards */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Courses"
+          value={safeCount(d.stats.courses)}
+          icon={BookOpen}
+          family="learning"
+        />
+        <StatCard
+          label="Overall progress"
+          value={safeCount(d.stats.overallPercent)}
+          icon={Target}
+          family="learning"
+          hint="% across your courses"
+        />
+        <StatCard
+          label="Certificates"
+          value={safeCount(d.stats.certificates)}
+          icon={Award}
+          family="learning"
+        />
+        <StatCard
+          label="Streak"
+          value={safeCount(d.stats.streak)}
+          icon={Flame}
+          family="learning"
+          hint={d.stats.streak === 1 ? "day" : "days"}
+        />
       </div>
 
-      <Card className="flex items-center gap-5">
-        <ProgressRing percent={active.progress.percent} />
-        <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted">
-            Continue learning
-          </p>
-          <p className="truncate font-heading text-lg font-bold">
-            {active.title}
-          </p>
-          <p className="text-sm text-muted">
-            {active.progress.completed} / {active.progress.total} lessons
-          </p>
-          <div className="mt-3 max-w-[10rem]">
-            <Link href={`/dashboard/learn/${active.slug}`}>
-              <Button>{cta}</Button>
-            </Link>
-          </div>
-        </div>
-      </Card>
+      {/* Overview / Activity tabs (analytics renders on-demand in the Activity tab) */}
+      <Tabs
+        items={[
+          {
+            value: "overview",
+            label: "Overview",
+            content: <Overview d={d} />,
+          },
+          {
+            value: "activity",
+            label: "Activity",
+            content: (
+              <ChartCard
+                title="Learning activity — last 14 days"
+                state={d.activityTotal === 0 ? "empty" : "ready"}
+                emptyMessage="Your activity graph appears after your first completed lesson."
+              >
+                <div className="h-40">
+                  <AreaChart
+                    points={d.weeklyActivity}
+                    color="var(--gs-green)"
+                    height={150}
+                    className="w-full"
+                    label="Lessons completed per day"
+                  />
+                </div>
+              </ChartCard>
+            ),
+          },
+        ]}
+      />
 
-      <div className="space-y-3">
-        <div className="flex items-end justify-between">
-          <h2 className="font-heading text-lg font-semibold">Your courses</h2>
+      {/* Quick actions */}
+      <section aria-label="Quick actions">
+        <h2 className="mb-3 font-heading text-h4 font-bold text-ink">
+          Quick actions
+        </h2>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <QuickActionCard
+            icon={PlayCircle}
+            label="Continue learning"
+            href={d.active?.resumeHref ?? "/dashboard/courses"}
+            primary
+          />
+          <QuickActionCard
+            icon={Compass}
+            label="Explore courses"
+            href="/courses"
+          />
+          <QuickActionCard
+            icon={Share2}
+            label="Refer a friend"
+            href="/dashboard/earn"
+          />
+        </div>
+      </section>
+    </>
+  );
+}
+
+function Overview({ d }: { d: LearnDashboard }) {
+  return (
+    <div className="space-y-8">
+      {/* Your courses */}
+      <section aria-label="Your courses" className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-heading text-h4 font-bold text-ink">
+            Your courses
+          </h3>
           <Link
             href="/dashboard/courses"
-            className="text-sm font-semibold text-brand"
+            className="text-small font-semibold text-theme-strong"
           >
             View all →
           </Link>
         </div>
-        {courses.map((c) => (
-          <Link
-            key={c.slug}
-            href={`/dashboard/learn/${c.slug}`}
-            className="block"
+        <div className="grid gap-4 md:grid-cols-2">
+          {d.courses.map((c) => (
+            <CourseCard
+              key={c.slug}
+              title={c.title}
+              meta={`${c.completed} / ${c.total} lessons`}
+              progress={c.percent}
+              owned
+              action={
+                <Link href={`/dashboard/learn/${c.slug}`}>
+                  <Button className="w-full">
+                    {c.percent === 100
+                      ? "Review"
+                      : c.completed === 0
+                        ? "Start"
+                        : "Resume"}
+                  </Button>
+                </Link>
+              }
+            />
+          ))}
+        </div>
+      </section>
+
+      {/* Recommendations — real catalog courses you don't own yet (honest, no fake) */}
+      {d.recommendations.length > 0 && (
+        <section aria-label="Recommended" className="space-y-3">
+          <h3 className="font-heading text-h4 font-bold text-ink">
+            Recommended next
+          </h3>
+          <div className="grid gap-4 md:grid-cols-3">
+            {d.recommendations.map((c) => (
+              <CourseCard
+                key={c.slug}
+                title={c.title}
+                meta={c.summary ?? undefined}
+                action={
+                  <Link href={`/courses/${c.slug}`}>
+                    <Button variant="outline" className="w-full">
+                      View course
+                    </Button>
+                  </Link>
+                }
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Upcoming webinar (opportunity, never a prerequisite) */}
+      {d.webinar && (
+        <Link
+          href="/webinar"
+          className="lift flex items-center gap-3 rounded-gs border border-line bg-surface-raised p-4"
+        >
+          <span
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-info/10 text-info"
+            aria-hidden
           >
-            <Card className="flex items-center justify-between gap-4 transition-colors hover:border-brand/30">
-              <div className="min-w-0">
-                <p className="truncate font-medium">{c.title}</p>
-                <p className="text-sm text-muted">
-                  {c.progress.completed} / {c.progress.total} lessons ·{" "}
-                  {c.progress.percent}%
-                </p>
-              </div>
-              <span className="shrink-0 text-sm font-semibold text-brand">
-                Open →
-              </span>
-            </Card>
-          </Link>
-        ))}
-      </div>
-    </section>
+            <CalendarDays className="h-5 w-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-semibold text-ink">{d.webinar.title}</p>
+            <p className="text-caption text-ink-muted">
+              Live webinar — book your seat
+            </p>
+          </div>
+          <span className="shrink-0 text-small font-semibold text-theme-strong">
+            View →
+          </span>
+        </Link>
+      )}
+    </div>
+  );
+}
+
+function ZeroData() {
+  return (
+    <GettingStartedCard
+      icon={Rocket}
+      subtitle="3 quick steps to your first win"
+      steps={[
+        {
+          title: "Pick your first course",
+          description: "Browse the catalog and choose what to learn.",
+          action: (
+            <Link href="/courses">
+              <Button className="w-auto">Browse courses</Button>
+            </Link>
+          ),
+        },
+        {
+          title: "Watch your first lesson",
+          description: "Just 2 minutes to your first win.",
+        },
+        { title: "Share your referral link with a friend" },
+      ]}
+    />
   );
 }

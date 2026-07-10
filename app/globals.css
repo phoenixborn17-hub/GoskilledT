@@ -113,6 +113,9 @@
   /* default theme = green (Home neutral + Learn) */
   --brand: var(--gs-green);
   --brand-strong: var(--gs-green-deep); /* AA brand text on light/tint */
+  /* Default accent for Decision-Card viz used OUTSIDE a card (gauges/rings/sparks) — themes with
+     the workspace. DecisionCards override this via their .dc-accent-* class. */
+  --card-accent: var(--gs-green);
 }
 
 /* ── Workspace themes (Experience System §2 · Amendments §A). `learn`=green,
@@ -127,6 +130,9 @@
 [data-theme="affiliate"] {
   --brand: var(--gs-gold);
   --brand-strong: var(--gs-warning); /* text-safe amber for gold context */
+  --card-accent: var(
+    --gs-warning
+  ); /* text-safe amber for viz strokes in gold context */
 }
 [data-theme="admin"],
 [data-theme="neutral"] {

@@ -13,6 +13,7 @@ import {
   Rocket,
   Flame,
   BookOpen,
+  Store,
 } from "lucide-react";
 import { getCurrentUser } from "../../../lib/auth/session";
 import { getHomeSummary, type HomeSummary } from "../../../lib/home/summary";
@@ -57,6 +58,30 @@ export default async function HomePage() {
           {summary.greetingMessage}
         </p>
       </header>
+
+      {/* Store — a first-class entry to the catalog on Home (Nav_Workspace v1.1 · Explore folded in). */}
+      <Link
+        href="/courses"
+        className="lift flex items-center gap-4 rounded-gs-lg border border-line bg-surface-raised p-5"
+      >
+        <span
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-theme/10 text-theme-strong"
+          aria-hidden
+        >
+          <Store className="h-6 w-6" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="font-heading text-h4 font-bold text-ink">
+            Browse the Store
+          </p>
+          <p className="text-small text-ink-muted">
+            Explore all courses and packages
+          </p>
+        </div>
+        <span className="shrink-0 text-small font-semibold text-theme-strong">
+          Open →
+        </span>
+      </Link>
 
       {summary.lifecycleNew ? (
         <ZeroData summary={summary} />
@@ -181,7 +206,6 @@ function QuickActions({ summary }: { summary: HomeSummary }) {
     ...(summary.webinarToday
       ? [{ icon: CalendarDays, label: "Join webinar", href: "/webinar" }]
       : []),
-    { icon: Sparkles, label: "Ask Guru", href: "/dashboard/learn" },
   ].slice(0, 4);
 
   return (

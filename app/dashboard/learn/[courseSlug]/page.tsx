@@ -13,6 +13,7 @@ import { getVideoProvider } from "../../../../lib/video/provider";
 import { nextLessonId } from "../../../../modules/lms/progress";
 import { LessonPlayer } from "../../../../components/dashboard/lesson-player";
 import { GuruPanel } from "../../../../components/dashboard/guru/guru-panel";
+import { guruEnabled } from "../../../../lib/flags";
 import { QuizCheckpoint } from "../../../../components/dashboard/quiz/quiz-checkpoint";
 import { getPublishedQuizForLearner } from "../../../../lib/lms/quiz";
 import {
@@ -172,15 +173,17 @@ export default async function CoursePlayerPage({
         </aside>
       </div>
 
-      {/* Guru companion panel (GPS-M5 §2.1) — context = the currently-viewed lesson. Deep-linkable
-          via ?guru=1 (auto-open) and ?q= (auto-ask, e.g. progress "explain my gap"). */}
-      <GuruPanel
-        lessonId={selected.id}
-        courseSlug={courseSlug}
-        enrolled={view.isEnrolled}
-        initialOpen={guru === "1"}
-        initialQuestion={q}
-      />
+      {/* Guru companion panel (GPS-M5 §2.1) — DISABLED behind guruEnabled() (Nav_Workspace v1.1).
+          Code kept in-tree; flip the flag to restore. Deep-links (?guru=1&q=) become inert. */}
+      {guruEnabled() && (
+        <GuruPanel
+          lessonId={selected.id}
+          courseSlug={courseSlug}
+          enrolled={view.isEnrolled}
+          initialOpen={guru === "1"}
+          initialQuestion={q}
+        />
+      )}
     </div>
   );
 }
