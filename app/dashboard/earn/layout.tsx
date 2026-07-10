@@ -1,8 +1,7 @@
-// Earn section layout (GPS-M3). Gold-forward affiliate surface (data-theme) + flag-aware sub-nav.
-// noindex (authenticated). Money sub-nav tabs appear only when AFFILIATE_PAYOUTS_ENABLED (LC #18).
+// Earn section layout (GPS-M3 · Redesign U5). Gold-forward affiliate surface (data-theme), noindex.
+// The old EarnSubNav tab bar is removed — the app shell's contextual sidebar (Nav_Workspace v1.1)
+// is now the single Earn nav (no duplicate nav system).
 import type { Metadata } from "next";
-import { payoutsEnabled } from "../../../lib/env";
-import { EarnSubNav } from "../../../components/affiliate/earn-subnav";
 
 export const metadata: Metadata = { robots: { index: false, follow: false } };
 
@@ -13,7 +12,6 @@ export default function EarnLayout({
 }) {
   return (
     <div data-theme="affiliate" className="space-y-6">
-      <EarnSubNav showMoney={payoutsEnabled()} />
       {children}
     </div>
   );

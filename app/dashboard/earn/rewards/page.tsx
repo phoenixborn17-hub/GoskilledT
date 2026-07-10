@@ -26,7 +26,7 @@ export default async function RewardsPage() {
 
   return (
     <section aria-labelledby="rw-heading" className="space-y-6">
-      <h1 id="rw-heading" className="font-heading text-2xl font-bold">
+      <h1 id="rw-heading" className="font-heading text-h1 font-bold text-ink">
         Rewards
       </h1>
 

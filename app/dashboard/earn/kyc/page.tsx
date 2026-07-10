@@ -21,7 +21,7 @@ export default async function KycPage() {
 
   return (
     <section aria-labelledby="kyc-heading" className="space-y-6">
-      <h1 id="kyc-heading" className="font-heading text-2xl font-bold">
+      <h1 id="kyc-heading" className="font-heading text-h1 font-bold text-ink">
         KYC verification
       </h1>
       {payoutsEnabled() ? (
