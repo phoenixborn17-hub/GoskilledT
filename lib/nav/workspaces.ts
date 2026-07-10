@@ -24,7 +24,7 @@ import {
   LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
-import { isFeatureVisible, type FeatureKey } from "../feature-visibility";
+import { type FeatureKey } from "../feature-visibility";
 import type { WorkspaceTheme } from "../../components/nav/workspace-switcher";
 
 export type WorkspaceKey = "home" | "learn" | "earn" | "account";
@@ -112,9 +112,24 @@ export const WORKSPACES: Workspace[] = [
   },
 ];
 
-/** Workspaces the current viewer may see (Feature-Visibility stub → all; Phase 7 resolves). */
-export function visibleWorkspaces(): Workspace[] {
-  return WORKSPACES.filter((w) => isFeatureVisible(w.feature));
+/**
+ * Workspaces the current viewer may see, plus per-item recomposition (Feature Visibility, DR-040).
+ * `isVisible` is the server-resolved predicate (passed down from the dashboard layout). When the
+ * Affiliate (`earn`) layer is hidden: the Earn switcher item drops, AND the Account sidebar's KYC
+ * item drops (KYC = "get payout-ready" is an affiliate surface whose route is guarded → no dead
+ * link). The shell recomposes to a coherent Learning-only product with no gaps.
+ */
+export function visibleWorkspaces(
+  isVisible: (feature: FeatureKey) => boolean,
+): Workspace[] {
+  const affiliateVisible = isVisible("earn");
+  return WORKSPACES.filter((w) => isVisible(w.feature)).map((w) => {
+    if (w.key !== "account" || affiliateVisible) return w;
+    return {
+      ...w,
+      items: w.items.filter((i) => i.href !== "/dashboard/earn/kyc"),
+    };
+  });
 }
 
 /** Which workspace a pathname belongs to — drives the switcher highlight + theme. */

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { RegisterForm } from "./register-form";
 import { resolveSponsorByCode } from "../../lib/auth/sponsor";
 import { readRefCookie } from "../../lib/auth/ref-cookie";
+import { isFeatureVisible } from "../../lib/feature-visibility/context";
 import { contactChannels } from "../../lib/config/contact";
 import { pageMetadata } from "../../lib/seo";
 
@@ -31,6 +32,14 @@ export default async function RegisterPage({
   const contact = contactChannels(
     "Hi! I'd like a GoSkilled referral code to register.",
   );
+  // Feature Visibility (DR-040 · the /register?ref attribution surface): when the Affiliate layer is
+  // GLOBALLY hidden (a review window / pre-legal), suppress the visible referral framing ("Invited by
+  // [name] ✓") so a reviewer sees no referral mechanics. Anonymous context → GLOBAL overrides only.
+  // Registration LOGIC (DR-036 invite-only code requirement + attribution) is unchanged.
+  const affiliateVisible = await isFeatureVisible("earn");
+  const sponsorFirstName = affiliateVisible
+    ? (sponsor?.firstName ?? null)
+    : null;
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
@@ -38,7 +47,7 @@ export default async function RegisterPage({
         <RegisterForm
           initialCode={initialCode}
           initialValid={!!sponsor}
-          initialSponsorFirstName={sponsor?.firstName ?? null}
+          initialSponsorFirstName={sponsorFirstName}
           contact={contact}
         />
       </Suspense>

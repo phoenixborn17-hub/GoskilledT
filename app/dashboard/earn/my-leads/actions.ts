@@ -6,6 +6,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { getCurrentUser } from "../../../../lib/auth/session";
 import { createAffiliateLead } from "../../../../lib/affiliate/leads";
+import { assertFeatureVisible } from "../../../../lib/feature-visibility/context";
 
 export type LeadActionResult = { ok: true } | { ok: false; error: string };
 
@@ -19,6 +20,7 @@ const leadSchema = z.object({
 export async function addAffiliateLead(
   input: z.input<typeof leadSchema>,
 ): Promise<LeadActionResult> {
+  await assertFeatureVisible("earn"); // DR-040: affiliate action unreachable when hidden
   const user = await getCurrentUser();
   if (!user) return { ok: false, error: "Please sign in." };
   const parsed = leadSchema.safeParse(input);

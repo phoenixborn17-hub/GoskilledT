@@ -17,6 +17,10 @@ datasource db {
 enum Role {
   USER
   ADMIN
+  // Feature Visibility (DR-040): a review/demo account. Behaves as a normal (non-admin) learner but
+  // is a per-ROLE scope target so the Affiliate layer can be hidden for reviewers (admin gate stays
+  // on Supabase app_metadata.role, unaffected).
+  REVIEWER
 }
 
 // goal-based onboarding (Blueprint §3 /onboarding)
@@ -561,4 +565,31 @@ model AffiliateLead {
   status    AffiliateLeadStatus @default(NEW)
   createdAt DateTime            @default(now())
   @@index([ownerId, createdAt])
+}
+
+// ─────────────── Feature Visibility (DR-040) ───────────────
+// General feature-flag system. The code registry (lib/feature-visibility/registry.ts) owns which
+// features exist + their defaults; THIS table holds per-scope OVERRIDES only. Resolver precedence is
+// hide-wins / fail-safe. NO money logic — visibility of surfaces only; hiding never mutates ledger
+// state. Every flag change is audited via AdminAction (immutable convention).
+enum FeatureScope {
+  GLOBAL
+  ROLE
+  USER
+}
+
+model FeatureOverride {
+  id         String       @id @default(cuid())
+  featureKey String                              // a lib/feature-visibility registry key (e.g. "earn")
+  scope      FeatureScope
+  // "" for GLOBAL · the Role string for ROLE · the User.id for USER. Non-null (with "") so the
+  // unique index below actually enforces one row per (feature, scope, target) — Postgres treats
+  // NULLs as distinct, which would allow duplicate GLOBAL rows.
+  scopeValue String       @default("")
+  visible    Boolean
+  updatedBy  String?                             // admin Supabase id (denormalised actor)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  @@unique([featureKey, scope, scopeValue])
+  @@index([featureKey])
 }

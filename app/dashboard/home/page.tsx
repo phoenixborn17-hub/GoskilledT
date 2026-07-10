@@ -16,6 +16,7 @@ import {
   Store,
 } from "lucide-react";
 import { getCurrentUser } from "../../../lib/auth/session";
+import { isFeatureVisible } from "../../../lib/feature-visibility/context";
 import { getHomeSummary, type HomeSummary } from "../../../lib/home/summary";
 import { safeMoney } from "../../../lib/format";
 import { format } from "date-fns";
@@ -43,7 +44,10 @@ export const metadata = { title: "Home" };
 
 export default async function HomePage() {
   const user = await getCurrentUser();
-  const summary = await getHomeSummary(user!.id);
+  const [summary, affiliateVisible] = await Promise.all([
+    getHomeSummary(user!.id),
+    isFeatureVisible("earn"), // DR-040: gate every affiliate/referral surface on Home
+  ]);
 
   return (
     <div className="space-y-8">
@@ -84,17 +88,20 @@ export default async function HomePage() {
       </Link>
 
       {summary.lifecycleNew ? (
-        <ZeroData summary={summary} />
+        <ZeroData summary={summary} affiliateVisible={affiliateVisible} />
       ) : (
         <>
-          <TodaysSummary summary={summary} />
-          <QuickActions summary={summary} />
+          <TodaysSummary
+            summary={summary}
+            affiliateVisible={affiliateVisible}
+          />
+          <QuickActions summary={summary} affiliateVisible={affiliateVisible} />
           <Priorities summary={summary} />
           <Suspense fallback={<EnterWorkspacesSkeleton />}>
             <EnterWorkspaces userId={user!.id} />
           </Suspense>
           <Announcements />
-          <ShareSection shareUrl={summary.shareUrl} />
+          {affiliateVisible && <ShareSection shareUrl={summary.shareUrl} />}
         </>
       )}
     </div>
@@ -102,7 +109,13 @@ export default async function HomePage() {
 }
 
 // ── First viewport: Today's Summary (composed payload) ──────────────────────────
-function TodaysSummary({ summary }: { summary: HomeSummary }) {
+function TodaysSummary({
+  summary,
+  affiliateVisible,
+}: {
+  summary: HomeSummary;
+  affiliateVisible: boolean;
+}) {
   const { nextLesson, streak, webinarToday, walletAvailablePaise } = summary;
   return (
     <section aria-label="Today's summary">
@@ -172,7 +185,7 @@ function TodaysSummary({ summary }: { summary: HomeSummary }) {
           </BentoItem>
         )}
 
-        {walletAvailablePaise != null && (
+        {walletAvailablePaise != null && affiliateVisible && (
           <BentoItem size="secondary">
             <DecisionCard
               icon={Wallet}
@@ -194,7 +207,13 @@ function TodaysSummary({ summary }: { summary: HomeSummary }) {
 }
 
 // ── Contextual Quick Actions (≤4, rules-driven) ─────────────────────────────────
-function QuickActions({ summary }: { summary: HomeSummary }) {
+function QuickActions({
+  summary,
+  affiliateVisible,
+}: {
+  summary: HomeSummary;
+  affiliateVisible: boolean;
+}) {
   const actions = [
     {
       icon: PlayCircle,
@@ -202,7 +221,10 @@ function QuickActions({ summary }: { summary: HomeSummary }) {
       href: summary.nextLesson?.href ?? "/dashboard/learn",
       primary: true,
     },
-    { icon: Share2, label: "Refer a friend", href: "/dashboard/earn" },
+    // Referral is an Affiliate-layer action — omitted when the Affiliate layer is hidden (DR-040).
+    ...(affiliateVisible
+      ? [{ icon: Share2, label: "Refer a friend", href: "/dashboard/earn" }]
+      : []),
     ...(summary.webinarToday
       ? [{ icon: CalendarDays, label: "Join webinar", href: "/webinar" }]
       : []),
@@ -293,30 +315,44 @@ function ShareSection({ shareUrl }: { shareUrl: string }) {
 }
 
 // ── Zero-data first run (Dashboard §7) — getting-started, never empty widgets ─────
-function ZeroData({ summary }: { summary: HomeSummary }) {
+function ZeroData({
+  summary,
+  affiliateVisible,
+}: {
+  summary: HomeSummary;
+  affiliateVisible: boolean;
+}) {
+  const steps = [
+    {
+      title: "Pick your first course",
+      description: "Browse the catalog and choose what to learn.",
+      action: (
+        <Link href="/dashboard/learn">
+          <Button className="w-auto">Browse courses</Button>
+        </Link>
+      ),
+    },
+    {
+      title: "Watch your first lesson",
+      description: "Just 2 minutes to your first win.",
+    },
+    // The referral step is part of the Affiliate layer — dropped when hidden (DR-040).
+    ...(affiliateVisible
+      ? [{ title: "Share your referral link with a friend" }]
+      : []),
+  ];
   return (
     <div className="space-y-6">
       <GettingStartedCard
         icon={Rocket}
-        subtitle="3 quick steps to your first win"
-        steps={[
-          {
-            title: "Pick your first course",
-            description: "Browse the catalog and choose what to learn.",
-            action: (
-              <Link href="/dashboard/learn">
-                <Button className="w-auto">Browse courses</Button>
-              </Link>
-            ),
-          },
-          {
-            title: "Watch your first lesson",
-            description: "Just 2 minutes to your first win.",
-          },
-          { title: "Share your referral link with a friend" },
-        ]}
+        subtitle={
+          affiliateVisible
+            ? "3 quick steps to your first win"
+            : "2 quick steps to your first win"
+        }
+        steps={steps}
       />
-      <ShareSection shareUrl={summary.shareUrl} />
+      {affiliateVisible && <ShareSection shareUrl={summary.shareUrl} />}
     </div>
   );
 }

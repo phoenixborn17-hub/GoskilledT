@@ -2,6 +2,7 @@
 // referral code, logout. Notification prefs moved to Account · Settings (single home). No self-serve
 // account deletion (support-mediated; DPDP = LEGAL workstream). Auth/profile writes unchanged.
 import { getCurrentUserRecord } from "../../../lib/auth/session";
+import { isFeatureVisible } from "../../../lib/feature-visibility/context";
 import { greetingTitle } from "../../../lib/greeting";
 import { ProfileForm } from "../../../components/dashboard/profile-form";
 import { LogoutButton } from "../../../components/dashboard/logout-button";
@@ -12,7 +13,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Profile" };
 
 export default async function ProfilePage() {
-  const user = await getCurrentUserRecord();
+  const [user, affiliateVisible] = await Promise.all([
+    getCurrentUserRecord(),
+    isFeatureVisible("earn"), // DR-040 leak channel (§E): hide the referral code when Affiliate hidden
+  ]);
 
   return (
     <section aria-labelledby="profile-heading" className="space-y-6">
@@ -31,18 +35,24 @@ export default async function ProfilePage() {
         <Badge variant="gold">Founding Batch</Badge>
       </header>
 
-      {/* Referral code (DR-030 §6.8) — invite-only framing, no earn language pre-D-01. */}
-      <Card className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-small font-medium text-ink">Your referral code</p>
-          <p className="font-heading text-h4 font-bold tracking-wide text-theme-strong">
-            {user?.referralCode ?? "—"}
-          </p>
-        </div>
-        <span className="text-caption text-ink-muted">
-          Friends who join with your link stay linked to you.
-        </span>
-      </Card>
+      {/* Referral code (DR-030 §6.8) — invite-only framing, no earn language pre-D-01. Feature
+          Visibility (DR-040 §E leak channel): the referral code is an Affiliate surface — hidden
+          entirely (not just nav) when the Affiliate layer is off, so a reviewer sees no referral trace. */}
+      {affiliateVisible && (
+        <Card className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-small font-medium text-ink">
+              Your referral code
+            </p>
+            <p className="font-heading text-h4 font-bold tracking-wide text-theme-strong">
+              {user?.referralCode ?? "—"}
+            </p>
+          </div>
+          <span className="text-caption text-ink-muted">
+            Friends who join with your link stay linked to you.
+          </span>
+        </Card>
+      )}
 
       <Card>
         <CardTitle className="mb-4 text-lg">Your details</CardTitle>

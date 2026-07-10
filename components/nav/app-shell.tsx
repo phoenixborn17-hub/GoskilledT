@@ -9,6 +9,7 @@ import {
   activeWorkspaceKey,
   type Workspace,
 } from "../../lib/nav/workspaces";
+import { isVisibleIn, type FeatureKey } from "../../lib/feature-visibility";
 import { signOutAction } from "../../app/dashboard/actions";
 import { Topbar } from "./topbar";
 import { SidebarItem } from "./sidebar-item";
@@ -22,6 +23,9 @@ export interface AppShellProps {
   userName: string;
   referralCode: string;
   shareUrl: string;
+  /** Server-resolved feature visibility map (Feature Visibility, DR-040). Presentation gate on top
+   *  of server enforcement — the switcher, Share affordance, etc. recompose from this. */
+  visibleFeatures: Partial<Record<FeatureKey, boolean>>;
   children: React.ReactNode;
 }
 
@@ -52,10 +56,14 @@ export function AppShell({
   userName,
   referralCode,
   shareUrl,
+  visibleFeatures,
   children,
 }: AppShellProps) {
   const pathname = usePathname() ?? "/dashboard/home";
-  const workspaces = visibleWorkspaces();
+  // Presentation recomposition from the server-resolved map (server routes/actions enforce for real).
+  const workspaces = visibleWorkspaces((f) => isVisibleIn(visibleFeatures, f));
+  // The referral share affordance is part of the Affiliate layer — hide it when `earn` is hidden.
+  const shareVisible = isVisibleIn(visibleFeatures, "earn");
   const activeKey = activeWorkspaceKey(pathname);
   const active = workspaces.find((w) => w.key === activeKey) ?? workspaces[0];
   const hasContext = active.items.length > 0;
@@ -141,15 +149,17 @@ export function AppShell({
           G
         </Link>
         {switcher("rail")}
-        <div className="mt-auto">
-          <IconButton
-            aria-label="Share your link"
-            variant="outline"
-            onClick={openShare}
-          >
-            <Share2 className="h-5 w-5" aria-hidden />
-          </IconButton>
-        </div>
+        {shareVisible && (
+          <div className="mt-auto">
+            <IconButton
+              aria-label="Share your link"
+              variant="outline"
+              onClick={openShare}
+            >
+              <Share2 className="h-5 w-5" aria-hidden />
+            </IconButton>
+          </div>
+        )}
       </nav>
 
       {/* Desktop: contextual sidebar (only when the workspace has pages) */}
@@ -195,13 +205,15 @@ export function AppShell({
           }
           actions={
             <>
-              <IconButton
-                aria-label="Share your link"
-                variant="outline"
-                onClick={openShare}
-              >
-                <Share2 className="h-5 w-5" aria-hidden />
-              </IconButton>
+              {shareVisible && (
+                <IconButton
+                  aria-label="Share your link"
+                  variant="outline"
+                  onClick={openShare}
+                >
+                  <Share2 className="h-5 w-5" aria-hidden />
+                </IconButton>
+              )}
               <IconButton aria-label="Notifications">
                 <Bell className="h-5 w-5" aria-hidden />
               </IconButton>
@@ -255,22 +267,26 @@ export function AppShell({
         {switcher("bar")}
       </nav>
 
-      {/* Share sheet — the persistent Share affordance opens the full widget. */}
-      <Drawer
-        open={shareOpen}
-        onClose={() => setShareOpen(false)}
-        side="bottom"
-        title="Share & earn"
-      >
-        <ShareWidget
-          link={shareUrl}
-          whatsappMessage={`Main GoSkilled par seekh raha hoon — tu bhi join kar: ${shareUrl}`}
-          className="border-0 p-0 shadow-none"
-        />
-        <p className="mt-3 text-caption text-ink-muted">
-          Your referral code: <span className="font-mono">{referralCode}</span>
-        </p>
-      </Drawer>
+      {/* Share sheet — the persistent Share affordance opens the full widget. Part of the Affiliate
+          layer: not rendered (and not reachable) when `earn` is hidden. */}
+      {shareVisible && (
+        <Drawer
+          open={shareOpen}
+          onClose={() => setShareOpen(false)}
+          side="bottom"
+          title="Share & earn"
+        >
+          <ShareWidget
+            link={shareUrl}
+            whatsappMessage={`Main GoSkilled par seekh raha hoon — tu bhi join kar: ${shareUrl}`}
+            className="border-0 p-0 shadow-none"
+          />
+          <p className="mt-3 text-caption text-ink-muted">
+            Your referral code:{" "}
+            <span className="font-mono">{referralCode}</span>
+          </p>
+        </Drawer>
+      )}
     </div>
   );
 }
