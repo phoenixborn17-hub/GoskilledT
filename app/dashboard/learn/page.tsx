@@ -30,6 +30,7 @@ import { CourseCard } from "../../../components/cards/course-card";
 import { QuickActionCard } from "../../../components/cards/quick-action-card";
 import { GettingStartedCard } from "../../../components/cards/getting-started-card";
 import { ContinueLearningCard } from "../../../components/cards/decision/continue-learning-card";
+import { DecisionCard } from "../../../components/cards/decision/decision-card";
 import { AreaChart } from "../../../components/data/area-chart";
 
 export const dynamic = "force-dynamic";
@@ -59,11 +60,13 @@ export default async function LearnPage() {
         </p>
       </header>
 
-      {d.lifecycleNew ? (
-        <ZeroData affiliateVisible={affiliateVisible} />
-      ) : (
-        <Loaded d={d} affiliateVisible={affiliateVisible} />
+      {/* Rich-Honest-Zero (ThreeState law): the FULL Learn dashboard renders even for a brand-new
+          learner — honest 0s (courses/progress/certificates/streak) with motivating unlock hints on
+          each card. A single getting-started strip is the one extra element, not a replacement. */}
+      {d.lifecycleNew && (
+        <GettingStartedStrip affiliateVisible={affiliateVisible} />
       )}
+      <Loaded d={d} affiliateVisible={affiliateVisible} />
     </div>
   );
 }
@@ -83,7 +86,8 @@ function Loaded({
 
   return (
     <>
-      {/* Continue hero (action-first, first viewport) */}
+      {/* Continue hero (action-first, first viewport). New: an honest "start learning" hero instead
+          of an empty slot (ThreeState law — the dashboard is never blank). */}
       {d.active ? (
         <ContinueLearningCard
           href={d.active.resumeHref}
@@ -92,35 +96,72 @@ function Loaded({
           percent={d.active.percent}
           aiLine={heroAi}
         />
-      ) : null}
+      ) : (
+        <DecisionCard
+          icon={BookOpen}
+          label="Start learning"
+          accent="green"
+          size="hero"
+          cta="Browse courses"
+          href="/courses"
+        >
+          <div>
+            <h3 className="font-heading text-h2 font-bold text-ink">
+              Pick your first course
+            </h3>
+            <p className="mt-2 text-body text-ink-muted">
+              Watch the first lesson free — no purchase needed.
+            </p>
+          </div>
+        </DecisionCard>
+      )}
 
       {/* ≤4 stat cards */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {/* Unlock micro-states (ThreeState law): at honest 0 each card motivates the next step. */}
         <StatCard
           label="Courses"
           value={safeCount(d.stats.courses)}
           icon={BookOpen}
           family="learning"
+          hint={
+            d.stats.courses === 0 ? "Enroll to begin your journey" : undefined
+          }
         />
         <StatCard
           label="Overall progress"
           value={safeCount(d.stats.overallPercent)}
           icon={Target}
           family="learning"
-          hint="% across your courses"
+          hint={
+            d.stats.overallPercent === 0
+              ? "Complete a lesson to grow this"
+              : "% across your courses"
+          }
         />
         <StatCard
           label="Certificates"
           value={safeCount(d.stats.certificates)}
           icon={Award}
           family="learning"
+          hint={
+            d.stats.certificates === 0
+              ? "Finish a course to earn one"
+              : undefined
+          }
         />
         <StatCard
           label="Streak"
           value={safeCount(d.stats.streak)}
           icon={Flame}
           family="learning"
-          hint={d.stats.streak === 1 ? "day" : "days"}
+          hint={
+            d.stats.streak === 0
+              ? "Start today"
+              : d.stats.streak === 1
+                ? "day"
+                : "days"
+          }
         />
       </div>
 
@@ -279,7 +320,12 @@ function Overview({ d }: { d: LearnDashboard }) {
   );
 }
 
-function ZeroData({ affiliateVisible }: { affiliateVisible: boolean }) {
+// ONE getting-started strip (ThreeState law) — sits ABOVE the full Learn dashboard for new learners.
+function GettingStartedStrip({
+  affiliateVisible,
+}: {
+  affiliateVisible: boolean;
+}) {
   const steps = [
     {
       title: "Pick your first course",
@@ -301,11 +347,8 @@ function ZeroData({ affiliateVisible }: { affiliateVisible: boolean }) {
   return (
     <GettingStartedCard
       icon={Rocket}
-      subtitle={
-        affiliateVisible
-          ? "3 quick steps to your first win"
-          : "2 quick steps to your first win"
-      }
+      title="New here? Start with these"
+      subtitle={`${steps.length} quick steps to your first win`}
       steps={steps}
     />
   );
