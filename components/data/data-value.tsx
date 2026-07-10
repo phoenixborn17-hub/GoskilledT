@@ -10,6 +10,8 @@ export interface DataValueProps {
   onRetry?: () => void;
   /** Extra classes for the value text (e.g. size/colour). */
   className?: string;
+  /** De-emphasise a leading currency symbol (₹) — smaller/raised/lighter (Decision Card §8). */
+  raiseUnit?: boolean;
 }
 
 /**
@@ -19,8 +21,23 @@ export interface DataValueProps {
  * zero (a genuine ₹0 balance) is `{ ok: true }` and renders normally — only absent/broken data
  * fails safe. This is the single enforcement point so the rule can't be forgotten per-surface.
  */
-export function DataValue({ value, onRetry, className }: DataValueProps) {
+export function DataValue({
+  value,
+  onRetry,
+  className,
+  raiseUnit = false,
+}: DataValueProps) {
   if (value.ok) {
+    // Split a leading currency symbol so it can be rendered smaller + raised (the Stripe move).
+    const match = raiseUnit ? value.text.match(/^(\D+)(.*)$/) : null;
+    if (match) {
+      return (
+        <span className={cn("tabular-nums", className)}>
+          <span className="dc-unit">{match[1]}</span>
+          {match[2]}
+        </span>
+      );
+    }
     return <span className={cn("tabular-nums", className)}>{value.text}</span>;
   }
   return (

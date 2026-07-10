@@ -491,3 +491,212 @@ html {
     }
   }
 }
+
+/* ── Decision Cards (DecisionCard_System v1.0 · Pass 2) — the GoSkilled signature is "the Spark"
+      (accent dot + soft halo on each card's live edge), NOT a top line. Depth = radial tint + soft
+      accent-coloured ambient shadow + a crisp 1px inner top highlight + accent-tinted border (all
+      from precomputed rgba — no color-mix dependency, so budget-Android/WebView <111 never renders
+      a bare surface). Single top-left light source. ALL device-tiered via lib/device-tier (§C). ── */
+.decision-card {
+  --card-accent: #137e49;
+  --card-tint: rgb(19 126 73 / 0.07);
+  --card-shadow: rgb(19 126 73 / 0.16);
+  --card-plate: rgb(19 126 73 / 0.13);
+  --card-border: rgb(19 126 73 / 0.22);
+  --card-glow: rgb(19 126 73 / 0.4);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  border-radius: var(--gs-radius-lg);
+  background-color: var(--gs-surface-raised);
+  /* radial tint — single top-left light source (ES §4/§8) */
+  background-image: radial-gradient(
+    120% 82% at 0% 0%,
+    var(--card-tint),
+    transparent 58%
+  );
+  /* inner 1px top highlight (replaces the old 34% reflection) + soft colored ambient shadow */
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.6),
+    var(--gs-shadow-sm),
+    0 14px 34px -12px var(--card-shadow);
+}
+.decision-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Accent families — on-brand (green/gold/charcoal) + info; decorative, never text (Rule 14).
+   Every tint/plate/border/glow is a plain rgba() (no color-mix) → correct on old WebView. */
+.dc-accent-green {
+  --card-accent: #137e49;
+  --card-tint: rgb(19 126 73 / 0.07);
+  --card-shadow: rgb(19 126 73 / 0.16);
+  --card-plate: rgb(19 126 73 / 0.13);
+  --card-border: rgb(19 126 73 / 0.22);
+  --card-glow: rgb(19 126 73 / 0.4);
+}
+.dc-accent-gold {
+  --card-accent: #b87a00;
+  --card-tint: rgb(237 200 37 / 0.1);
+  --card-shadow: rgb(237 200 37 / 0.22);
+  --card-plate: rgb(237 200 37 / 0.2);
+  --card-border: rgb(184 122 0 / 0.24);
+  --card-glow: rgb(237 200 37 / 0.45);
+}
+.dc-accent-info {
+  --card-accent: #1d6fa5;
+  --card-tint: rgb(29 111 165 / 0.06);
+  --card-shadow: rgb(29 111 165 / 0.16);
+  --card-plate: rgb(29 111 165 / 0.13);
+  --card-border: rgb(29 111 165 / 0.22);
+  --card-glow: rgb(29 111 165 / 0.4);
+}
+.dc-accent-neutral {
+  --card-accent: #4a524a;
+  --card-tint: rgb(42 48 42 / 0.04);
+  --card-shadow: rgb(42 48 42 / 0.1);
+  --card-plate: rgb(74 82 74 / 0.12);
+  --card-border: rgb(74 82 74 / 0.18);
+  --card-glow: rgb(74 82 74 / 0.3);
+}
+
+/* Hero-only tint privilege (P0 #2) — the hero breathes a touch more so the eye lands there. */
+.dc-accent-green.dc-size-hero {
+  --card-tint: rgb(19 126 73 / 0.11);
+}
+
+/* Content helpers. Icon plate uses the precomputed plate rgba (no color-mix). */
+.dc-icon-plate {
+  background: var(--card-plate);
+  color: var(--card-accent);
+}
+.dc-accent-text {
+  color: var(--card-accent);
+}
+/* Label accent tick — a tiny mark that rhymes with the Spark (P1 #8). */
+.dc-tick {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: var(--card-accent);
+}
+/* Signature numbers: Sora, tight tracking (P1 #8). Money stays static + charcoal. */
+.dc-number {
+  font-family: var(--font-heading);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+/* De-emphasised currency symbol / unit — the Stripe move (raised, smaller, lighter). */
+.dc-unit {
+  font-size: 0.58em;
+  font-weight: 600;
+  opacity: 0.55;
+  vertical-align: 0.4em;
+  margin-right: 0.03em;
+}
+
+/* Hover (capable tier only) — lift + deepen colored shadow + icon micro-animate. */
+@media (prefers-reduced-motion: no-preference) {
+  .decision-card {
+    transition:
+      transform 200ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 200ms ease,
+      border-color 200ms ease;
+  }
+  a.decision-card:hover,
+  button.decision-card:hover {
+    transform: translateY(-3px);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.6),
+      var(--gs-shadow),
+      0 22px 48px -12px var(--card-shadow);
+  }
+  .dc-icon {
+    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  a.decision-card:hover .dc-icon,
+  button.decision-card:hover .dc-icon {
+    transform: translateY(-1px) scale(1.06);
+  }
+}
+
+/* Motion primitives — trimmed to sit inside the <2s gate (P1 #10). Draw-in via pathLength=1. */
+@media (prefers-reduced-motion: no-preference) {
+  .dc-enter {
+    animation: enter-up 360ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .dc-draw {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: dc-draw 720ms ease 80ms forwards;
+  }
+  @keyframes dc-draw {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+  .dc-pop {
+    animation: dc-pop 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  @keyframes dc-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  /* The Spark halo breathes to read as "your live edge" (semantic, ~zero cost). */
+  .dc-spark-halo {
+    animation: dc-spark 2.2s ease-in-out infinite;
+  }
+  @keyframes dc-spark {
+    0%,
+    100% {
+      opacity: 0.14;
+    }
+    50% {
+      opacity: 0.3;
+    }
+  }
+  /* Kept for the LIVE badge dot only. */
+  .dc-glow {
+    animation: dc-glow 2.4s ease-in-out infinite;
+  }
+  @keyframes dc-glow {
+    0%,
+    100% {
+      opacity: 0.45;
+    }
+    50% {
+      opacity: 0.9;
+    }
+  }
+}
+
+/* Low device-tier — flatten depth + silence all card motion (one source, §C). */
+:root[data-device-tier="low"] .decision-card {
+  background-image: none;
+  box-shadow: var(--gs-shadow-sm);
+}
+:root[data-device-tier="low"] a.decision-card:hover,
+:root[data-device-tier="low"] button.decision-card:hover {
+  transform: none;
+  box-shadow: var(--gs-shadow);
+}
+:root[data-device-tier="low"] .dc-enter,
+:root[data-device-tier="low"] .dc-pop,
+:root[data-device-tier="low"] .dc-glow,
+:root[data-device-tier="low"] .dc-spark-halo,
+:root[data-device-tier="low"] .dc-icon {
+  animation: none;
+  transition: none;
+}
+:root[data-device-tier="low"] .dc-draw {
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
+  animation: none;
+}
