@@ -61,8 +61,18 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-dvh bg-offwhite font-body text-charcoal antialiased">
+        {/* Skip link (WCAG 2.4.1 Bypass Blocks) — first focusable element, hidden until focused.
+            Targets a single layout-level landmark so every route is covered without page edits. */}
+        <a
+          href="#main-content"
+          className="sr-only rounded-lg bg-charcoal px-4 py-2 font-semibold text-white focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50"
+        >
+          Skip to content
+        </a>
         <StagingBanner />
-        {children}
+        <div id="main-content" tabIndex={-1}>
+          {children}
+        </div>
         <PwaRegister />
       </body>
     </html>
