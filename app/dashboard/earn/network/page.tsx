@@ -81,7 +81,10 @@ export default async function NetworkPage({
 
   return (
     <section aria-labelledby="network-heading" className="space-y-6">
-      <h1 id="network-heading" className="font-heading text-2xl font-bold">
+      <h1
+        id="network-heading"
+        className="font-heading text-h1 font-bold text-ink"
+      >
         {AFFILIATE_LABELS.networkSection}
       </h1>
 

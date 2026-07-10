@@ -17,7 +17,10 @@ export default async function ReferralsPage() {
 
   return (
     <section aria-labelledby="referrals-heading" className="space-y-6">
-      <h1 id="referrals-heading" className="font-heading text-2xl font-bold">
+      <h1
+        id="referrals-heading"
+        className="font-heading text-h1 font-bold text-ink"
+      >
         Referrals
       </h1>
 

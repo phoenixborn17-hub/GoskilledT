@@ -39,7 +39,7 @@ export default async function MyLeadsPage({
 
   return (
     <section aria-labelledby="ml-heading" className="space-y-6">
-      <h1 id="ml-heading" className="font-heading text-2xl font-bold">
+      <h1 id="ml-heading" className="font-heading text-h1 font-bold text-ink">
         My Leads
       </h1>
 

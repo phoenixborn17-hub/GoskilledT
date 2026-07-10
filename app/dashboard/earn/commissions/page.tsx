@@ -35,7 +35,10 @@ export default async function CommissionsPage() {
 
   return (
     <section aria-labelledby="commissions-heading" className="space-y-6">
-      <h1 id="commissions-heading" className="font-heading text-2xl font-bold">
+      <h1
+        id="commissions-heading"
+        className="font-heading text-h1 font-bold text-ink"
+      >
         Commissions
       </h1>
       {payoutsEnabled() ? (

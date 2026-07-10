@@ -19,7 +19,7 @@ export default async function LeaderboardPage() {
 
   return (
     <section aria-labelledby="lb-heading" className="space-y-6">
-      <h1 id="lb-heading" className="font-heading text-2xl font-bold">
+      <h1 id="lb-heading" className="font-heading text-h1 font-bold text-ink">
         Leaderboard
       </h1>
 
