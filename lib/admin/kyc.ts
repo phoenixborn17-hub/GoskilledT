@@ -48,6 +48,14 @@ export interface KycReviewDetail {
   ifsc: string | null;
   holderName: string | null; // account-holder name is shown (not last-4 masked)
   submittedAt: Date | null;
+  // Phase C additions — contact + verify flags, bank name, doc type, and which docs were uploaded.
+  email: string | null;
+  emailVerified: boolean;
+  whatsapp: string | null;
+  whatsappVerified: boolean;
+  bankName: string | null;
+  docType: string | null;
+  docs: { address: boolean; pan: boolean; bank: boolean };
   history: KycDecisionRecord[];
   decryptError: boolean; // true → PII could not be decrypted; render a safe error, hide fields
 }
@@ -55,6 +63,7 @@ export interface KycReviewDetail {
 const KYC_AUDIT_ACTIONS = [
   "KYC_SUBMITTED",
   "KYC_VIEWED",
+  "KYC_DOC_VIEWED",
   "KYC_APPROVED",
   "KYC_REJECTED",
 ];
@@ -73,6 +82,15 @@ export async function getKycReviewDetail(
       ifsc: true,
       status: true,
       submittedAt: true,
+      email: true,
+      emailVerifiedAt: true,
+      whatsapp: true,
+      whatsappVerifiedAt: true,
+      bankName: true,
+      docType: true,
+      addressDocEnc: true,
+      panDocEnc: true,
+      bankDocEnc: true,
       user: { select: { phone: true } },
     },
   });
@@ -113,6 +131,17 @@ export async function getKycReviewDetail(
     ifsc: kyc.ifsc,
     holderName,
     submittedAt: kyc.submittedAt,
+    email: kyc.email,
+    emailVerified: !!kyc.emailVerifiedAt,
+    whatsapp: kyc.whatsapp,
+    whatsappVerified: !!kyc.whatsappVerifiedAt,
+    bankName: kyc.bankName,
+    docType: kyc.docType,
+    docs: {
+      address: !!kyc.addressDocEnc,
+      pan: !!kyc.panDocEnc,
+      bank: !!kyc.bankDocEnc,
+    },
     decryptError,
     history: history.map((h) => ({
       action: h.action,

@@ -9,6 +9,7 @@ import {
 } from "@/modules/admin/review";
 import {
   canMarkWithdrawalPaid,
+  canMarkWithdrawalInProgress,
   buildPayoutTxSpec,
   payoutIdempotencyKey,
 } from "@/modules/wallet/withdrawal";
@@ -101,6 +102,7 @@ describe("canPublishCourse", () => {
 
 describe("canMarkWithdrawalPaid", () => {
   const base = {
+    payoutsEnabled: true, // Phase C: D-01 gate (OFF case covered below)
     status: "APPLIED" as const,
     kycApproved: true,
     availableInPaise: 100_000,
@@ -108,6 +110,11 @@ describe("canMarkWithdrawalPaid", () => {
   };
   it("allows a valid APPLIED withdrawal", () => {
     expect(canMarkWithdrawalPaid(base).ok).toBe(true);
+  });
+  it("refuses while payouts are disabled (D-01), before any other check", () => {
+    const r = canMarkWithdrawalPaid({ ...base, payoutsEnabled: false });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe("PAYOUTS_DISABLED");
   });
   it("hard-stops when the balance dropped below the amount", () => {
     const r = canMarkWithdrawalPaid({ ...base, availableInPaise: 40_000 });
@@ -123,6 +130,21 @@ describe("canMarkWithdrawalPaid", () => {
     const r = canMarkWithdrawalPaid({ ...base, status: "PAID" });
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.code).toBe("ALREADY_PAID");
+  });
+});
+
+describe("canMarkWithdrawalInProgress (Applied → In Progress)", () => {
+  it("allows an APPLIED request to enter processing", () => {
+    expect(canMarkWithdrawalInProgress({ status: "APPLIED" }).ok).toBe(true);
+  });
+  it("rejects one already in progress", () => {
+    const r = canMarkWithdrawalInProgress({ status: "IN_PROGRESS" });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.code).toBe("ALREADY_IN_PROGRESS");
+  });
+  it("rejects a PAID / REJECTED request", () => {
+    expect(canMarkWithdrawalInProgress({ status: "PAID" }).ok).toBe(false);
+    expect(canMarkWithdrawalInProgress({ status: "REJECTED" }).ok).toBe(false);
   });
 });
 

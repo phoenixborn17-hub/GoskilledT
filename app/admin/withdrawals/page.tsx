@@ -85,6 +85,7 @@ export default async function WithdrawalsPage() {
                   <WithdrawalActions
                     withdrawalId={w.id}
                     canMark={kycOk && amountOk}
+                    status={w.status}
                   />
                 </div>
               </Card>

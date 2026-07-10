@@ -65,6 +65,7 @@ model User {
   downlineEdges Referral[] @relation("Upline")
   guruMessages  GuruMessage[]
   emailLogs     EmailLog[]
+  contactVerifications ContactVerification[]
 }
 
 // ─────────────── Catalog / LMS ───────────────
@@ -330,6 +331,31 @@ model Kyc {
   status        KycStatus @default(DRAFT)
   submittedAt   DateTime?
   updatedAt     DateTime  @updatedAt
+  // Phase C (DR-037) additive expansion — all nullable, non-breaking.
+  email             String?               // contact email (verify flag below)
+  emailVerifiedAt   DateTime?             // set ONLY on a confirmed email verification
+  whatsappVerifiedAt DateTime?            // set ONLY on a confirmed WhatsApp verification
+  bankName          String?               // plaintext — not secret PII
+  docType           String?               // address-proof document type (LAUNCH_CONFIG option list)
+  // Private-bucket object paths, AES-256-GCM encrypted (Phase C §3 "any doc references → encrypted").
+  addressDocEnc     String?
+  panDocEnc         String?
+  bankDocEnc        String?
+}
+
+// Email / WhatsApp verification codes (Phase C §3). The SEND provider is LAUNCH_CONFIG (Layer-2);
+// this table backs the flow. Only a hash of the code is stored; the flag on Kyc is set on confirm.
+model ContactVerification {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  channel    String                        // "email" | "whatsapp"
+  target     String                        // the email / number being verified
+  codeHash   String                        // sha-256 of the 6-digit code (never the raw code)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime @default(now())
+  @@index([userId, channel])
 }
 
 // ─────────────── CRM / Marketing ───────────────

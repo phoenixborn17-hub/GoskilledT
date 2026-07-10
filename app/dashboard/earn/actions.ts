@@ -2,6 +2,7 @@
 // NEVER trusted, all rules come from the domain spine (modules/wallet), PII is encrypted before it
 // touches the DB and never logged, and every request is audit-logged.
 "use server";
+import { randomBytes } from "node:crypto";
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { prisma } from "../../../lib/prisma";
@@ -12,6 +13,19 @@ import {
   isValidIfsc,
   isValidAccountNumber,
 } from "../../../modules/kyc/kyc";
+import { isKycDocType } from "../../../lib/kyc/doc-types";
+import {
+  KYC_DOC_KINDS,
+  KYC_DOC_COLUMN,
+  isAllowedDocContentType,
+  uploadKycDoc,
+} from "../../../lib/storage/kyc-docs";
+import {
+  startContactVerification,
+  confirmContactVerification,
+} from "../../../lib/kyc/verify";
+import type { VerifyChannel } from "../../../modules/kyc/verify";
+import { checkOtpSendRate } from "../../../lib/auth/otp-rate-limit";
 import { validateWithdrawal } from "../../../modules/wallet/withdrawal";
 import { payoutsEnabled } from "../../../lib/env";
 import {
@@ -23,6 +37,12 @@ import { track, anonId } from "../../../lib/analytics/track";
 
 export type ActionResult = { ok: true } | { ok: false; error: string };
 
+const MAX_DOC_BYTES = 5 * 1024 * 1024; // 5 MB per document
+function fileExt(name: string): string {
+  const m = name.match(/\.([a-z0-9]+)$/i);
+  return m ? m[1] : "bin";
+}
+
 // ── Referral share — fires the canonical `referral_share` event (no PII, no ₹). ──
 export async function recordReferralShare(): Promise<ActionResult> {
   const user = await getCurrentUser();
@@ -31,7 +51,40 @@ export async function recordReferralShare(): Promise<ActionResult> {
   return { ok: true };
 }
 
-// ── KYC submit (§2.4) — PII encrypted at rest, audit-logged, never logged in plaintext. ──
+// ── KYC contact verification (§3) — set the email / WhatsApp verify flag only on a correct code. ──
+export async function sendKycVerification(
+  channel: VerifyChannel,
+  target: string,
+): Promise<ActionResult> {
+  if (channel !== "email" && channel !== "whatsapp")
+    return { ok: false, error: "Invalid channel." };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Please sign in." };
+  // Reuse the OTP send throttle (per-phone key stands in for per-user here).
+  const rl = await checkOtpSendRate(`${channel}:${user.id}`.slice(-10));
+  if (!rl.ok) return { ok: false, error: rl.error };
+  try {
+    return await startContactVerification(user.id, channel, target);
+  } catch {
+    return { ok: false, error: "Could not send the code. Please try again." };
+  }
+}
+
+export async function confirmKycVerification(
+  channel: VerifyChannel,
+  target: string,
+  code: string,
+): Promise<ActionResult> {
+  if (channel !== "email" && channel !== "whatsapp")
+    return { ok: false, error: "Invalid channel." };
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Please sign in." };
+  const res = await confirmContactVerification(user.id, channel, target, code);
+  if (res.ok) revalidatePath("/dashboard/earn/kyc");
+  return res;
+}
+
+// ── KYC submit (§3) — PII + doc paths encrypted at rest, audit-logged, never logged in plaintext. ──
 const kycSchema = z.object({
   pan: z
     .string()
@@ -48,45 +101,86 @@ const kycSchema = z.object({
     .transform((s) => s.toUpperCase())
     .refine(isValidIfsc, "Enter a valid IFSC (e.g. SBIN0001234)"),
   holderName: z.string().trim().min(1, "Enter the account holder name").max(80),
+  bankName: z.string().trim().min(1, "Enter the bank name").max(80),
+  docType: z
+    .string()
+    .trim()
+    .refine(isKycDocType, "Choose a valid document type"),
 });
 
-export async function submitKyc(
-  input: z.input<typeof kycSchema>,
-): Promise<ActionResult> {
-  const parsed = kycSchema.safeParse(input);
+// FormData boundary: KYC now carries file uploads, so the action takes FormData (not a typed object).
+export async function submitKyc(formData: FormData): Promise<ActionResult> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, error: "Please sign in." };
+
+  const parsed = kycSchema.safeParse({
+    pan: String(formData.get("pan") ?? ""),
+    accountNumber: String(formData.get("accountNumber") ?? ""),
+    ifsc: String(formData.get("ifsc") ?? ""),
+    holderName: String(formData.get("holderName") ?? ""),
+    bankName: String(formData.get("bankName") ?? ""),
+    docType: String(formData.get("docType") ?? ""),
+  });
   if (!parsed.success)
     return {
       ok: false,
       error: parsed.error.issues[0]?.message ?? "Invalid details",
     };
-
-  const user = await getCurrentUser();
-  if (!user) return { ok: false, error: "Please sign in." };
-
   const d = parsed.data;
+
+  // Upload any provided documents to the PRIVATE bucket FIRST (outside the tx). Store only the
+  // AES-256-GCM-encrypted object path. A failed upload aborts before any DB write.
+  const docEnc: Record<string, string> = {};
   try {
-    // Encrypt secret fields before they touch the DB; IFSC is a public branch code (plaintext).
-    // Module invariant (GPS-M4 §1): the domain write + its audit row commit in ONE $transaction.
+    for (const kind of KYC_DOC_KINDS) {
+      const file = formData.get(`${kind}Doc`);
+      if (!(file instanceof File) || file.size === 0) continue;
+      if (file.size > MAX_DOC_BYTES)
+        return { ok: false, error: "Each document must be under 5 MB." };
+      if (!isAllowedDocContentType(file.type))
+        return {
+          ok: false,
+          error: "Documents must be a PDF or image (JPG/PNG/WebP).",
+        };
+      const path = await uploadKycDoc({
+        userId: user.id,
+        kind,
+        bytes: new Uint8Array(await file.arrayBuffer()),
+        contentType: file.type,
+        ext: fileExt(file.name),
+        rand: randomBytes(8).toString("hex"),
+      });
+      docEnc[KYC_DOC_COLUMN[kind]] = encryptPii(path);
+    }
+  } catch {
+    return {
+      ok: false,
+      error: "Could not upload a document. Please try again.",
+    };
+  }
+
+  try {
+    // Encrypt secret fields before they touch the DB; IFSC + bank name are not secret (plaintext).
+    // Module invariant: the domain write + its audit row commit in ONE $transaction.
+    const secret = {
+      panEnc: encryptPii(d.pan),
+      accountNoEnc: encryptPii(d.accountNumber),
+      accountHolderEnc: encryptPii(d.holderName),
+      ifsc: d.ifsc,
+      bankName: d.bankName,
+      docType: d.docType,
+      ...docEnc,
+    };
     await prisma.$transaction(async (tx) => {
       await tx.kyc.upsert({
         where: { userId: user.id },
         create: {
           userId: user.id,
-          panEnc: encryptPii(d.pan),
-          accountNoEnc: encryptPii(d.accountNumber),
-          accountHolderEnc: encryptPii(d.holderName), // account-holder name (LC #32)
-          ifsc: d.ifsc,
+          ...secret,
           status: "SUBMITTED",
           submittedAt: new Date(),
         },
-        update: {
-          panEnc: encryptPii(d.pan),
-          accountNoEnc: encryptPii(d.accountNumber),
-          accountHolderEnc: encryptPii(d.holderName),
-          ifsc: d.ifsc,
-          status: "SUBMITTED", // resubmit after a rejection
-          submittedAt: new Date(),
-        },
+        update: { ...secret, status: "SUBMITTED", submittedAt: new Date() }, // resubmit after rejection
       });
       // Audit — NO PII in the audit row (only that a submission happened).
       await tx.adminAction.create({

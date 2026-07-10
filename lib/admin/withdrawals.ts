@@ -4,6 +4,7 @@
 // domain PAYOUT TxSpec (idempotent) + flips the row + audits — all in ONE $transaction.
 import { prisma } from "../prisma";
 import { decryptPii, maskLast4 } from "../pii";
+import { payoutsEnabled } from "../env";
 import type { AdminIdentity } from "../auth/admin";
 import { recordAdminAction } from "./audit";
 import { availableBalanceOf } from "../../modules/ledger/ledger";
@@ -11,6 +12,7 @@ import { executeTxSpec } from "../../modules/ledger/persist";
 import {
   buildPayoutTxSpec,
   canMarkWithdrawalPaid,
+  canMarkWithdrawalInProgress,
 } from "../../modules/wallet/withdrawal";
 
 export interface WithdrawalRow {
@@ -169,6 +171,7 @@ export async function markWithdrawalPaid(
       const available = availableBalanceOf(account?.entries ?? []);
 
       const gate = canMarkWithdrawalPaid({
+        payoutsEnabled: payoutsEnabled(), // D-01: no payout executes while OFF
         status: w.status as WithdrawalRow["status"],
         kycApproved: kyc?.status === "APPROVED",
         availableInPaise: available,
@@ -207,6 +210,47 @@ export async function markWithdrawalPaid(
     });
   } catch {
     return { ok: false, error: "Could not mark paid. Please retry." };
+  }
+}
+
+export type InProgressResult = { ok: true } | { ok: false; error: string };
+
+/**
+ * Move an APPLIED withdrawal to IN_PROGRESS (payout run started — no money moves yet). Status +
+ * audit (WITHDRAWAL_IN_PROGRESS) commit in ONE $transaction. The PAYOUT ledger tx fires only later
+ * at Mark PAID (and only when payoutsEnabled).
+ */
+export async function markWithdrawalInProgress(
+  actor: AdminIdentity,
+  withdrawalId: string,
+): Promise<InProgressResult> {
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const w = await tx.withdrawal.findUnique({
+        where: { id: withdrawalId },
+        select: { status: true },
+      });
+      if (!w) return { ok: false as const, error: "Withdrawal not found." };
+
+      const gate = canMarkWithdrawalInProgress({
+        status: w.status as WithdrawalRow["status"],
+      });
+      if (!gate.ok) return { ok: false as const, error: gate.message };
+
+      await tx.withdrawal.update({
+        where: { id: withdrawalId },
+        data: { status: "IN_PROGRESS" },
+      });
+      await recordAdminAction(tx, {
+        actor,
+        action: "WITHDRAWAL_IN_PROGRESS",
+        entity: "Withdrawal",
+        entityId: withdrawalId,
+      });
+      return { ok: true as const };
+    });
+  } catch {
+    return { ok: false, error: "Could not update. Please retry." };
   }
 }
 
