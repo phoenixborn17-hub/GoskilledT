@@ -1,22 +1,28 @@
-// Skeleton state for /packages — no blank screen while packages load.
-import { SiteHeader } from "../../components/marketing/site-header";
-import { Skeleton } from "../../components/ui/skeleton";
+// Skeleton for /packages — matches the re-skinned layout (shell + two plan cards), zero CLS.
+import { MarketingShell } from "../../components/marketing/marketing-shell";
+import { Container } from "../../components/marketing/kit";
 
 export default function PackagesLoading() {
   return (
-    <>
-      <SiteHeader />
-      <main className="mx-auto w-full max-w-4xl px-4 pt-10">
-        <div className="text-center">
-          <Skeleton className="mx-auto mb-2 h-9 w-64" />
-          <Skeleton className="mx-auto h-4 w-80 max-w-full" />
+    <MarketingShell>
+      <main>
+        <div className="hero-aurora">
+          <Container className="py-16 text-center">
+            <div className="mx-auto h-8 w-48 animate-pulse rounded-md bg-charcoal/10 motion-reduce:animate-none" />
+            <div className="mx-auto mt-4 h-10 w-72 max-w-full animate-pulse rounded-md bg-charcoal/10 motion-reduce:animate-none" />
+          </Container>
         </div>
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          {Array.from({ length: 2 }).map((_, i) => (
-            <Skeleton key={i} className="h-64 w-full rounded-2xl" />
-          ))}
-        </div>
+        <Container className="pb-12">
+          <div className="grid gap-5 md:grid-cols-2">
+            {Array.from({ length: 2 }).map((_, i) => (
+              <div
+                key={i}
+                className="h-80 animate-pulse rounded-2xl border border-charcoal/10 bg-white motion-reduce:animate-none"
+              />
+            ))}
+          </div>
+        </Container>
       </main>
-    </>
+    </MarketingShell>
   );
 }
