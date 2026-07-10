@@ -1,11 +1,20 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { Check, PartyPopper } from "lucide-react";
+import { Check, PartyPopper, Gauge, RotateCcw } from "lucide-react";
 import { Button } from "../ui/button";
+import { Switch } from "../ui/switch";
 import { Confetti } from "../ui/confetti";
 import { CertificateMoment } from "./certificate-moment";
 import { completeLessonAction } from "../../app/dashboard/actions";
+import { detectDeviceTier } from "../../lib/device-tier";
+
+// mm:ss for the visible resume-position affordance.
+function mmss(sec: number): string {
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${s.toString().padStart(2, "0")}`;
+}
 
 export function LessonPlayer({
   courseSlug,
@@ -39,6 +48,67 @@ export function LessonPlayer({
   const REPORT_HREF = `https://wa.me/918572887888?text=${encodeURIComponent(
     `Hi, I hit a video problem on the lesson: ${title}`,
   )}`; // // REPLACE: temp support number (matches /contact)
+
+  // ── Data saver + visible resume-position (Fable P1) — client-only UX. Does NOT touch the signed
+  //    playback URL (resolved server-side). Data saver defers download now (preload=none) and marks
+  //    the 480p cap for when adaptive HLS (Cloudflare Stream, DR-022) lands. Resume-position
+  //    remembers where you stopped (localStorage) and offers a visible "Resume from mm:ss". ──
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [dataSaver, setDataSaver] = useState(false);
+  const [resumeAt, setResumeAt] = useState<number | null>(null);
+  const posKey = `gs:lesson-pos:${lessonId}`;
+
+  useEffect(() => {
+    // Default data saver ON for low-tier / Save-Data devices; a stored choice always wins.
+    const stored =
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem("gs:data-saver")
+        : null;
+    setDataSaver(
+      stored != null ? stored === "1" : detectDeviceTier() === "low",
+    );
+    // Read a saved resume position for this lesson.
+    const raw =
+      typeof localStorage !== "undefined" ? localStorage.getItem(posKey) : null;
+    const secs = raw ? Number(raw) : NaN;
+    if (Number.isFinite(secs) && secs > 5) setResumeAt(secs);
+  }, [posKey]);
+
+  const toggleDataSaver = (on: boolean) => {
+    setDataSaver(on);
+    try {
+      localStorage.setItem("gs:data-saver", on ? "1" : "0");
+    } catch {
+      /* storage unavailable — preference just isn't persisted */
+    }
+  };
+
+  // Throttled save of the current position (every ~5s) so a return offers "Resume from…".
+  const lastSaved = useRef(0);
+  const onTimeUpdate = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    const t = v.currentTime;
+    if (t - lastSaved.current >= 5 || t < lastSaved.current) {
+      lastSaved.current = t;
+      try {
+        // Clear the marker near the end so a finished lesson doesn't nag to resume.
+        if (v.duration && t > v.duration - 15) localStorage.removeItem(posKey);
+        else localStorage.setItem(posKey, String(Math.floor(t)));
+      } catch {
+        /* storage unavailable */
+      }
+    }
+  }, [posKey]);
+
+  const resume = () => {
+    const v = videoRef.current;
+    if (v && resumeAt != null) {
+      v.currentTime = resumeAt;
+      void v.play();
+    }
+    setResumeAt(null);
+  };
 
   async function markComplete() {
     setBusy(true);
@@ -125,14 +195,18 @@ export function LessonPlayer({
         ) : (
           // Native <video> plays the mock MP4. HLS (Cloudflare Stream) resolves via the video
           // provider when the account lands — the player interface stays identical (DR-022).
+          // `data-quality` is the seam the data-saver 480p cap wires to once HLS quality levels exist.
           <video
             key={`${src}-${attempt}`}
+            ref={videoRef}
             controls
             playsInline
             poster={poster}
             className="aspect-video w-full"
-            preload="metadata"
+            preload={dataSaver ? "none" : "metadata"}
+            data-quality={dataSaver ? "480p" : "auto"}
             onError={() => setVideoError(true)}
+            onTimeUpdate={onTimeUpdate}
           >
             <source src={src} />
             {/* Captions slot: Hinglish <track kind="captions"> added when caption files land (§2.3). */}
@@ -140,6 +214,34 @@ export function LessonPlayer({
           </video>
         )}
       </div>
+
+      {/* Player controls: visible resume-position + data saver (Fable P1). */}
+      {!videoError && (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {resumeAt != null ? (
+            <button
+              type="button"
+              onClick={resume}
+              className="press inline-flex items-center gap-2 rounded-xl bg-brand/10 px-3 py-2 text-sm font-semibold text-brand-deep"
+            >
+              <RotateCcw className="h-4 w-4" aria-hidden />
+              Resume from {mmss(resumeAt)}
+            </button>
+          ) : (
+            <span />
+          )}
+          <Switch
+            checked={dataSaver}
+            onChange={(e) => toggleDataSaver(e.target.checked)}
+            label={
+              <span className="inline-flex items-center gap-1.5 text-sm text-muted">
+                <Gauge className="h-4 w-4" aria-hidden />
+                Data saver
+              </span>
+            }
+          />
+        </div>
+      )}
 
       <h2 className="font-heading text-xl font-bold">{title}</h2>
       {error && (

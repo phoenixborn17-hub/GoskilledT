@@ -1,6 +1,7 @@
-// Progress tab (Blueprint §3): per-course progress with a Resume action. Never blank.
+// Progress tab (Blueprint §3 · Redesign U4) — re-skinned: per-course semicircle gauge + milestones
+// + certificate (with WhatsApp share) + Guru "explain-my-gap" entry. Same data/logic; never blank.
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import { Sparkles, BookOpen } from "lucide-react";
 import { getCurrentUser } from "../../../lib/auth/session";
 import {
   getEnrolledCourses,
@@ -8,12 +9,14 @@ import {
 } from "../../../lib/lms/queries";
 import { getGamification } from "../../../lib/dashboard/gamification";
 import { Milestones } from "../../../components/dashboard/gamification/milestones";
-import { ProgressRing } from "../../../components/dashboard/progress-ring";
 import { CertificateCard } from "../../../components/dashboard/certificate-card";
-import { Card, CardTitle, CardDescription } from "../../../components/ui/card";
+import { SemicircleGauge } from "../../../components/data/semicircle-gauge";
+import { Card } from "../../../components/ui/card";
 import { Button } from "../../../components/ui/button";
+import { EmptyState } from "../../../components/ui/empty-state";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Progress" };
 
 export default async function ProgressPage() {
   const user = await getCurrentUser();
@@ -25,11 +28,14 @@ export default async function ProgressPage() {
 
   return (
     <section aria-labelledby="progress-heading" className="space-y-6">
-      <h1 id="progress-heading" className="font-heading text-2xl font-bold">
+      <h1
+        id="progress-heading"
+        className="font-heading text-h1 font-bold text-ink"
+      >
         Progress
       </h1>
 
-      {/* Milestones (GPS-M5 §2.3) — real learning achievements, warm next-goal (never pressure). */}
+      {/* Milestones (GPS-M5 §2.3) — real achievements, warm next-goal (never pressure). */}
       {courses.length > 0 && (
         <Milestones
           milestones={game.milestones}
@@ -39,68 +45,72 @@ export default async function ProgressPage() {
       )}
 
       {courses.length === 0 ? (
-        <Card className="text-center">
-          <CardTitle>Nothing to track yet</CardTitle>
-          <CardDescription>
-            Enroll in a course to start building your progress.
-          </CardDescription>
-          <div className="mx-auto mt-5 max-w-xs">
-            <Link href="/checkout?package=career-booster">
-              <Button>Explore courses</Button>
-            </Link>
-          </div>
+        <Card>
+          <EmptyState
+            icon={BookOpen}
+            title="Nothing to track yet"
+            description="Enroll in a course to start building your progress."
+            action={
+              <Link href="/packages">
+                <Button className="w-full">Explore courses</Button>
+              </Link>
+            }
+          />
         </Card>
       ) : (
-        courses.map((c) => (
-          <Card key={c.slug}>
-            <div className="flex items-center gap-5">
-              <ProgressRing percent={c.progress.percent} size={80} />
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-heading text-lg font-bold">
-                  {c.title}
-                </p>
-                <p className="text-sm text-muted">
-                  {c.progress.completed} / {c.progress.total} lessons
-                </p>
-                <div className="mt-3 max-w-[10rem]">
-                  <Link href={`/dashboard/learn/${c.slug}`}>
-                    <Button
-                      variant={
-                        c.progress.percent === 100 ? "outline" : "primary"
-                      }
-                    >
-                      {c.progress.percent === 100
-                        ? "Review"
-                        : c.progress.completed === 0
-                          ? "Start"
-                          : "Resume"}
-                    </Button>
-                  </Link>
+        <div className="space-y-6">
+          {courses.map((c) => (
+            <Card key={c.slug}>
+              <div className="flex items-center gap-5">
+                <SemicircleGauge value={c.progress.percent} size={104} />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-heading text-h4 font-bold text-ink">
+                    {c.title}
+                  </p>
+                  <p className="text-small text-ink-muted">
+                    {c.progress.completed} / {c.progress.total} lessons
+                  </p>
+                  <div className="mt-3 max-w-[10rem]">
+                    <Link href={`/dashboard/learn/${c.slug}`}>
+                      <Button
+                        variant={
+                          c.progress.percent === 100 ? "outline" : "primary"
+                        }
+                        className="w-full"
+                      >
+                        {c.progress.percent === 100
+                          ? "Review"
+                          : c.progress.completed === 0
+                            ? "Start"
+                            : "Resume"}
+                      </Button>
+                    </Link>
+                  </div>
                 </div>
               </div>
-            </div>
-            {/* Guru "explain-my-gap" entry (§1E, GPS-M5): opens Guru on the resume lesson with a
-                ready doubt. Shown while there's still something to learn. */}
-            {c.progress.percent < 100 && (
-              <Link
-                href={`/dashboard/learn/${c.slug}?guru=1&q=${encodeURIComponent(
-                  "Jo lesson main abhi padh raha hoon, uska main concept simple words me samjhao.",
-                )}`}
-                className="press mt-4 inline-flex items-center gap-2 rounded-xl bg-brand/5 px-3 py-2 text-sm font-semibold text-brand"
-              >
-                <Sparkles className="h-4 w-4" aria-hidden />
-                Guru se samjho — stuck kahan ho?
-              </Link>
-            )}
 
-            {/* Certificate slot (§2.4) + share (§2.7). */}
-            <CertificateCard
-              percent={c.progress.percent}
-              certificate={certs.get(c.courseId) ?? null}
-              courseTitle={c.title}
-            />
-          </Card>
-        ))
+              {/* Guru "explain-my-gap" entry (GPS-M5 §1E) — opens Guru on the resume lesson. */}
+              {c.progress.percent < 100 && (
+                <Link
+                  href={`/dashboard/learn/${c.slug}?guru=1&q=${encodeURIComponent(
+                    "Jo lesson main abhi padh raha hoon, uska main concept simple words me samjhao.",
+                  )}`}
+                  className="press mt-4 inline-flex items-center gap-2 rounded-xl bg-info/5 px-3 py-2 text-small font-semibold text-info"
+                >
+                  <Sparkles className="h-4 w-4" aria-hidden />
+                  Guru se samjho — stuck kahan ho?
+                </Link>
+              )}
+
+              {/* Certificate slot (§2.4) + WhatsApp share (§2.7) — existing leak-tested component. */}
+              <CertificateCard
+                percent={c.progress.percent}
+                certificate={certs.get(c.courseId) ?? null}
+                courseTitle={c.title}
+              />
+            </Card>
+          ))}
+        </div>
       )}
     </section>
   );
