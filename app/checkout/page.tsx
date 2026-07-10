@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { prisma } from "../../lib/prisma";
 import { formatINR } from "../../lib/money";
 import { contactChannels } from "../../lib/config/contact";
+import { TrustTriad } from "../../components/marketing/trust-triad";
 import { CheckoutForm } from "./checkout-form";
 
 // Transactional page — keep out of search indexes (defence-in-depth beyond robots.txt).
@@ -57,15 +58,15 @@ export default async function CheckoutPage({
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
-      <div className="mb-5">
-        <p className="font-heading text-2xl font-bold text-charcoal">
-          {pkg.name}
-        </p>
-        <p className="text-brand text-lg font-semibold">
+      <div className="mb-4">
+        <p className="font-heading text-h2 font-bold text-ink">{pkg.name}</p>
+        <p className="text-h4 font-semibold text-theme-strong">
           {formatINR(pkg.priceInPaise)}
         </p>
-        <p className="text-xs text-muted">GST-inclusive · one-time</p>
+        <p className="text-caption text-ink-muted">GST-inclusive · one-time</p>
       </div>
+      {/* Trust triad AT the pay decision (Amendments §G). */}
+      <TrustTriad className="mb-5" />
       <CheckoutForm
         packageSlug={pkg.slug as "skill-builder" | "career-booster"}
         requiresCourseChoice={pkg.slug === "skill-builder"}

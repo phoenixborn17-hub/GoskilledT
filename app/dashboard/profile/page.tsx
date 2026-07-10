@@ -1,37 +1,45 @@
-// Profile tab (Blueprint §3 · GPS-M2 §2.5): editable name/email/goal, read-only phone, logout.
-// No self-serve account deletion in M2 (support-mediated; DPDP flows = LEGAL workstream).
+// Profile (Blueprint §3 · GPS-M2 §2.5 · Redesign U6): editable name/email/goal, read-only phone,
+// referral code, logout. Notification prefs moved to Account · Settings (single home). No self-serve
+// account deletion (support-mediated; DPDP = LEGAL workstream). Auth/profile writes unchanged.
 import { getCurrentUserRecord } from "../../../lib/auth/session";
+import { greetingTitle } from "../../../lib/greeting";
 import { ProfileForm } from "../../../components/dashboard/profile-form";
-import { EmailPrefToggle } from "../../../components/dashboard/email-pref-toggle";
 import { LogoutButton } from "../../../components/dashboard/logout-button";
 import { Card, CardTitle } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
 
 export const dynamic = "force-dynamic";
+export const metadata = { title: "Profile" };
 
 export default async function ProfilePage() {
   const user = await getCurrentUserRecord();
 
   return (
     <section aria-labelledby="profile-heading" className="space-y-6">
-      <div className="flex items-center justify-between gap-3">
-        <h1 id="profile-heading" className="font-heading text-2xl font-bold">
-          Profile
-        </h1>
+      <header className="flex items-center justify-between gap-3">
+        <div>
+          <h1
+            id="profile-heading"
+            className="font-heading text-h1 font-bold text-ink"
+          >
+            Profile
+          </h1>
+          <p className="mt-1 text-body text-ink-muted">
+            {greetingTitle(user?.name)}
+          </p>
+        </div>
         <Badge variant="gold">Founding Batch</Badge>
-      </div>
+      </header>
 
-      {/* Referral code display (DR-030 §6.8). Invite-only framing — no earn language pre-D-01. */}
+      {/* Referral code (DR-030 §6.8) — invite-only framing, no earn language pre-D-01. */}
       <Card className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-medium text-charcoal">
-            Your referral code
-          </p>
-          <p className="font-heading text-lg font-bold tracking-wide text-brand">
+          <p className="text-small font-medium text-ink">Your referral code</p>
+          <p className="font-heading text-h4 font-bold tracking-wide text-theme-strong">
             {user?.referralCode ?? "—"}
           </p>
         </div>
-        <span className="text-xs text-muted">
+        <span className="text-caption text-ink-muted">
           Friends who join with your link stay linked to you.
         </span>
       </Card>
@@ -48,19 +56,16 @@ export default async function ProfilePage() {
       <Card>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-charcoal">Mobile number</p>
-            <p className="text-sm text-muted">
+            <p className="text-small font-medium text-ink">Mobile number</p>
+            <p className="text-small text-ink-muted">
               {user?.phone || "—"} · used to sign in
             </p>
           </div>
           {/* Phone = auth identity: changing it is support-mediated (no self-serve in M2). */}
-          <span className="text-xs text-muted">Change via support</span>
+          <span className="text-caption text-ink-muted">
+            Change via support
+          </span>
         </div>
-      </Card>
-
-      <Card>
-        <CardTitle className="mb-4 text-lg">Email preferences</CardTitle>
-        <EmailPrefToggle initialOptedOut={user?.emailOptOut === true} />
       </Card>
 
       <LogoutButton />

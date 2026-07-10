@@ -17,6 +17,7 @@ import { SiteFooter } from "../../../components/marketing/site-footer";
 import { Card, CardTitle } from "../../../components/ui/card";
 import { Badge } from "../../../components/ui/badge";
 import { Button } from "../../../components/ui/button";
+import { TrustTriad } from "../../../components/marketing/trust-triad";
 
 // COPY: draft — outcomes are placeholders; Fable rewrites final copy.
 const OUTCOMES = [
@@ -247,6 +248,8 @@ export default async function CourseDetailPage({
                     </Link>
                   </div>
                 </div>
+                {/* Trust triad AT the Buy CTA (Amendments §G · DESIGN §14). */}
+                <TrustTriad className="mt-4" />
               </>
             )}
           </Card>

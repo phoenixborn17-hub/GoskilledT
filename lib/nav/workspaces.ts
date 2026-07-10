@@ -19,6 +19,8 @@ import {
   Percent,
   User,
   ShieldCheck,
+  Lock,
+  Settings,
   LifeBuoy,
   type LucideIcon,
 } from "lucide-react";
@@ -99,6 +101,12 @@ export const WORKSPACES: Workspace[] = [
     items: [
       { label: "Profile", href: "/dashboard/profile", icon: User },
       { label: "KYC", href: "/dashboard/earn/kyc", icon: ShieldCheck },
+      { label: "Security", href: "/dashboard/account/security", icon: Lock },
+      {
+        label: "Settings",
+        href: "/dashboard/account/settings",
+        icon: Settings,
+      },
       { label: "Support", href: "/contact", icon: LifeBuoy },
     ],
   },
@@ -115,7 +123,12 @@ export function activeWorkspaceKey(pathname: string): WorkspaceKey {
   // KYC is de-duplicated to Account (its route still lives under /dashboard/earn).
   if (pathname.startsWith("/dashboard/earn/kyc")) return "account";
   if (pathname.startsWith("/dashboard/earn")) return "earn";
-  if (pathname.startsWith("/dashboard/profile")) return "account";
+  if (
+    pathname.startsWith("/dashboard/profile") ||
+    pathname.startsWith("/dashboard/account")
+  ) {
+    return "account";
+  }
   if (
     pathname.startsWith("/dashboard/learn") ||
     pathname.startsWith("/dashboard/courses") ||
