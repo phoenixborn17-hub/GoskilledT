@@ -25,8 +25,9 @@ export default async function WelcomePage() {
     where: { id: user.id },
     select: { name: true, welcomeSeenAt: true },
   });
-  // One-time: once completed or skipped, never show again.
-  if (record?.welcomeSeenAt) redirect("/dashboard");
+  // One-time: once completed or skipped, never show again → the Home hub (DR-039). New accounts
+  // (welcomeSeenAt null) fall through and see the welcome moment, preserving welcome → Lesson 0.
+  if (record?.welcomeSeenAt) redirect("/dashboard/home");
 
   await track("welcome_viewed", user.id, {});
 
