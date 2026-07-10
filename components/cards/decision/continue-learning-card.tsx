@@ -46,15 +46,18 @@ export function ContinueLearningCard({
     >
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="font-heading text-h3 font-bold text-ink">
+          <h3 className="text-balance font-heading text-h2 font-bold leading-tight text-ink md:text-display">
             {courseTitle}
           </h3>
-          <p className="mt-1 text-small text-ink-muted">{lessonLabel}</p>
+          <p className="mt-2 text-body text-ink-muted">{lessonLabel}</p>
         </div>
         <ProgressRing
           value={percent}
-          size={72}
+          size={104}
+          strokeWidth={10}
+          spark
           label={`${courseTitle} progress`}
+          className="shrink-0"
         />
       </div>
     </DecisionCard>

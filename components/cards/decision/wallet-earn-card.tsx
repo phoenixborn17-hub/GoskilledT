@@ -53,8 +53,8 @@ export function WalletEarnCard({
     >
       <div className="flex items-end justify-between gap-3">
         <div>
-          <div className="font-heading text-h1 font-bold tabular-nums text-ink">
-            <DataValue value={available} onRetry={onRetry} />
+          <div className="dc-number text-h1 font-bold text-ink">
+            <DataValue value={available} onRetry={onRetry} raiseUnit />
           </div>
           <p className="mt-1 text-caption text-ink-muted">
             Pending{" "}
@@ -65,7 +65,14 @@ export function WalletEarnCard({
         </div>
         {trend && trend.length >= 3 && (
           <div className="w-28 shrink-0">
-            <AreaChart points={trend} height={56} label="Earnings trend" />
+            {/* De-twinned from Analytics: Wallet is a line-only "passbook rule" ledger. */}
+            <AreaChart
+              points={trend}
+              width={112}
+              height={56}
+              fill={false}
+              label="Earnings trend"
+            />
           </div>
         )}
       </div>

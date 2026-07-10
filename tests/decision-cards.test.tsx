@@ -59,7 +59,9 @@ describe("WalletEarnCard — money static + fail-safe (§B/§D)", () => {
         payoutStatus="Recorded & safe"
       />,
     );
-    expect(html).toContain("₹12,450");
+    // raiseUnit splits the ₹ into a de-emphasised span, so assert the parts.
+    expect(html).toContain("₹");
+    expect(html).toContain("12,450");
     expect(html).toContain("Recorded"); // payout status line present (static markup escapes &)
   });
 

@@ -44,7 +44,7 @@ export function NetworkCard({
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <div className="font-heading text-h1 font-bold tabular-nums text-ink">
+          <div className="dc-number text-h1 font-bold text-ink">
             <StatValue value={activeL1} countUp />
           </div>
           <p className="mt-1 text-caption text-ink-muted">
@@ -54,7 +54,7 @@ export function NetworkCard({
           </p>
         </div>
         <div className="w-40 shrink-0">
-          <NetworkNodes count={activeL1} height={84} />
+          <NetworkNodes count={activeL1} newCount={thisMonth} height={84} />
         </div>
       </div>
     </DecisionCard>

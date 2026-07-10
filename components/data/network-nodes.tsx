@@ -1,9 +1,12 @@
 import * as React from "react";
 import { cn } from "../../lib/utils";
+import { SparkDot } from "./spark";
 
 export interface NetworkNodesProps {
   /** Real active-referral count. Up to 6 satellites are drawn; the rest surface as "+N". */
   count: number;
+  /** Real joins this month — the newest satellites render with a highlight ring (data-driven). */
+  newCount?: number;
   width?: number;
   height?: number;
   className?: string;
@@ -17,6 +20,7 @@ export interface NetworkNodesProps {
  */
 export function NetworkNodes({
   count,
+  newCount = 0,
   width = 200,
   height = 96,
   className,
@@ -26,6 +30,8 @@ export function NetworkNodes({
   const cy = height / 2;
   const visible = Math.max(0, Math.min(6, count));
   const overflow = Math.max(0, count - 6);
+  // The newest `newCount` satellites (drawn last) get a highlight ring.
+  const ringedFrom = visible - Math.min(newCount, visible);
   const radius = Math.min(width, height * 2) / 2 - 14;
 
   const nodes = Array.from({ length: visible }).map((_, i) => {
@@ -60,18 +66,23 @@ export function NetworkNodes({
         />
       ))}
       {nodes.map((n, i) => (
-        <circle
-          key={`n-${i}`}
-          cx={n.x}
-          cy={n.y}
-          r={5}
-          fill="currentColor"
-          opacity={0.55}
-          className="dc-pop"
-        />
+        <g key={`n-${i}`} className="dc-pop">
+          {i >= ringedFrom && (
+            <circle
+              cx={n.x}
+              cy={n.y}
+              r={8}
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              opacity={0.5}
+            />
+          )}
+          <circle cx={n.x} cy={n.y} r={5} fill="currentColor" opacity={0.6} />
+        </g>
       ))}
-      <circle cx={cx} cy={cy} r={12} fill="currentColor" opacity={0.12} />
-      <circle cx={cx} cy={cy} r={8} fill="currentColor" />
+      {/* The "you" node is the Spark — the live centre of the network. */}
+      <SparkDot cx={cx} cy={cy} r={5} />
       {overflow > 0 && (
         <text
           x={width - 6}

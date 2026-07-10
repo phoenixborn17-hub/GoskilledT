@@ -37,7 +37,7 @@ const accentClass: Record<CardAccent, string> = {
 };
 
 const sizePad: Record<CardSize, string> = {
-  hero: "p-6 md:p-7",
+  hero: "p-6 md:min-h-[13rem] md:p-7",
   primary: "p-5",
   secondary: "p-5",
   wide: "p-6",
@@ -98,6 +98,7 @@ export function DecisionCard({
   const shell = cn(
     "decision-card dc-enter flex h-full flex-col",
     accentClass[accent],
+    `dc-size-${size}`,
     sizePad[size],
     className,
   );
@@ -115,9 +116,12 @@ export function DecisionCard({
         >
           <Icon className="h-5 w-5" />
         </span>
-        <p className="truncate text-caption font-semibold uppercase tracking-wide text-ink-muted">
-          {label}
-        </p>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="dc-tick shrink-0" aria-hidden />
+          <span className="truncate font-heading text-small font-semibold text-ink">
+            {label}
+          </span>
+        </span>
       </div>
       {badge && <CardBadge {...badge} />}
     </div>

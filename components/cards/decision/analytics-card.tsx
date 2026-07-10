@@ -57,10 +57,10 @@ export function AnalyticsCard({
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <div className="shrink-0">
-          <div className="font-heading text-h1 font-bold tabular-nums text-ink">
+          <div className="dc-number text-h1 font-bold text-ink">
             <StatValue value={headline} countUp />
             {headlineSuffix && (
-              <span className="ml-1 text-h4 text-ink-muted">
+              <span className="dc-unit ml-0.5 font-semibold text-ink-muted">
                 {headlineSuffix}
               </span>
             )}

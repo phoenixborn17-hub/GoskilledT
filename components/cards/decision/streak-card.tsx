@@ -34,7 +34,7 @@ export function StreakCard({
     <DecisionCard
       icon={FlameIcon}
       label="Your streak"
-      accent="gold"
+      accent="green"
       size={size}
       badge={atRisk ? { label: "Keep it up", tone: "hot" } : undefined}
       aiLine={aiLine}
@@ -47,7 +47,7 @@ export function StreakCard({
       <div className="flex items-center gap-4">
         <Flame days={days} atRisk={atRisk} />
         <div>
-          <div className="font-heading text-h1 font-bold tabular-nums text-ink">
+          <div className="dc-number text-h1 font-bold text-ink">
             <StatValue value={days} countUp />
           </div>
           <p className="text-caption text-ink-muted">
