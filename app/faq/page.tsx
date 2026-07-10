@@ -15,7 +15,7 @@ const ALL_FAQS = FAQ_CATEGORIES.flatMap((c) => c.items);
 export const metadata = pageMetadata({
   title: "Frequently asked questions",
   description:
-    "Answers about GoSkilled pricing, GST-inclusive payments, the 48-hour refund, course access, OTP login, and more.",
+    "Answers about GoSkilled pricing, payments, the 48-hour refund, course access, OTP login, and more.",
   path: "/faq",
 });
 

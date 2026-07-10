@@ -69,7 +69,7 @@ export default async function OpengraphImage() {
           color: "rgba(254,254,254,0.8)",
         }}
       >
-        GST-inclusive pricing · 48-hour refund · We sell skills, not dreams
+        No hidden charges · 48-hour refund · We sell skills, not dreams
       </span>
     </div>,
     { ...size, fonts },

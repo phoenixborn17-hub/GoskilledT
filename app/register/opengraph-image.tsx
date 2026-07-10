@@ -16,117 +16,115 @@ export default async function Image() {
   const family = fonts.length ? "Sora" : "sans-serif";
 
   return new ImageResponse(
-    (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        width: "100%",
+        height: "100%",
+        padding: 72,
+        justifyContent: "space-between",
+        background:
+          "linear-gradient(135deg, #0C5A34 0%, #137E49 55%, #1AA05E 100%)",
+        color: "#FEFEFE",
+        fontFamily: family,
+      }}
+    >
+      {/* Brand row + invite pill */}
       <div
         style={{
           display: "flex",
-          flexDirection: "column",
-          width: "100%",
-          height: "100%",
-          padding: 72,
+          alignItems: "center",
           justifyContent: "space-between",
-          background:
-            "linear-gradient(135deg, #0C5A34 0%, #137E49 55%, #1AA05E 100%)",
-          color: "#FEFEFE",
-          fontFamily: family,
         }}
       >
-        {/* Brand row + invite pill */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                width: 56,
-                height: 56,
-                borderRadius: 16,
-                background: "#FEFEFE",
-                color: "#137E49",
-                fontSize: 34,
-                fontWeight: 800,
-              }}
-            >
-              G
-            </div>
-            <div style={{ display: "flex", fontSize: 30, fontWeight: 800 }}>
-              {SITE_NAME}
-            </div>
-          </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              background: "#EDC825",
-              color: "#2A302A",
-              padding: "10px 22px",
-              borderRadius: 999,
-              fontSize: 22,
-              fontWeight: 700,
-            }}
-          >
-            Invite-only
-          </div>
-        </div>
-
-        {/* Headline */}
-        <div style={{ display: "flex", flexDirection: "column" }}>
-          <div
-            style={{
-              display: "flex",
-              fontSize: 88,
-              fontWeight: 800,
-              lineHeight: 1.03,
-              letterSpacing: "-1.5px",
-            }}
-          >
-            You&apos;re invited to GoSkilled
-          </div>
-          <div
-            style={{
-              display: "flex",
-              marginTop: 22,
+              justifyContent: "center",
+              width: 56,
+              height: 56,
+              borderRadius: 16,
+              background: "#FEFEFE",
+              color: "#137E49",
               fontSize: 34,
-              fontWeight: 700,
-              color: "rgba(254,254,254,0.85)",
+              fontWeight: 800,
             }}
           >
-            Practical, job-ready skills in simple Hinglish — learn at your own
-            pace.
+            G
+          </div>
+          <div style={{ display: "flex", fontSize: 30, fontWeight: 800 }}>
+            {SITE_NAME}
           </div>
         </div>
-
-        {/* Trust line with gold accent bar */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-          <div
-            style={{
-              width: 40,
-              height: 8,
-              borderRadius: 9999,
-              background: "#EDC825",
-              display: "flex",
-            }}
-          />
-          <div
-            style={{
-              display: "flex",
-              fontSize: 24,
-              fontWeight: 700,
-              color: "rgba(254,254,254,0.8)",
-            }}
-          >
-            GST-inclusive pricing · 48-hour refund · We sell skills, not dreams
-          </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            background: "#EDC825",
+            color: "#2A302A",
+            padding: "10px 22px",
+            borderRadius: 999,
+            fontSize: 22,
+            fontWeight: 700,
+          }}
+        >
+          Invite-only
         </div>
       </div>
-    ),
+
+      {/* Headline */}
+      <div style={{ display: "flex", flexDirection: "column" }}>
+        <div
+          style={{
+            display: "flex",
+            fontSize: 88,
+            fontWeight: 800,
+            lineHeight: 1.03,
+            letterSpacing: "-1.5px",
+          }}
+        >
+          You&apos;re invited to GoSkilled
+        </div>
+        <div
+          style={{
+            display: "flex",
+            marginTop: 22,
+            fontSize: 34,
+            fontWeight: 700,
+            color: "rgba(254,254,254,0.85)",
+          }}
+        >
+          Practical, job-ready skills in simple Hinglish — learn at your own
+          pace.
+        </div>
+      </div>
+
+      {/* Trust line with gold accent bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+        <div
+          style={{
+            width: 40,
+            height: 8,
+            borderRadius: 9999,
+            background: "#EDC825",
+            display: "flex",
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            fontSize: 24,
+            fontWeight: 700,
+            color: "rgba(254,254,254,0.8)",
+          }}
+        >
+          No hidden charges · 48-hour refund · We sell skills, not dreams
+        </div>
+      </div>
+    </div>,
     { ...size, fonts },
   );
 }

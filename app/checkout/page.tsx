@@ -63,7 +63,9 @@ export default async function CheckoutPage({
         <p className="text-h4 font-semibold text-theme-strong">
           {formatINR(pkg.priceInPaise)}
         </p>
-        <p className="text-caption text-ink-muted">GST-inclusive · one-time</p>
+        <p className="text-caption text-ink-muted">
+          One-time payment · no hidden charges
+        </p>
       </div>
       {/* Trust triad AT the pay decision (Amendments §G). */}
       <TrustTriad className="mb-5" />

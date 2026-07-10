@@ -9,7 +9,10 @@ import { Sparkles, ShieldCheck, Smartphone, BadgeCheck } from "lucide-react";
 const DEFAULT_POINTS = [
   { icon: Smartphone, text: "Learn on your phone, in simple Hinglish" },
   { icon: BadgeCheck, text: "Verifiable certificates — proof of real skill" },
-  { icon: ShieldCheck, text: "Honest, GST-inclusive pricing · 48-hour refund" },
+  {
+    icon: ShieldCheck,
+    text: "Honest pricing, no hidden charges · 48-hour refund",
+  },
 ];
 
 export function AuthShell({

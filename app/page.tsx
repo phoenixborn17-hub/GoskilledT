@@ -43,7 +43,7 @@ import { Button } from "../components/ui/button";
 export const metadata = pageMetadata({
   title: "Learn in-demand skills",
   description:
-    "GoSkilled — practical, job-ready skills in Hinglish. GST-inclusive pricing, 48-hour refund. We sell skills, not dreams.",
+    "GoSkilled — practical, job-ready skills in Hinglish. One price, no hidden charges, 48-hour refund. We sell skills, not dreams.",
   path: "/",
 });
 
@@ -53,7 +53,7 @@ const WHY = [
   {
     Icon: HeartHandshake,
     title: "Trust in a noisy market",
-    body: "Online learning is full of big promises and hidden charges. We do the opposite — honest, GST-inclusive pricing and a 48-hour refund, no dark patterns.",
+    body: "Online learning is full of big promises and hidden charges. We do the opposite — honest pricing with no hidden charges and a 48-hour refund, no dark patterns.",
   },
   {
     Icon: Languages,
@@ -173,7 +173,7 @@ export default async function HomePage() {
                 </li>
                 <li className="inline-flex items-center gap-1.5">
                   <ReceiptText className="h-4 w-4 text-brand" aria-hidden />
-                  GST-inclusive pricing
+                  No hidden charges
                 </li>
                 <li className="inline-flex items-center gap-1.5">
                   <BadgeCheck className="h-4 w-4 text-brand" aria-hidden />
@@ -207,8 +207,8 @@ export default async function HomePage() {
             />
             <Trust
               Icon={ReceiptText}
-              title="GST invoice"
-              body="Price is final — no hidden charges"
+              title="One final price"
+              body="No hidden charges, ever"
             />
             {/* D-29, stated proudly */}
             <Trust
@@ -339,7 +339,7 @@ export default async function HomePage() {
               id="packages-teaser"
               className="font-heading text-2xl font-bold"
             >
-              One price. GST included. No hidden charges.
+              One price. No hidden charges.
             </h2>
             <p className="max-w-md text-brand-fg">
               Pick a single course, or get everything plus future releases with

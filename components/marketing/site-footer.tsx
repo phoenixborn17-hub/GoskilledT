@@ -47,7 +47,7 @@ export function SiteFooter() {
           </span>
           <span className="inline-flex items-center gap-1.5">
             <ReceiptText className="h-4 w-4 text-brand" aria-hidden />
-            GST-inclusive pricing
+            No hidden charges
           </span>
           <span className="inline-flex items-center gap-1.5">
             <BadgeCheck className="h-4 w-4 text-brand" aria-hidden />

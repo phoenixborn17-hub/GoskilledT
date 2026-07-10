@@ -51,7 +51,7 @@ const COURSE_FAQ = [
   },
   {
     q: "Is there a refund if it's not for me?",
-    a: "Yes. Full refund within 48 hours of purchase, no questions asked. The price is GST-inclusive with no hidden charges.",
+    a: "Yes. Full refund within 48 hours of purchase, no questions asked. One price, no hidden charges.",
   },
 ];
 
@@ -356,7 +356,7 @@ export default async function CourseDetailPage({
                     <strong>Career Booster</strong> includes future courses as
                     they&apos;re released
                     {cb
-                      ? ` — ${priceLabel(cb.priceInPaise)}, GST-inclusive`
+                      ? ` — ${priceLabel(cb.priceInPaise)}, no hidden charges`
                       : ""}
                     .
                   </p>
@@ -380,7 +380,7 @@ export default async function CourseDetailPage({
                     <p className="mt-2 text-3xl font-extrabold text-charcoal">
                       {priceLabel(sb.priceInPaise)}
                       <span className="ml-1 text-sm font-medium text-muted">
-                        onwards · GST-inclusive
+                        onwards · no hidden charges
                       </span>
                     </p>
                   )}

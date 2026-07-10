@@ -1,5 +1,7 @@
 // /packages — THE MONEY PAGE (Ticket 5, Task 3 · Blueprint §7). Server component, read-only.
-// Prices/refund/GST/composition copy is display-only and MUST match DR-010/021/023/025.
+// Prices/refund/composition copy is display-only and MUST match DR-010/021/025.
+// COMPLIANCE (founder 2026-07-11): the LLP is NOT GST-registered yet, so NO "GST-inclusive" copy —
+// use "one price · no hidden charges" framing. Do not re-add GST wording until registration confirmed.
 // D-29: value framing only — zero income claims. Re-skinned to Public Experience standard; NO money
 // logic touched (checkout links + prices come straight from listPackages). Escalation-flagged.
 import Link from "next/link";
@@ -26,7 +28,7 @@ import { cn } from "../../lib/utils";
 export const metadata = pageMetadata({
   title: "Packages & Pricing",
   description:
-    "Simple, GST-inclusive pricing. Skill Builder or Career Booster — no hidden charges, 48-hour refund.",
+    "Simple, honest pricing — no hidden charges. Skill Builder or Career Booster, 48-hour refund.",
   path: "/packages",
 });
 
@@ -36,8 +38,8 @@ const FAQS = [
     a: "Full refund within 48 hours of purchase — no questions asked. After 48 hours, purchases are final.",
   },
   {
-    q: "Are there any hidden charges or GST?",
-    a: "No. The price you see is the final price — GST is already included. Koi hidden charge nahi.",
+    q: "Are there any hidden charges?",
+    a: "No. The price you see is the final price — one payment, no hidden charges. Koi hidden charge nahi.",
   },
   {
     q: "How quickly do I get access?",
@@ -74,15 +76,15 @@ export default async function PackagesPage() {
         <section className="hero-aurora">
           <Container className="py-14 text-center sm:py-20">
             <span className="enter inline-flex items-center gap-1.5 rounded-full border border-brand/20 bg-brand/5 px-3 py-1 text-xs font-semibold text-brand-deep">
-              <BadgeIndianRupee className="h-3.5 w-3.5" /> One price · GST
-              included
+              <BadgeIndianRupee className="h-3.5 w-3.5" /> One price · no hidden
+              charges
             </span>
             <h1 className="enter enter-2 mx-auto mt-4 max-w-2xl font-heading text-4xl font-extrabold leading-[1.08] text-charcoal sm:text-5xl">
               Simple, honest pricing
             </h1>
             <p className="enter enter-2 mx-auto mt-4 max-w-xl text-lg text-charcoal/70">
-              One price, GST included. Koi hidden charge nahi — and a 48-hour
-              refund if it&apos;s not for you.
+              One price, no hidden charges. Koi hidden charge nahi — and a
+              48-hour refund if it&apos;s not for you.
             </p>
             <p className="enter enter-3 mx-auto mt-5 inline-flex items-center gap-2 rounded-full bg-gold/15 px-4 py-1.5 text-sm font-semibold text-charcoal">
               <Star className="h-4 w-4" aria-hidden />
@@ -102,7 +104,9 @@ export default async function PackagesPage() {
               <p className="mt-3 text-4xl font-extrabold text-charcoal">
                 {priceLabel(sb.priceInPaise)}
               </p>
-              <p className="text-xs text-muted">GST-inclusive · one-time</p>
+              <p className="text-xs text-muted">
+                One-time payment · no hidden charges
+              </p>
               <p className="mt-4 text-sm text-charcoal/70">
                 One launch course of your choice. Perfect if you want to master
                 a single skill first.
@@ -137,7 +141,9 @@ export default async function PackagesPage() {
               <p className="mt-3 text-4xl font-extrabold text-charcoal">
                 {priceLabel(cb.priceInPaise)}
               </p>
-              <p className="text-xs text-muted">GST-inclusive · one-time</p>
+              <p className="text-xs text-muted">
+                One-time payment · no hidden charges
+              </p>
               <p className="mt-4 text-sm text-charcoal/70">
                 Both launch courses{" "}
                 <strong>plus every future course as it&apos;s released</strong>{" "}
@@ -175,7 +181,7 @@ export default async function PackagesPage() {
             </span>
             <span className="inline-flex items-center gap-1.5">
               <BadgeIndianRupee className="h-4 w-4 text-brand" aria-hidden />{" "}
-              GST included — final price
+              One-time payment · no hidden charges
             </span>
           </div>
         </Container>

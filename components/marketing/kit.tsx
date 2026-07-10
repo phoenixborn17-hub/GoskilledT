@@ -175,7 +175,7 @@ export function BentoCard({
 export function TrustChips({ className }: { className?: string }) {
   const marks = [
     { icon: ShieldCheck, label: "Registered LLP" },
-    { icon: ReceiptText, label: "GST-inclusive pricing" },
+    { icon: ReceiptText, label: "No hidden charges" },
     { icon: BadgeCheck, label: "48-hour refund" },
   ];
   return (

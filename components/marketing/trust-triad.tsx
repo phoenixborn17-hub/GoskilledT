@@ -4,13 +4,13 @@ import { cn } from "../../lib/utils";
 
 /**
  * Trust triad (Amendments §G · DESIGN §14) — the three trust marks placed AT the decision element
- * (Buy / Pay), never in the footer: 48-hour refund · GST-inclusive price · secure payment. Uses the
+ * (Buy / Pay), never in the footer: 48-hour refund · no hidden charges · secure payment. Uses the
  * design system (not stock badge PNGs). Real, honest claims only (D-29 — no income guarantees).
  */
 export function TrustTriad({ className }: { className?: string }) {
   const marks = [
     { icon: ShieldCheck, label: "48-hour refund" },
-    { icon: BadgeIndianRupee, label: "GST-inclusive price" },
+    { icon: BadgeIndianRupee, label: "No hidden charges" },
     { icon: Lock, label: "Secure payment" },
   ];
   return (

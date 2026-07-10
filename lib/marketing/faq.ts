@@ -22,8 +22,8 @@ export const FAQ_CATEGORIES: FaqCategory[] = [
     title: "Pricing & payments",
     items: [
       {
-        q: "Do I pay GST on top of the price?",
-        a: "No. The price you see is the final price — GST is already included. Koi hidden charge nahi.",
+        q: "Are there any hidden charges?",
+        a: "No. The price you see is the final price — one payment, no hidden charges. Koi hidden charge nahi.",
         top: true,
       },
       {

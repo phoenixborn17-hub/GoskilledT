@@ -124,9 +124,10 @@ export default function AboutPage() {
               a real, busy day.
             </p>
             <p>
-              We keep pricing honest and GST-inclusive, back every purchase with
-              a 48-hour refund, and never sell hype. What you learn is meant to
-              be used — at work, in a side project, in real life.
+              We keep pricing honest — one price, no hidden charges — back every
+              purchase with a 48-hour refund, and never sell hype. What you
+              learn is meant to be used — at work, in a side project, in real
+              life.
             </p>
           </div>
         </Section>
