@@ -14,9 +14,10 @@ import {
   ArrowRight,
   ShieldAlert,
 } from "lucide-react";
-import { getCurrentUser } from "../../../lib/auth/session";
+import { getCurrentUserRecord } from "../../../lib/auth/session";
 import { formatINR } from "../../../lib/money";
 import { safeMoney, safeCount } from "../../../lib/format";
+import { greetingTitle } from "../../../lib/greeting";
 import {
   getEarnDashboard,
   COMMISSION_RANGE,
@@ -36,7 +37,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Earn" };
 
 export default async function EarnPage() {
-  const user = await getCurrentUser();
+  const user = await getCurrentUserRecord();
   const d = await getEarnDashboard(user!.id, user!.referralCode);
 
   return (
@@ -44,7 +45,8 @@ export default async function EarnPage() {
       <header>
         <h1 className="font-heading text-h1 font-extrabold text-ink">Earn</h1>
         <p className="mt-1 text-body text-ink-muted">
-          Share GoSkilled with friends who want to learn.
+          {greetingTitle(user?.name)} — share GoSkilled with friends who want to
+          learn.
         </p>
       </header>
 

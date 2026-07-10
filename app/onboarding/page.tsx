@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { PartyPopper } from "lucide-react";
+import { PartyPopper, ShieldCheck, Unlock } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Label } from "../../components/ui/label";
@@ -60,9 +60,22 @@ export default function OnboardingPage() {
             Welcome aboard! Aapka access ready hai — chalo pehla lesson shuru
             karte hain.
           </CardDescription>
+
+          {/* What you unlocked — the activation moment (Dashboard §5). */}
+          <div className="mx-auto mt-5 flex max-w-xs flex-col gap-2 text-left">
+            <span className="inline-flex items-center gap-2 rounded-xl bg-brand/5 px-3 py-2 text-sm font-medium text-brand-deep">
+              <Unlock className="h-4 w-4 shrink-0" aria-hidden />
+              Your full course access is unlocked
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-xl bg-brand/5 px-3 py-2 text-sm font-medium text-brand-deep">
+              <ShieldCheck className="h-4 w-4 shrink-0" aria-hidden />
+              Covered by our 48-hour refund
+            </span>
+          </div>
+
           <div className="mx-auto mt-6 max-w-xs">
-            <Link href="/dashboard">
-              <Button>Start learning</Button>
+            <Link href="/dashboard/learn">
+              <Button>Start your first lesson</Button>
             </Link>
           </div>
         </Card>
