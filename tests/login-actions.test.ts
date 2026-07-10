@@ -55,7 +55,7 @@ beforeEach(() => {
     referredById: null,
     referralCode: "GSX",
   });
-  h.postAuthRedirect.mockResolvedValue("/dashboard");
+  h.postAuthRedirect.mockResolvedValue("/dashboard/home");
 });
 
 describe("§8.4 password login", () => {
@@ -68,7 +68,7 @@ describe("§8.4 password login", () => {
       password: "hunter2pass",
     });
     expect(res.ok).toBe(true);
-    if (res.ok) expect(res.redirectTo).toBe("/dashboard");
+    if (res.ok) expect(res.redirectTo).toBe("/dashboard/home");
     expect(h.postAuthRedirect).toHaveBeenCalledWith("u-1", undefined);
   });
 
@@ -119,7 +119,7 @@ describe("OTP alternative sign-in", () => {
     });
     const res = await verifyLoginOtp({ phone: PHONE, token: "123456" });
     expect(res.ok).toBe(true);
-    if (res.ok) expect(res.redirectTo).toBe("/dashboard");
+    if (res.ok) expect(res.redirectTo).toBe("/dashboard/home");
   });
 });
 

@@ -5,7 +5,9 @@
 import { prisma } from "../prisma";
 
 const WELCOME = "/welcome";
-const DASHBOARD = "/dashboard";
+// Returning users land on the Home hub (DR-039). New accounts still get the one-time /welcome
+// moment first (welcomeSeenAt branch below) → welcome → Lesson 0 is preserved unchanged.
+const DASHBOARD = "/dashboard/home";
 
 /** Only same-origin absolute paths are honoured as a post-login `next` (blocks open-redirects). */
 export function safeNext(next: string | null | undefined): string | null {
