@@ -37,7 +37,7 @@ export function pageMetadata(opts: {
   };
 }
 
-/** Organization structured data (home). Factual only — no income claims (D-29). EDZERA LLP per 1B. */
+/** Organization structured data (home). Factual only — no income claims (D-29). EDZERA INSPIRING EXCELLENCE LLP. */
 export function organizationJsonLd(): Record<string, unknown> {
   return {
     "@context": "https://schema.org",
@@ -46,7 +46,10 @@ export function organizationJsonLd(): Record<string, unknown> {
     url: siteUrl(),
     description:
       "Practical, job-ready skills in simple Hinglish — honest pricing, no hidden charges, and a 48-hour refund.",
-    parentOrganization: { "@type": "Organization", name: "EDZERA LLP" },
+    parentOrganization: {
+      "@type": "Organization",
+      name: "EDZERA INSPIRING EXCELLENCE LLP",
+    },
     foundingDate: "2025",
     founder: { "@type": "Person", name: "Ashish Sangwal" },
   };

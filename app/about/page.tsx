@@ -242,7 +242,8 @@ export default function AboutPage() {
           </div>
           {/* Company facts strip (Phase 1B — verbatim). */}
           <p className="mt-8 text-center text-sm text-muted">
-            GoSkilled is a brand of EDZERA LLP · Founded 2025
+            GoSkilled is a brand of EDZERA INSPIRING EXCELLENCE LLP · Founded
+            2025
           </p>
         </Section>
 

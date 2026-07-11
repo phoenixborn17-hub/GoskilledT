@@ -52,7 +52,7 @@ export function buildBrandEmail(i: BrandEmailInput): EmailMessage {
       </table>
     </td></tr>
     <tr><td style="padding:18px 28px 24px;border-top:1px solid #eee;font-size:12px;line-height:1.6;color:#8a8f88">
-      GoSkilled · EDZERA LLP · Made in India<br>
+      GoSkilled · EDZERA INSPIRING EXCELLENCE LLP · Made in India<br>
       You're receiving this because you have a GoSkilled account.
       <a href="${esc(i.unsubscribeUrl)}" style="color:${GREEN}">Unsubscribe from emails</a>.
     </td></tr>
@@ -63,7 +63,7 @@ export function buildBrandEmail(i: BrandEmailInput): EmailMessage {
     `${i.heading}\n\n` +
     i.paragraphs.join("\n\n") +
     (i.cta ? `\n\n${i.cta.label}: ${i.cta.href}` : "") +
-    `\n\n— GoSkilled · EDZERA LLP\nUnsubscribe: ${i.unsubscribeUrl}`;
+    `\n\n— GoSkilled · EDZERA INSPIRING EXCELLENCE LLP\nUnsubscribe: ${i.unsubscribeUrl}`;
 
   return {
     to: i.to,
