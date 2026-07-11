@@ -251,6 +251,7 @@ async function main() {
     update: {
       name: "Skill Builder",
       priceInPaise: 149900,
+      gstRateBps: 0, // LLP not GST-registered — orders must book gstInPaise=0
       includesFutureCourses: false,
       isActive: true,
     },
@@ -258,6 +259,7 @@ async function main() {
       slug: "skill-builder",
       name: "Skill Builder",
       priceInPaise: 149900,
+      gstRateBps: 0,
       includesFutureCourses: false,
       isActive: true,
     },
@@ -268,6 +270,7 @@ async function main() {
     update: {
       name: "Career Booster",
       priceInPaise: 219900,
+      gstRateBps: 0, // LLP not GST-registered — orders must book gstInPaise=0
       includesFutureCourses: true,
       isActive: true,
     },
@@ -275,6 +278,7 @@ async function main() {
       slug: "career-booster",
       name: "Career Booster",
       priceInPaise: 219900,
+      gstRateBps: 0,
       includesFutureCourses: true,
       isActive: true,
     },
@@ -306,6 +310,28 @@ async function main() {
     });
     if (!exists) await prisma.ledgerAccount.create({ data: { type } });
   }
+
+  // ── Feature Visibility (DR-040 / Wave-2 FV-1) ──────────────────────────────
+  // `earn` is fail-CLOSED by default in the registry. Launch shows it via an EXPLICIT GLOBAL SHOW
+  // override — an intentional act, not a fail-open code default. Remove this row to re-close the gate.
+  // (Payouts stay OFF via D-01 env flag; commissions stay display-only — this only controls surface
+  // visibility.) Idempotent on the (featureKey, scope, scopeValue) unique index.
+  await prisma.featureOverride.upsert({
+    where: {
+      featureKey_scope_scopeValue: {
+        featureKey: "earn",
+        scope: "GLOBAL",
+        scopeValue: "",
+      },
+    },
+    update: { visible: true },
+    create: {
+      featureKey: "earn",
+      scope: "GLOBAL",
+      scopeValue: "",
+      visible: true,
+    },
+  });
 
   console.log(
     "Seed complete: 2 launch courses ([PLACEHOLDER], PUBLISHED, 2 modules × 3 lessons, mock video), " +

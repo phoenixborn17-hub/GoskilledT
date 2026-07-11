@@ -7,7 +7,10 @@
 import { z } from "zod";
 import { phoneSchema } from "../../modules/payments/schemas";
 import { getOtpProvider } from "../../lib/auth/otp";
-import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
+import {
+  checkOtpSendRate,
+  checkOtpVerifyRate,
+} from "../../lib/auth/otp-rate-limit";
 import { syncUser } from "../../lib/auth/user-sync";
 import { resolveSponsorByCode } from "../../lib/auth/sponsor";
 import { startCheckout as placeOrder } from "../../lib/payments/checkout";
@@ -101,6 +104,9 @@ export async function verifyCheckoutOtp(
   // Re-validate the mandatory code server-side (defence in depth — never trust the client).
   const sponsor = await resolveSponsorByCode(data.referralCode);
   if (!sponsor) return { ok: false, error: INVALID_CODE };
+
+  const rl = await checkOtpVerifyRate(data.phone); // A-2
+  if (!rl.ok) return { ok: false, error: rl.error };
 
   try {
     // 1) Verify OTP → authenticated Supabase session (cookies set by the server client).

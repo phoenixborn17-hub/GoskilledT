@@ -1,0 +1,1527 @@
+diff --git a/app/admin/catalog/quiz-actions.ts b/app/admin/catalog/quiz-actions.ts
+index af2eb55..bbd6902 100644
+--- a/app/admin/catalog/quiz-actions.ts
++++ b/app/admin/catalog/quiz-actions.ts
+@@ -1,6 +1,7 @@
+ // GPS-M5 §2.2 — admin quiz server actions (Register 3). Each: getAdminUser → audited adapter →
+ // revalidate. Art 6: generate DRAFTS only; publish is an explicit human decision.
+ "use server";
++import { z } from "zod";
+ import { revalidatePath } from "next/cache";
+ import { getAdminUser } from "../../../lib/auth/admin";
+ import {
+@@ -14,6 +15,32 @@ import type { QuizQuestionSpec } from "../../../modules/lms/quiz";
+ 
+ type Res = { ok: true } | { ok: false; error: string };
+ 
++// AD-4: validate the structured quiz-draft payload at the boundary. Without this, a malformed
++// correctIndex (out of range/negative) or empty options list is persisted to a DRAFT and only caught
++// at publish time. Enforce the shape here so bad data never lands in the DB.
++const quizDraftSchema = z.object({
++  title: z.string().trim().min(1, "Give the quiz a title.").max(200),
++  isMandatory: z.boolean(),
++  passPercent: z.number().int().min(1).max(100),
++  questions: z
++    .array(
++      z
++        .object({
++          prompt: z.string().trim().min(1, "Each question needs a prompt."),
++          options: z
++            .array(z.string().trim().min(1))
++            .min(2, "Each question needs at least 2 options."),
++          correctIndex: z.number().int().min(0),
++          explanation: z.string().trim().nullable().optional(),
++        })
++        .refine((q) => q.correctIndex < q.options.length, {
++          message: "correctIndex must point at one of the options.",
++          path: ["correctIndex"],
++        }),
++    )
++    .min(1, "Add at least one question."),
++});
++
+ export async function saveQuizDraftAction(
+   courseId: string,
+   lessonId: string,
+@@ -21,7 +48,13 @@ export async function saveQuizDraftAction(
+ ): Promise<Res> {
+   const a = await getAdminUser();
+   if (!a) return { ok: false, error: "Not authorized" };
+-  const res = await saveQuizDraft(a, lessonId, input);
++  const parsed = quizDraftSchema.safeParse(input);
++  if (!parsed.success)
++    return {
++      ok: false,
++      error: parsed.error.issues[0]?.message ?? "Invalid quiz draft.",
++    };
++  const res = await saveQuizDraft(a, lessonId, parsed.data);
+   if (res.ok) revalidatePath(`/admin/catalog/${courseId}`);
+   return res.ok ? { ok: true } : res;
+ }
+diff --git a/app/admin/kyc/actions.ts b/app/admin/kyc/actions.ts
+index d4c3c69..1b77c1c 100644
+--- a/app/admin/kyc/actions.ts
++++ b/app/admin/kyc/actions.ts
+@@ -9,12 +9,15 @@ import { revealKyc, reviewKyc, type RevealedKyc } from "../../../lib/admin/kyc";
+ export type RevealResult =
+   { ok: true; data: RevealedKyc } | { ok: false; error: string };
+ 
++const idSchema = z.string().trim().min(1).max(64); // AD-12: validate id at the boundary
++
+ export async function revealKycAction(userId: string): Promise<RevealResult> {
+   const admin = await getAdminUser();
+   if (!admin) return { ok: false, error: "Not authorized" };
+-  if (!userId) return { ok: false, error: "Missing user" };
++  const id = idSchema.safeParse(userId);
++  if (!id.success) return { ok: false, error: "Missing user" };
+   try {
+-    const data = await revealKyc(admin, userId);
++    const data = await revealKyc(admin, id.data);
+     return { ok: true, data };
+   } catch {
+     // Generic — never echo ciphertext or the underlying decrypt error.
+diff --git a/app/admin/review-queue/actions.ts b/app/admin/review-queue/actions.ts
+index 19b35cb..434da95 100644
+--- a/app/admin/review-queue/actions.ts
++++ b/app/admin/review-queue/actions.ts
+@@ -18,7 +18,8 @@ export async function resolveReviewAction(
+   const parsed = orderIdSchema.safeParse(orderId);
+   if (!parsed.success) return { ok: false, error: "Missing order" };
+   try {
+-    await resolveReview(admin, parsed.data);
++    const res = await resolveReview(admin, parsed.data);
++    if (!res.ok) return res;
+     revalidatePath("/admin/review-queue");
+     revalidatePath("/admin");
+     return { ok: true };
+diff --git a/app/admin/rewards/actions.ts b/app/admin/rewards/actions.ts
+index 84aff5e..7152d02 100644
+--- a/app/admin/rewards/actions.ts
++++ b/app/admin/rewards/actions.ts
+@@ -37,13 +37,24 @@ export async function createRewardAction(
+   return { ok: true };
+ }
+ 
++const toggleSchema = z.object({
++  id: z.string().trim().min(1).max(64),
++  isActive: z.boolean(),
++}); // AD-12: validate the (id, boolean) pair at the boundary
++
+ export async function setRewardActiveAction(
+   id: string,
+   isActive: boolean,
+ ): Promise<RewardActionResult> {
+   const admin = await getAdminUser();
+   if (!admin) return { ok: false, error: "Not authorized" };
+-  const res = await setRewardActive(admin, id, isActive);
++  const parsed = toggleSchema.safeParse({ id, isActive });
++  if (!parsed.success) return { ok: false, error: "Invalid input" };
++  const res = await setRewardActive(
++    admin,
++    parsed.data.id,
++    parsed.data.isActive,
++  );
+   if (!res.ok) return res;
+   revalidatePath("/admin/rewards");
+   return { ok: true };
+diff --git a/app/admin/webinar/actions.ts b/app/admin/webinar/actions.ts
+index 7c3f8c1..0459e51 100644
+--- a/app/admin/webinar/actions.ts
++++ b/app/admin/webinar/actions.ts
+@@ -45,14 +45,24 @@ export async function scheduleWebinarAction(
+   return res;
+ }
+ 
++const toggleSchema = z.object({
++  webinarId: z.string().trim().min(1).max(64),
++  isActive: z.boolean(),
++}); // AD-12: validate the (id, boolean) pair at the boundary
++
+ export async function setWebinarActiveAction(
+   webinarId: string,
+   isActive: boolean,
+ ): Promise<WebinarActionResult> {
+   const admin = await getAdminUser();
+   if (!admin) return { ok: false, error: "Not authorized" };
+-  if (!webinarId) return { ok: false, error: "Missing session" };
+-  const res = await setWebinarActive(admin, webinarId, isActive);
++  const parsed = toggleSchema.safeParse({ webinarId, isActive });
++  if (!parsed.success) return { ok: false, error: "Missing session" };
++  const res = await setWebinarActive(
++    admin,
++    parsed.data.webinarId,
++    parsed.data.isActive,
++  );
+   if (res.ok) {
+     revalidatePath("/admin/webinar");
+     revalidatePath("/webinar");
+diff --git a/app/admin/withdrawals/actions.ts b/app/admin/withdrawals/actions.ts
+index c4b3aae..7da0cb1 100644
+--- a/app/admin/withdrawals/actions.ts
++++ b/app/admin/withdrawals/actions.ts
+@@ -10,6 +10,10 @@ import {
+   rejectWithdrawal,
+ } from "../../../lib/admin/withdrawals";
+ 
++// AD-12: validate the id at the boundary (not just presence) — consistent with the project's
++// "Zod at every boundary" rule and the well-validated reject/review siblings.
++const idSchema = z.string().trim().min(1).max(64);
++
+ export type MarkResult =
+   { ok: true; idempotent: boolean } | { ok: false; error: string };
+ 
+@@ -18,8 +22,9 @@ export async function markPaidAction(
+ ): Promise<MarkResult> {
+   const admin = await getAdminUser();
+   if (!admin) return { ok: false, error: "Not authorized" };
+-  if (!withdrawalId) return { ok: false, error: "Missing withdrawal" };
+-  const res = await markWithdrawalPaid(admin, withdrawalId);
++  const id = idSchema.safeParse(withdrawalId);
++  if (!id.success) return { ok: false, error: "Missing withdrawal" };
++  const res = await markWithdrawalPaid(admin, id.data);
+   if (!res.ok) return res;
+   revalidatePath("/admin/withdrawals");
+   revalidatePath("/admin");
+@@ -33,8 +38,9 @@ export async function markInProgressAction(
+ ): Promise<SimpleResult> {
+   const admin = await getAdminUser();
+   if (!admin) return { ok: false, error: "Not authorized" };
+-  if (!withdrawalId) return { ok: false, error: "Missing withdrawal" };
+-  const res = await markWithdrawalInProgress(admin, withdrawalId);
++  const id = idSchema.safeParse(withdrawalId);
++  if (!id.success) return { ok: false, error: "Missing withdrawal" };
++  const res = await markWithdrawalInProgress(admin, id.data);
+   if (!res.ok) return res;
+   revalidatePath("/admin/withdrawals");
+   revalidatePath("/admin");
+diff --git a/app/admin/withdrawals/page.tsx b/app/admin/withdrawals/page.tsx
+index 5d271f4..d03e13c 100644
+--- a/app/admin/withdrawals/page.tsx
++++ b/app/admin/withdrawals/page.tsx
+@@ -6,6 +6,7 @@ import {
+   type WithdrawalRow,
+ } from "../../../lib/admin/withdrawals";
+ import { formatINR } from "../../../lib/money";
++import { payoutsEnabled } from "../../../lib/env";
+ import { WithdrawalActions } from "../../../components/admin/withdrawal-actions";
+ import { PageHeading, fmtDateTime } from "../../../components/admin/primitives";
+ import { Card } from "../../../components/ui/card";
+@@ -31,6 +32,7 @@ export default async function WithdrawalsPage() {
+     listWithdrawalQueue(),
+     listWithdrawalHistory(),
+   ]);
++  const payouts = payoutsEnabled();
+ 
+   return (
+     <section className="space-y-6">
+@@ -39,6 +41,14 @@ export default async function WithdrawalsPage() {
+         subtitle={`${queue.length} awaiting payout · manual bank rail (Tuesday cadence).`}
+       />
+ 
++      {!payouts && (
++        <Card className="border-warning-strong/30 bg-warning-soft/40 text-sm text-warning-strong">
++          <strong>Payouts disabled (D-01).</strong> Affiliate payouts are OFF
++          until legal clearance. Do <strong>not</strong> transfer money — Mark
++          PAID is disabled and the server will reject any payout attempt.
++        </Card>
++      )}
++
+       <div className="space-y-3">
+         {queue.length === 0 ? (
+           <Card className="text-center text-muted">
+@@ -84,7 +94,8 @@ export default async function WithdrawalsPage() {
+                 <div className="md:w-64 md:shrink-0">
+                   <WithdrawalActions
+                     withdrawalId={w.id}
+-                    canMark={kycOk && amountOk}
++                    canMark={kycOk && amountOk && payouts}
++                    payoutsEnabled={payouts}
+                     status={w.status}
+                   />
+                 </div>
+diff --git a/app/api/checkout/route.ts b/app/api/checkout/route.ts
+deleted file mode 100644
+index e2975a0..0000000
+--- a/app/api/checkout/route.ts
++++ /dev/null
+@@ -1,44 +0,0 @@
+-// POST /api/checkout — thin HTTP adapter. Validates with the domain Zod schema, then
+-// delegates to startCheckout(). No business decisions here.
+-import { NextResponse } from "next/server";
+-import { ZodError } from "zod";
+-import { checkoutStartSchema } from "../../../modules/payments/schemas";
+-import { startCheckout } from "../../../lib/payments/checkout";
+-import { getPaymentProvider } from "../../../lib/payments/provider";
+-import { requireEnv } from "../../../lib/env";
+-
+-export async function POST(req: Request): Promise<Response> {
+-  let body: unknown;
+-  try {
+-    body = await req.json();
+-  } catch {
+-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+-  }
+-
+-  const parsed = checkoutStartSchema.safeParse(body);
+-  if (!parsed.success) {
+-    return NextResponse.json(
+-      { error: "Validation failed", issues: parsed.error.flatten() },
+-      { status: 400 },
+-    );
+-  }
+-
+-  try {
+-    // Route through the provider adapter (Ticket 3 deferred finding) so mock mode works here too.
+-    const provider = getPaymentProvider();
+-    const result = await startCheckout(parsed.data, (i) =>
+-      provider.createOrder(i),
+-    );
+-    const keyId =
+-      provider.name === "razorpay" ? requireEnv("RAZORPAY_KEY_ID") : null;
+-    return NextResponse.json(
+-      { ...result, provider: provider.name, keyId },
+-      { status: 201 },
+-    );
+-  } catch (e) {
+-    if (e instanceof ZodError)
+-      return NextResponse.json({ error: "Validation failed" }, { status: 400 });
+-    const message = e instanceof Error ? e.message : "Checkout failed";
+-    return NextResponse.json({ error: message }, { status: 400 });
+-  }
+-}
+diff --git a/app/checkout/actions.ts b/app/checkout/actions.ts
+index 0bd1a15..076ec11 100644
+--- a/app/checkout/actions.ts
++++ b/app/checkout/actions.ts
+@@ -7,7 +7,10 @@
+ import { z } from "zod";
+ import { phoneSchema } from "../../modules/payments/schemas";
+ import { getOtpProvider } from "../../lib/auth/otp";
+-import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
++import {
++  checkOtpSendRate,
++  checkOtpVerifyRate,
++} from "../../lib/auth/otp-rate-limit";
+ import { syncUser } from "../../lib/auth/user-sync";
+ import { resolveSponsorByCode } from "../../lib/auth/sponsor";
+ import { startCheckout as placeOrder } from "../../lib/payments/checkout";
+@@ -102,6 +105,9 @@ export async function verifyCheckoutOtp(
+   const sponsor = await resolveSponsorByCode(data.referralCode);
+   if (!sponsor) return { ok: false, error: INVALID_CODE };
+ 
++  const rl = await checkOtpVerifyRate(data.phone); // A-2
++  if (!rl.ok) return { ok: false, error: rl.error };
++
+   try {
+     // 1) Verify OTP → authenticated Supabase session (cookies set by the server client).
+     const { user } = await getOtpProvider().verifyOtp(data.phone, data.token);
+diff --git a/app/dashboard/earn/actions.ts b/app/dashboard/earn/actions.ts
+index 79a97d2..7a989cb 100644
+--- a/app/dashboard/earn/actions.ts
++++ b/app/dashboard/earn/actions.ts
+@@ -123,6 +123,19 @@ export async function submitKyc(formData: FormData): Promise<ActionResult> {
+   const rl = await checkActionRate("kyc-submit", user.id, 8);
+   if (!rl.ok) return { ok: false, error: rl.error };
+ 
++  // D-4: both contact channels must be verified server-side before a KYC submission is accepted —
++  // the client hint is advisory only, so enforce the invariant where it can't be bypassed.
++  const contact = await prisma.kyc.findUnique({
++    where: { userId: user.id },
++    select: { emailVerifiedAt: true, whatsappVerifiedAt: true },
++  });
++  if (!contact?.emailVerifiedAt || !contact?.whatsappVerifiedAt)
++    return {
++      ok: false,
++      error:
++        "Verify your email and WhatsApp with a code before submitting KYC.",
++    };
++
+   const parsed = kycSchema.safeParse({
+     pan: String(formData.get("pan") ?? ""),
+     accountNumber: String(formData.get("accountNumber") ?? ""),
+diff --git a/app/login/actions.ts b/app/login/actions.ts
+index af72235..a43dd97 100644
+--- a/app/login/actions.ts
++++ b/app/login/actions.ts
+@@ -5,7 +5,10 @@
+ import { z } from "zod";
+ import { phoneSchema } from "../../modules/payments/schemas";
+ import { getOtpProvider } from "../../lib/auth/otp";
+-import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
++import {
++  checkOtpSendRate,
++  checkOtpVerifyRate,
++} from "../../lib/auth/otp-rate-limit";
+ import { checkLoginRate } from "../../lib/auth/login-rate-limit";
+ import {
+   signInWithPassword,
+@@ -108,6 +111,8 @@ export async function verifyLoginOtp(
+       ok: false,
+       error: parsed.error.issues[0]?.message ?? "Invalid OTP",
+     };
++  const rl = await checkOtpVerifyRate(parsed.data.phone); // A-2
++  if (!rl.ok) return { ok: false, error: rl.error };
+   try {
+     const { user } = await getOtpProvider().verifyOtp(
+       parsed.data.phone,
+@@ -137,6 +142,8 @@ export async function resetPasswordWithOtp(
+     };
+   const pwIssue = passwordIssue(parsed.data.password);
+   if (pwIssue) return { ok: false, error: pwIssue };
++  const rl = await checkOtpVerifyRate(parsed.data.phone); // A-2
++  if (!rl.ok) return { ok: false, error: rl.error };
+   try {
+     // OTP verify establishes the session → updateUser sets the new password on THIS user.
+     const { user } = await getOtpProvider().verifyOtp(
+diff --git a/app/opengraph-image.tsx b/app/opengraph-image.tsx
+index 1ff292f..3b5f590 100644
+--- a/app/opengraph-image.tsx
++++ b/app/opengraph-image.tsx
+@@ -48,6 +48,7 @@ export default async function OpengraphImage() {
+             letterSpacing: "-2px",
+           }}
+         >
++          {/* Approved D-29 exception: brand tagline only, no income claim (see app/page.tsx). */}
+           Seekho. Badho. Kamao.
+         </span>
+         <span
+diff --git a/app/page.tsx b/app/page.tsx
+index 0346d6c..3c33c0a 100644
+--- a/app/page.tsx
++++ b/app/page.tsx
+@@ -142,6 +142,9 @@ export default async function HomePage() {
+                 Making potential visible
+               </span>
+               {/* COPY: brand tagline (approved) + safe subline explaining the model (no income, D-29) */}
++              {/* "Seekho. Badho. Kamao." is an APPROVED D-29 exception (founder decision): brand
++                  tagline only — no income number, promise, or guarantee. The Guru income-language
++                  guardrail (modules/ai/guru/guardrail.ts) stays strict for dynamic content. */}
+               <h1 className="enter enter-2 mt-4 font-heading text-5xl font-extrabold leading-[1.05] text-charcoal sm:text-6xl">
+                 Seekho.
+                 <br />
+diff --git a/app/privacy/page.tsx b/app/privacy/page.tsx
+index d3690fd..4a2f43e 100644
+--- a/app/privacy/page.tsx
++++ b/app/privacy/page.tsx
+@@ -1,3 +1,4 @@
++import Link from "next/link";
+ import { LegalPage } from "../../components/marketing/legal-page";
+ import { pageMetadata } from "../../lib/seo";
+ 
+@@ -7,13 +8,101 @@ export const metadata = pageMetadata({
+   path: "/privacy",
+ });
+ 
++// P-4 (Wave-2): honest STARTING draft. NOT final — must be reviewed and finalised by a lawyer
++// before launch (LAUNCH_CONFIG #2). Describes real data flows (phone/OTP, Razorpay, Supabase).
+ export default function PrivacyPage() {
+   return (
+     <LegalPage title="Privacy Policy">
+-      {/* COPY: draft — full policy coming; Fable + legal to finalise */}
++      <p className="rounded-lg border border-warning-strong/30 bg-warning-soft/40 px-4 py-3 text-warning-strong">
++        <strong>DRAFT — pending legal review, not yet binding.</strong> This is
++        a working draft published for transparency. It will be reviewed and
++        finalised by legal counsel before it takes effect.
++      </p>
++
++      <p>
++        This Policy explains how{" "}
++        <strong>EDZERA INSPIRING EXCELLENCE LLP</strong> (&ldquo;we&rdquo;,
++        &ldquo;us&rdquo;) handles your personal data when you use GoSkilled
++        (&ldquo;the Platform&rdquo;).
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        1. What we collect
++      </h2>
++      <ul className="list-disc space-y-1 pl-5">
++        <li>
++          <strong>Account details:</strong> your mobile number (verified by
++          one-time password), and — if you provide them — your name, email, and
++          learning goal.
++        </li>
++        <li>
++          <strong>Payment information:</strong> processed by our payment partner
++          (Razorpay). We receive a confirmation and order reference; we do{" "}
++          <strong>not</strong> store your card or bank credentials.
++        </li>
++        <li>
++          <strong>
++            Payout / KYC details (only if you join the affiliate programme):
++          </strong>{" "}
++          identity and bank details you submit for verification.
++        </li>
++        <li>
++          <strong>Usage data:</strong> course progress and basic analytics to
++          run and improve the Platform.
++        </li>
++      </ul>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        2. How we use it
++      </h2>
++      <p>
++        To create and secure your account, provide course access, process
++        payments, respond to support requests, and comply with legal
++        obligations. We do not sell your personal data.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        3. Processors we rely on
++      </h2>
++      <p>
++        We use trusted service providers to run the Platform, including{" "}
++        <strong>Supabase</strong> (authentication and database) and{" "}
++        <strong>Razorpay</strong> (payments). These providers process data on
++        our behalf under their own security commitments.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        4. How we protect it
++      </h2>
++      <p>
++        Sensitive identity and bank details (such as PAN and account number) are
++        encrypted at rest. Access is restricted to what is needed to operate the
++        Platform, and we never include these details in our logs.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        5. Your choices
++      </h2>
++      <p>
++        You can request access to, correction of, or deletion of your personal
++        data, subject to legal and record-keeping requirements. Marketing emails
++        include an unsubscribe link. To make a request, use the{" "}
++        <Link href="/contact" className="text-brand underline">
++          Contact
++        </Link>{" "}
++        page.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        6. Changes
++      </h2>
+       <p>
+-        Content coming soon. We take your privacy seriously and will publish our
+-        full policy here before launch.
++        We may update this Policy; material changes will be notified on the
++        Platform. Your use of GoSkilled is also governed by our{" "}
++        <Link href="/terms" className="text-brand underline">
++          Terms of Service
++        </Link>
++        .
+       </p>
+     </LegalPage>
+   );
+diff --git a/app/register/actions.ts b/app/register/actions.ts
+index 135fca3..153bfca 100644
+--- a/app/register/actions.ts
++++ b/app/register/actions.ts
+@@ -6,7 +6,10 @@
+ import { z } from "zod";
+ import { phoneSchema } from "../../modules/payments/schemas";
+ import { getOtpProvider } from "../../lib/auth/otp";
+-import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
++import {
++  checkOtpSendRate,
++  checkOtpVerifyRate,
++} from "../../lib/auth/otp-rate-limit";
+ import { syncUser } from "../../lib/auth/user-sync";
+ import { resolveSponsorByCode } from "../../lib/auth/sponsor";
+ import { isFeatureVisible } from "../../lib/feature-visibility/context";
+@@ -112,6 +115,9 @@ export async function verifyRegisterOtp(
+   const pwIssue = passwordIssue(parsed.data.password);
+   if (pwIssue) return { ok: false, error: pwIssue };
+ 
++  const rl = await checkOtpVerifyRate(parsed.data.phone); // A-2
++  if (!rl.ok) return { ok: false, error: rl.error };
++
+   try {
+     const { user } = await getOtpProvider().verifyOtp(
+       parsed.data.phone,
+diff --git a/app/terms/page.tsx b/app/terms/page.tsx
+index 0980968..0fff02b 100644
+--- a/app/terms/page.tsx
++++ b/app/terms/page.tsx
+@@ -1,3 +1,4 @@
++import Link from "next/link";
+ import { LegalPage } from "../../components/marketing/legal-page";
+ import { pageMetadata } from "../../lib/seo";
+ 
+@@ -7,13 +8,100 @@ export const metadata = pageMetadata({
+   path: "/terms",
+ });
+ 
++// P-4 (Wave-2): honest STARTING draft. NOT final — must be reviewed and finalised by a lawyer
++// before launch (LAUNCH_CONFIG #3). No income/earning guarantees anywhere (D-29).
+ export default function TermsPage() {
+   return (
+     <LegalPage title="Terms of Service">
+-      {/* COPY: draft — full terms coming; Fable + legal to finalise */}
++      <p className="rounded-lg border border-warning-strong/30 bg-warning-soft/40 px-4 py-3 text-warning-strong">
++        <strong>DRAFT — pending legal review, not yet binding.</strong> This is
++        a working draft published for transparency. It will be reviewed and
++        finalised by legal counsel before it takes effect.
++      </p>
++
++      <p>
++        These Terms govern your use of GoSkilled (&ldquo;the Platform&rdquo;),
++        operated by <strong>EDZERA INSPIRING EXCELLENCE LLP</strong>
++        (&ldquo;we&rdquo;, &ldquo;us&rdquo;). By creating an account or making a
++        purchase, you agree to these Terms.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        1. Who can use GoSkilled
++      </h2>
++      <p>
++        You must be at least 18 years old and able to enter into a binding
++        contract. Accounts are created by invitation via a referral code. You
++        are responsible for keeping your login credentials secure and for
++        activity on your account.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        2. What we provide
++      </h2>
++      <p>
++        GoSkilled offers online skill courses and related learning material.
++        Access to paid courses is granted after a verified payment. We may add,
++        update, or retire course content over time. Course outcomes depend on
++        your own effort —{" "}
++        <strong>we make no income, earning, or job guarantee</strong> of any
++        kind.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        3. Payments
++      </h2>
++      <p>
++        Prices are shown in Indian Rupees as a single, all-in amount with no
++        hidden charges. Payments are processed by our payment partner
++        (Razorpay); we do not store your card or banking credentials. Course
++        access is unlocked only after your payment is confirmed.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        4. Refunds
++      </h2>
++      <p>
++        Purchases are covered by our 48-hour refund window. See the{" "}
++        <Link href="/refund-policy" className="text-brand underline">
++          Refund Policy
++        </Link>{" "}
++        for the full details.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        5. Acceptable use
++      </h2>
++      <p>
++        Do not share, resell, or redistribute course content or your account
++        access. Do not misuse the Platform, attempt to break its security, or
++        use it for anything unlawful. We may suspend accounts that violate these
++        Terms.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        6. Intellectual property
++      </h2>
++      <p>
++        All course content, branding, and material on the Platform belong to
++        EDZERA INSPIRING EXCELLENCE LLP or its licensors and are provided for
++        your personal, non-transferable use.
++      </p>
++
++      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
++        7. Changes and contact
++      </h2>
+       <p>
+-        Content coming soon. Our full terms of service will be published here
+-        before launch.
++        We may update these Terms; material changes will be notified on the
++        Platform. For any questions, reach us via the{" "}
++        <Link href="/contact" className="text-brand underline">
++          Contact
++        </Link>{" "}
++        page. Your privacy is covered by our{" "}
++        <Link href="/privacy" className="text-brand underline">
++          Privacy Policy
++        </Link>
++        .
+       </p>
+     </LegalPage>
+   );
+diff --git a/app/verify/[serial]/opengraph-image.tsx b/app/verify/[serial]/opengraph-image.tsx
+index f30925f..327c9c7 100644
+--- a/app/verify/[serial]/opengraph-image.tsx
++++ b/app/verify/[serial]/opengraph-image.tsx
+@@ -3,9 +3,22 @@
+ // social proof (D-29: no earnings, just a real learning credential). Invalid serial → neutral brand
+ // fallback (never renders fabricated data).
+ import { ImageResponse } from "next/og";
++import { headers } from "next/headers";
+ import { getCertificateBySerial } from "../../../lib/lms/certificate";
++import { rateLimit } from "../../../lib/rate-limit";
+ 
+ export const runtime = "nodejs"; // certificate lookup uses Prisma
++
++// A-5: throttle per IP, matching the /verify page — the image endpoint is another channel to the
++// same certificate lookup (learner name), so it must share the page's anti-enumeration limit.
++async function clientIp(): Promise<string> {
++  const h = await headers();
++  return (
++    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
++    h.get("x-real-ip") ||
++    "local"
++  );
++}
+ export const size = { width: 1200, height: 630 };
+ export const contentType = "image/png";
+ export const alt = "GoSkilled certificate";
+@@ -22,7 +35,14 @@ export default async function Image({
+ }: {
+   params: { serial: string };
+ }) {
+-  const cert = await getCertificateBySerial(params.serial).catch(() => null);
++  // Over the per-IP limit → skip the lookup and render the neutral fallback (never leak a name).
++  const rl = rateLimit(`verify:${await clientIp()}`, {
++    max: 20,
++    windowMs: 60_000,
++  });
++  const cert = rl.ok
++    ? await getCertificateBySerial(params.serial).catch(() => null)
++    : null;
+ 
+   const GREEN = "#137E49";
+   const GOLD = "#EDC825";
+diff --git a/components/admin/withdrawal-actions.tsx b/components/admin/withdrawal-actions.tsx
+index 59ae09b..1872e6b 100644
+--- a/components/admin/withdrawal-actions.tsx
++++ b/components/admin/withdrawal-actions.tsx
+@@ -13,10 +13,12 @@ import {
+ export function WithdrawalActions({
+   withdrawalId,
+   canMark,
++  payoutsEnabled,
+   status,
+ }: {
+   withdrawalId: string;
+   canMark: boolean;
++  payoutsEnabled: boolean;
+   status: "APPLIED" | "IN_PROGRESS" | "PAID" | "REJECTED";
+ }) {
+   const router = useRouter();
+@@ -35,6 +37,9 @@ export function WithdrawalActions({
+   }
+ 
+   async function onMarkPaid() {
++    // D-01: never invite an out-of-band bank transfer while payouts are OFF — the server
++    // would reject the ledger move, leaving a real transfer with no record.
++    if (!payoutsEnabled) return;
+     if (
+       !window.confirm(
+         "Confirm you have ALREADY transferred this amount via bank. Mark PAID?",
+@@ -74,7 +79,11 @@ export function WithdrawalActions({
+           onClick={onMarkPaid}
+           disabled={busy || !canMark}
+           title={
+-            canMark ? undefined : "KYC must be approved and balance sufficient"
++            !payoutsEnabled
++              ? "Payouts are disabled (D-01) — no transfers"
++              : canMark
++                ? undefined
++                : "KYC must be approved and balance sufficient"
+           }
+           className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-brand-fg hover:bg-brand/90 disabled:opacity-40"
+         >
+diff --git a/components/affiliate/kyc-form.tsx b/components/affiliate/kyc-form.tsx
+index e98ce45..6f2bf54 100644
+--- a/components/affiliate/kyc-form.tsx
++++ b/components/affiliate/kyc-form.tsx
+@@ -166,8 +166,8 @@ export function KycForm({ initial }: { initial: KycInitial }) {
+ 
+       {!emailOk || !waOk ? (
+         <p className="text-xs text-muted">
+-          Tip: verify your email and WhatsApp above so we can reach you about
+-          payouts.
++          Verify your email and WhatsApp above (each with a one-time code)
++          before submitting — we need both to reach you about payouts.
+         </p>
+       ) : null}
+       {error && (
+@@ -175,7 +175,7 @@ export function KycForm({ initial }: { initial: KycInitial }) {
+           {error}
+         </p>
+       )}
+-      <Button type="submit" variant="gold" disabled={busy}>
++      <Button type="submit" variant="gold" disabled={busy || !emailOk || !waOk}>
+         {busy ? "Submitting…" : "Submit for review"}
+       </Button>
+     </form>
+diff --git a/lib/admin/audit-log.ts b/lib/admin/audit-log.ts
+index ff17cbc..933bcf9 100644
+--- a/lib/admin/audit-log.ts
++++ b/lib/admin/audit-log.ts
+@@ -76,7 +76,9 @@ export async function recentAudit(limit = 10): Promise<AuditRow[]> {
+ }
+ 
+ function csvCell(v: string): string {
+-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
++  // A-3: neutralise CSV formula injection (Excel/Sheets execute cells starting with = + - @ / tab / CR).
++  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
++  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+ }
+ 
+ /** Serialize audit rows to CSV (no PII — meta is JSON-stringified as-is). */
+diff --git a/lib/admin/review.ts b/lib/admin/review.ts
+index 9b4746f..202e5a0 100644
+--- a/lib/admin/review.ts
++++ b/lib/admin/review.ts
+@@ -4,13 +4,31 @@ import { prisma } from "../prisma";
+ import type { AdminIdentity } from "../auth/admin";
+ import { recordAdminAction } from "./audit";
+ 
++export type ResolveReviewResult = { ok: true } | { ok: false; error: string };
++
+ export async function resolveReview(
+   actor: AdminIdentity,
+   orderId: string,
+   note?: string,
+-) {
+-  return prisma.$transaction(async (tx) => {
+-    return recordAdminAction(tx, {
++): Promise<ResolveReviewResult> {
++  // AD-11: only resolve a flag that actually exists, and only once (idempotency). Without this an
++  // admin could resolve an arbitrary orderId, and repeated clicks would create duplicate audit rows.
++  const [flag, already] = await Promise.all([
++    prisma.adminAction.findFirst({
++      where: { action: "FLAG_MANUAL_REVIEW", entityId: orderId },
++      select: { id: true },
++    }),
++    prisma.adminAction.findFirst({
++      where: { action: "REVIEW_RESOLVED", entityId: orderId },
++      select: { id: true },
++    }),
++  ]);
++  if (!flag)
++    return { ok: false, error: "No pending review found for that order." };
++  if (already) return { ok: true }; // idempotent — already resolved, no duplicate row
++
++  await prisma.$transaction(async (tx) => {
++    await recordAdminAction(tx, {
+       actor,
+       action: "REVIEW_RESOLVED",
+       entity: "Order",
+@@ -18,4 +36,5 @@ export async function resolveReview(
+       meta: note ? { note } : undefined,
+     });
+   });
++  return { ok: true };
+ }
+diff --git a/lib/affiliate/network.ts b/lib/affiliate/network.ts
+index 0763c76..122772f 100644
+--- a/lib/affiliate/network.ts
++++ b/lib/affiliate/network.ts
+@@ -170,8 +170,12 @@ export async function getL1Export(
+ }
+ 
+ function csvCell(v: string): string {
++  // A-3: neutralise CSV formula injection — a cell starting with = + - @ (or a leading tab/CR) is
++  // executed as a formula by Excel/Sheets. The Name column is attacker-controllable (a downline sets
++  // their own display name), so prefix any such value with a single quote before quoting.
++  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+   // Quote if the value contains a comma, quote, or newline; double embedded quotes.
+-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
++  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+ }
+ 
+ /** CSV for the L1 export (server-generated). Columns: Name, Mobile, Joined, Packages. */
+diff --git a/lib/auth/otp-rate-limit.ts b/lib/auth/otp-rate-limit.ts
+index 005aecc..5cbc19f 100644
+--- a/lib/auth/otp-rate-limit.ts
++++ b/lib/auth/otp-rate-limit.ts
+@@ -56,3 +56,43 @@ export function evaluateOtpSend(
+ export async function checkOtpSendRate(phone: string): Promise<OtpRateCheck> {
+   return evaluateOtpSend(await clientIp(), phone);
+ }
++
++// A-2: throttle OTP *verify* attempts too (defence-in-depth against online brute-force of the 4–6
++// digit code). Supabase has its own attempt limits; this adds an app-level backstop. Slightly more
++// generous than send, since a code arrives once and a user may fat-finger it a couple of times.
++const VERIFY_PER_IP_MAX = 15;
++const VERIFY_PER_PHONE_MAX = 6;
++
++/** Pure throttle decision for an OTP verify attempt — testable without a request context. */
++export function evaluateOtpVerify(
++  ip: string,
++  phone: string,
++  now: number = Date.now(),
++): OtpRateCheck {
++  const byPhone = rateLimit(
++    `otp-verify:phone:${phone}`,
++    { windowMs: WINDOW_MS, max: VERIFY_PER_PHONE_MAX },
++    now,
++  );
++  if (!byPhone.ok)
++    return {
++      ok: false,
++      error: "Too many attempts for this number. Please wait a few minutes.",
++    };
++  const byIp = rateLimit(
++    `otp-verify:ip:${ip}`,
++    { windowMs: WINDOW_MS, max: VERIFY_PER_IP_MAX },
++    now,
++  );
++  if (!byIp.ok)
++    return {
++      ok: false,
++      error: "Too many attempts. Please try again in a few minutes.",
++    };
++  return { ok: true };
++}
++
++/** Throttle an OTP verify for `phone` from the current request's IP. Call BEFORE provider.verifyOtp. */
++export async function checkOtpVerifyRate(phone: string): Promise<OtpRateCheck> {
++  return evaluateOtpVerify(await clientIp(), phone);
++}
+diff --git a/lib/auth/post-auth.ts b/lib/auth/post-auth.ts
+index 41f0a4b..8681229 100644
+--- a/lib/auth/post-auth.ts
++++ b/lib/auth/post-auth.ts
+@@ -12,6 +12,9 @@ const DASHBOARD = "/dashboard/home";
+ /** Only same-origin absolute paths are honoured as a post-login `next` (blocks open-redirects). */
+ export function safeNext(next: string | null | undefined): string | null {
+   if (!next) return null;
++  // A-4: reject backslashes — browsers normalise "\" → "/", so "/\evil.com" or "/\\evil.com"
++  // would otherwise become a protocol-relative "//evil.com" escape after the startsWith checks.
++  if (next.includes("\\")) return null;
+   // Must be a root-relative path and NOT a protocol-relative "//host" escape.
+   if (!next.startsWith("/") || next.startsWith("//")) return null;
+   return next;
+diff --git a/lib/email/provider.ts b/lib/email/provider.ts
+index f36fb6f..7a24601 100644
+--- a/lib/email/provider.ts
++++ b/lib/email/provider.ts
+@@ -15,6 +15,14 @@ export interface EmailProvider {
+   send(msg: EmailMessage): Promise<void>;
+ }
+ 
++// A-6: mask the recipient so an email address (PII) never lands in logs — console mode is
++// prod-allowed (degraded), so the `to` field must never be logged in the clear.
++function maskEmail(t: string): string {
++  const at = t.indexOf("@");
++  if (at <= 0) return "***";
++  return `${t.slice(0, 1)}***@${t.slice(at + 1)}`;
++}
++
+ // ── console: one structured line per email — dev-readable, prod-ALLOWED (degraded, soft-warned). ──
+ export const consoleEmailProvider: EmailProvider = {
+   name: "console",
+@@ -22,7 +30,7 @@ export const consoleEmailProvider: EmailProvider = {
+     console.log(
+       JSON.stringify({
+         email: "receipt",
+-        to: msg.to,
++        to: maskEmail(msg.to),
+         subject: msg.subject,
+         idempotencyKey: msg.idempotencyKey,
+       }),
+diff --git a/lib/email/receipt.ts b/lib/email/receipt.ts
+index 8c859de..f41a87d 100644
+--- a/lib/email/receipt.ts
++++ b/lib/email/receipt.ts
+@@ -1,5 +1,7 @@
+ // Purchase-receipt email builder (2a). PURE — no I/O, no env — so it's fully unit-testable.
+ // D-29: a receipt states facts (what was bought, price, refund window). No income claims.
++// COMPLIANCE: the LLP is NOT GST-registered — no "GST" wording anywhere in this receipt
++// until registration is confirmed (founder lock, see app/packages/page.tsx).
+ import { formatINR } from "../money";
+ 
+ export interface ReceiptInput {
+@@ -50,7 +52,7 @@ export function buildReceiptEmail(i: ReceiptInput): EmailMessage {
+     `Thank you for your purchase on GoSkilled. Here is your receipt:`,
+     "",
+     `Package: ${i.packageName}`,
+-    `Amount paid: ${amount} (GST-inclusive)`,
++    `Amount paid: ${amount} — no hidden charges`,
+     `Order ID: ${i.orderId}`,
+     `Date: ${when} IST`,
+     "",
+@@ -64,7 +66,7 @@ export function buildReceiptEmail(i: ReceiptInput): EmailMessage {
+   <p>Thank you for your purchase on GoSkilled. Here is your receipt:</p>
+   <table style="border-collapse:collapse">
+     <tr><td style="padding:2px 12px 2px 0"><strong>Package</strong></td><td>${escapeHtml(i.packageName)}</td></tr>
+-    <tr><td style="padding:2px 12px 2px 0"><strong>Amount paid</strong></td><td>${amount} (GST-inclusive)</td></tr>
++    <tr><td style="padding:2px 12px 2px 0"><strong>Amount paid</strong></td><td>${amount} — no hidden charges</td></tr>
+     <tr><td style="padding:2px 12px 2px 0"><strong>Order ID</strong></td><td>${escapeHtml(i.orderId)}</td></tr>
+     <tr><td style="padding:2px 12px 2px 0"><strong>Date</strong></td><td>${when} IST</td></tr>
+   </table>
+diff --git a/lib/feature-visibility/registry.ts b/lib/feature-visibility/registry.ts
+index 39df7be..19506c9 100644
+--- a/lib/feature-visibility/registry.ts
++++ b/lib/feature-visibility/registry.ts
+@@ -66,9 +66,11 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
+     label: "Affiliate (Earn)",
+     description:
+       "The Affiliate/Earn layer: Earn workspace, referral share links, network, wallet, commissions, leaderboard, rewards, KYC-for-payout. DR-040 legal launch-gate — disable until affiliate legal review clears.",
+-    // Default preserves current product behaviour (Earn is live). Flip the GLOBAL override to hidden
+-    // for a review window or until D-01 legal clears (a LAUNCH_CONFIG decision, not a code default).
+-    defaultVisible: true,
++    // FAIL-CLOSED default (Wave-2 FV-1): a legal gate must never be open by accident. Earn is made
++    // visible for launch by an EXPLICIT GLOBAL SHOW override (FeatureOverride, seeded) — an intentional
++    // act, not a code default. With an empty override table earn stays hidden. Payouts remain OFF (D-01);
++    // commissions stay display-only/range (DR-043/D-29). Remove the SHOW override to re-close the gate.
++    defaultVisible: false,
+     failSafeHidden: true, // any error/ambiguity → hidden (compliance-safe)
+     adminControllable: true,
+   },
+diff --git a/modules/ai/guru/guardrail.ts b/modules/ai/guru/guardrail.ts
+index cfccd34..35f6808 100644
+--- a/modules/ai/guru/guardrail.ts
++++ b/modules/ai/guru/guardrail.ts
+@@ -6,6 +6,12 @@
+ // Precision matters: legitimate course concepts (revenue, profit, ROI, margin) are NOT blocked —
+ // only PERSONAL earning intent ("kitna kamaunga", "how much can I earn", "refer and earn", salary,
+ // income, payout, commission…). Bias, when ambiguous, is toward redirecting (D-29 is a floor).
++//
++// SCOPE: this guardrail governs DYNAMIC content only (learner questions + Guru answers) and stays
++// strict — do NOT weaken it. The static brand tagline "Seekho. Badho. Kamao." is an APPROVED D-29
++// exception (founder decision): brand copy with no income number, promise, or guarantee. It is never
++// routed through this function, so the "kamao" stem matching here does not — and must not — apply
++// to the tagline. Keep the two concerns separate: brand mark ≠ personalised income claim.
+ 
+ /** Normalize for matching: lowercase, keep ₹ + word chars, collapse whitespace. */
+ function normalize(text: string): string {
+diff --git a/modules/payments/webhook-flow.ts b/modules/payments/webhook-flow.ts
+index c204f99..0af1015 100644
+--- a/modules/payments/webhook-flow.ts
++++ b/modules/payments/webhook-flow.ts
+@@ -109,6 +109,20 @@ export function decideWebhookActions(
+             },
+           ],
+         };
++      if (event.amountInPaise !== order.amountInPaise) {
++        // Partial (or mismatched) refund: only an exact-amount refund is a "full refund".
++        // Auto-clawback + revoke would over-react to a partial money-back — route to a
++        // human instead. Order stays PAID; commissions and enrollments untouched.
++        return {
++          actions: [
++            {
++              do: "FLAG_MANUAL_REVIEW",
++              orderId: order.id,
++              reason: `partial refund — manual handling (refunded ${event.amountInPaise} of ${order.amountInPaise})`,
++            },
++          ],
++        };
++      }
+       if (isWithinRefundWindow(order.paidAt, now)) {
+         // DR-025: within 48h — automatic clawback; commission never becomes available.
+         return {
+diff --git a/prisma/migrations/20260712100000_gst_rate_zero_until_registered/migration.sql b/prisma/migrations/20260712100000_gst_rate_zero_until_registered/migration.sql
+new file mode 100644
+index 0000000..ac91b10
+--- /dev/null
++++ b/prisma/migrations/20260712100000_gst_rate_zero_until_registered/migration.sql
+@@ -0,0 +1,14 @@
++-- M-2 (Wave-2 Tier-A): the LLP is NOT GST-registered, so no order may book a GST component.
++-- Flip the Package.gstRateBps default to 0 and zero the existing packages so every new
++-- Order persists gstInPaise = 0 (gstFromInclusive rate-0 path is already tested).
++-- The column is KEPT for future use once registration is confirmed (founder decision).
++ALTER TABLE "Package" ALTER COLUMN "gstRateBps" SET DEFAULT 0;
++
++UPDATE "Package" SET "gstRateBps" = 0;
++
++-- FV-1 (Wave-2 Tier-A): the `earn` feature is now fail-CLOSED by default in the registry.
++-- Launch shows it via an EXPLICIT GLOBAL SHOW override (intentional act, not a fail-open default).
++-- Idempotent on the (featureKey, scope, scopeValue) unique index. Remove this row to re-close the gate.
++INSERT INTO "FeatureOverride" ("id", "featureKey", "scope", "scopeValue", "visible", "updatedAt")
++VALUES ('fv_earn_global_show', 'earn', 'GLOBAL', '', true, CURRENT_TIMESTAMP)
++ON CONFLICT ("featureKey", "scope", "scopeValue") DO UPDATE SET "visible" = true;
+diff --git a/prisma/schema.prisma b/prisma/schema.prisma
+index 6c9de06..b84c45f 100644
+--- a/prisma/schema.prisma
++++ b/prisma/schema.prisma
+@@ -84,8 +84,9 @@ model Package {
+   id            String   @id @default(cuid())
+   slug          String   @unique            // skill-builder | career-booster
+   name          String
+-  priceInPaise  Int                          // GST-INCLUSIVE display price (DR-023)
+-  gstRateBps    Int      @default(1800)     // 18% in basis points
++  priceInPaise  Int                          // single display price (DR-023)
++  gstRateBps    Int      @default(0)        // basis points; 0 until GST registration is
++                                            // confirmed (LLP not GST-registered — founder lock)
+   isActive      Boolean  @default(true)
+   includesFutureCourses Boolean @default(false) // DR-021: true for Career Booster
+   courses       PackageCourse[]
+diff --git a/prisma/seed.ts b/prisma/seed.ts
+index 4dc31c1..23cd82d 100644
+--- a/prisma/seed.ts
++++ b/prisma/seed.ts
+@@ -251,6 +251,7 @@ async function main() {
+     update: {
+       name: "Skill Builder",
+       priceInPaise: 149900,
++      gstRateBps: 0, // LLP not GST-registered — orders must book gstInPaise=0
+       includesFutureCourses: false,
+       isActive: true,
+     },
+@@ -258,6 +259,7 @@ async function main() {
+       slug: "skill-builder",
+       name: "Skill Builder",
+       priceInPaise: 149900,
++      gstRateBps: 0,
+       includesFutureCourses: false,
+       isActive: true,
+     },
+@@ -268,6 +270,7 @@ async function main() {
+     update: {
+       name: "Career Booster",
+       priceInPaise: 219900,
++      gstRateBps: 0, // LLP not GST-registered — orders must book gstInPaise=0
+       includesFutureCourses: true,
+       isActive: true,
+     },
+@@ -275,6 +278,7 @@ async function main() {
+       slug: "career-booster",
+       name: "Career Booster",
+       priceInPaise: 219900,
++      gstRateBps: 0,
+       includesFutureCourses: true,
+       isActive: true,
+     },
+@@ -307,6 +311,28 @@ async function main() {
+     if (!exists) await prisma.ledgerAccount.create({ data: { type } });
+   }
+ 
++  // ── Feature Visibility (DR-040 / Wave-2 FV-1) ──────────────────────────────
++  // `earn` is fail-CLOSED by default in the registry. Launch shows it via an EXPLICIT GLOBAL SHOW
++  // override — an intentional act, not a fail-open code default. Remove this row to re-close the gate.
++  // (Payouts stay OFF via D-01 env flag; commissions stay display-only — this only controls surface
++  // visibility.) Idempotent on the (featureKey, scope, scopeValue) unique index.
++  await prisma.featureOverride.upsert({
++    where: {
++      featureKey_scope_scopeValue: {
++        featureKey: "earn",
++        scope: "GLOBAL",
++        scopeValue: "",
++      },
++    },
++    update: { visible: true },
++    create: {
++      featureKey: "earn",
++      scope: "GLOBAL",
++      scopeValue: "",
++      visible: true,
++    },
++  });
++
+   console.log(
+     "Seed complete: 2 launch courses ([PLACEHOLDER], PUBLISHED, 2 modules × 3 lessons, mock video), " +
+       "1 hidden Getting-Started course (Lesson 0, free preview, mock video — DR-030), " +
+diff --git a/tests/affiliate-analytics.test.ts b/tests/affiliate-analytics.test.ts
+index e349226..460917f 100644
+--- a/tests/affiliate-analytics.test.ts
++++ b/tests/affiliate-analytics.test.ts
+@@ -83,4 +83,19 @@ describe("l1ToCsv", () => {
+     expect(lines[1]).toContain("+919812345678");
+     expect(lines[2].startsWith(",,")).toBe(true); // null name + mobile → empty cells
+   });
++
++  it("A-3: neutralises CSV formula injection in the attacker-controlled name", () => {
++    const csv = l1ToCsv([
++      {
++        name: "=HYPERLINK(0)",
++        mobile: "+919812345678",
++        joinedAt: d("2026-07-09T06:00:00Z"),
++        packages: [],
++      },
++    ]);
++    const row = csv.split("\n")[1];
++    // The cell must be prefixed with a single quote so Excel/Sheets treats it as text, not a formula.
++    expect(row).toContain("'=HYPERLINK(0)");
++    expect(row.startsWith("=")).toBe(false);
++  });
+ });
+diff --git a/tests/checkout-referral-gate.test.ts b/tests/checkout-referral-gate.test.ts
+index a9510fb..8b710ef 100644
+--- a/tests/checkout-referral-gate.test.ts
++++ b/tests/checkout-referral-gate.test.ts
+@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
+   sendOtp: vi.fn(),
+   verifyOtp: vi.fn(),
+   checkOtpSendRate: vi.fn(),
++  checkOtpVerifyRate: vi.fn(),
+   syncUser: vi.fn(),
+   placeOrder: vi.fn(),
+   getPaymentProvider: vi.fn(),
+@@ -23,6 +24,7 @@ vi.mock("@/lib/auth/otp", () => ({
+ }));
+ vi.mock("@/lib/auth/otp-rate-limit", () => ({
+   checkOtpSendRate: h.checkOtpSendRate,
++  checkOtpVerifyRate: h.checkOtpVerifyRate,
+ }));
+ vi.mock("@/lib/auth/user-sync", () => ({ syncUser: h.syncUser }));
+ vi.mock("@/lib/payments/checkout", () => ({ startCheckout: h.placeOrder }));
+@@ -38,6 +40,7 @@ const PHONE = "9812345678";
+ beforeEach(() => {
+   vi.clearAllMocks();
+   h.checkOtpSendRate.mockResolvedValue({ ok: true });
++  h.checkOtpVerifyRate.mockResolvedValue({ ok: true });
+   h.anonId.mockReturnValue("anon-1");
+   h.sendOtp.mockResolvedValue(undefined);
+ });
+diff --git a/tests/email.test.ts b/tests/email.test.ts
+index a82822c..dcee208 100644
+--- a/tests/email.test.ts
++++ b/tests/email.test.ts
+@@ -35,6 +35,13 @@ describe("buildReceiptEmail (pure)", () => {
+     expect(m.html).toContain("Career Booster");
+   });
+ 
++  it("M-1: never mentions GST (LLP not GST-registered) in text or HTML", () => {
++    const m = buildReceiptEmail(BASE);
++    expect(m.text.toLowerCase()).not.toContain("gst");
++    expect(m.html.toLowerCase()).not.toContain("gst");
++    expect(m.text).toContain("no hidden charges");
++  });
++
+   it("escapes HTML in user-supplied fields (buyerName injection guard)", () => {
+     const m = buildReceiptEmail({
+       ...BASE,
+@@ -72,6 +79,15 @@ describe("email provider selection", () => {
+     expect(log).toHaveBeenCalledWith(expect.stringContaining("receipt"));
+     log.mockRestore();
+   });
++
++  it("A-6: console provider masks the recipient (no PII email in logs)", async () => {
++    const log = vi.spyOn(console, "log").mockImplementation(() => {});
++    await consoleEmailProvider.send(buildReceiptEmail(BASE));
++    const line = log.mock.calls[0]?.[0] as string;
++    expect(line).not.toContain("buyer@example.com");
++    expect(line).toContain("b***@example.com");
++    log.mockRestore();
++  });
+ });
+ 
+ describe("sendEmail is fail-safe", () => {
+@@ -108,8 +124,9 @@ describe("sendPurchaseReceipt", () => {
+     findUnique.mockResolvedValue({ email: "buyer@example.com", name: "Asha" });
+     const log = vi.spyOn(console, "log").mockImplementation(() => {});
+     await sendPurchaseReceipt(order);
++    // A-6: recipient is masked in the console line, never logged in the clear.
+     expect(log).toHaveBeenCalledWith(
+-      expect.stringContaining("buyer@example.com"),
++      expect.stringContaining("b***@example.com"),
+     );
+     log.mockRestore();
+   });
+diff --git a/tests/feature-visibility-admin.integration.test.ts b/tests/feature-visibility-admin.integration.test.ts
+index bd8f379..9158eba 100644
+--- a/tests/feature-visibility-admin.integration.test.ts
++++ b/tests/feature-visibility-admin.integration.test.ts
+@@ -18,16 +18,32 @@ const actor: AdminIdentity = {
+ };
+ const testUserId = `fvtest_${Date.now()}`;
+ 
+-async function overridesForEarn() {
+-  return (await prisma.featureOverride.findMany({
++type EarnRow = {
++  featureKey: string;
++  scope: "GLOBAL" | "ROLE" | "USER";
++  scopeValue: string;
++  visible: boolean;
++};
++
++// FV-1: `earn` is now fail-closed by default; launch reveals it via a GLOBAL SHOW override. Model that
++// launch baseline explicitly here so the resolver assertions are deterministic regardless of whether
++// the seed/migration GLOBAL SHOW row has been applied to this DB yet (deduped by the resolver anyway).
++const LAUNCH_SHOW_EARN: EarnRow = {
++  featureKey: "earn",
++  scope: "GLOBAL",
++  scopeValue: "",
++  visible: true,
++};
++
++async function overridesForEarn(): Promise<EarnRow[]> {
++  const rows = (await prisma.featureOverride.findMany({
+     where: { featureKey: "earn" },
+     select: { featureKey: true, scope: true, scopeValue: true, visible: true },
+-  })) as {
+-    featureKey: string;
+-    scope: "GLOBAL" | "ROLE" | "USER";
+-    scopeValue: string;
+-    visible: boolean;
+-  }[];
++  })) as EarnRow[];
++  const hasGlobalShow = rows.some(
++    (r) => r.scope === "GLOBAL" && r.visible === true,
++  );
++  return hasGlobalShow ? rows : [...rows, LAUNCH_SHOW_EARN];
+ }
+ 
+ describe.skipIf(!HAS_DB)("Feature Visibility admin adapter (DR-040)", () => {
+@@ -98,7 +114,7 @@ describe.skipIf(!HAS_DB)("Feature Visibility admin adapter (DR-040)", () => {
+     const rows = await overridesForEarn();
+     expect(
+       resolveFeature("earn", rows, { userId: testUserId, role: "USER" }),
+-    ).toBe(true); // back to default (visible)
++    ).toBe(true); // no user override → visible via the launch GLOBAL SHOW (FV-1)
+ 
+     const audit = await prisma.adminAction.findFirst({
+       where: {
+diff --git a/tests/feature-visibility.test.ts b/tests/feature-visibility.test.ts
+index 1c056ec..bcc1058 100644
+--- a/tests/feature-visibility.test.ts
++++ b/tests/feature-visibility.test.ts
+@@ -20,12 +20,23 @@ function row(
+   return { featureKey, scope, scopeValue, visible };
+ }
+ 
++// FV-1: `earn` is now FAIL-CLOSED (registry default hidden). Launch reveals it via an EXPLICIT
++// GLOBAL SHOW override (seeded). Tests that exercise ROLE/USER scoping layer that SHOW as the base,
++// mirroring the real launch state (earn shown globally, then optionally hidden per role/user).
++const SHOW_EARN = row("GLOBAL", "", true);
++
+ describe("Feature Visibility resolver (DR-040)", () => {
+-  it("no overrides → registry default (earn visible, marketplace hidden)", () => {
+-    expect(resolveFeature("earn", [], USER)).toBe(true);
++  it("FV-1: no overrides → earn HIDDEN (fail-closed default); marketplace hidden", () => {
++    expect(resolveFeature("earn", [], USER)).toBe(false);
++    expect(resolveFeature("earn", [], ANON)).toBe(false);
+     expect(resolveFeature("marketplace", [], USER)).toBe(false);
+   });
+ 
++  it("FV-1: an explicit GLOBAL SHOW reveals earn (the launch config)", () => {
++    expect(resolveFeature("earn", [SHOW_EARN], USER)).toBe(true);
++    expect(resolveFeature("earn", [SHOW_EARN], ANON)).toBe(true);
++  });
++
+   it("GLOBAL hide hides for everyone; GLOBAL show shows", () => {
+     expect(resolveFeature("earn", [row("GLOBAL", "", false)], USER)).toBe(
+       false,
+@@ -42,15 +53,15 @@ describe("Feature Visibility resolver (DR-040)", () => {
+     ).toBe(true); // extensibility: a 2nd feature toggles through the same system
+   });
+ 
+-  it("ROLE scope hides only the matching role", () => {
+-    const ov = [row("ROLE", "REVIEWER", false)];
++  it("ROLE scope hides only the matching role (over a GLOBAL SHOW base)", () => {
++    const ov = [SHOW_EARN, row("ROLE", "REVIEWER", false)];
+     expect(resolveFeature("earn", ov, REVIEWER)).toBe(false);
+     expect(resolveFeature("earn", ov, USER)).toBe(true); // a normal USER is unaffected
+-    expect(resolveFeature("earn", ov, ANON)).toBe(true); // anon has no role → default
++    expect(resolveFeature("earn", ov, ANON)).toBe(true); // anon has no role → GLOBAL SHOW applies
+   });
+ 
+-  it("USER scope hides only the matching user", () => {
+-    const ov = [row("USER", "u1", false)];
++  it("USER scope hides only the matching user (over a GLOBAL SHOW base)", () => {
++    const ov = [SHOW_EARN, row("USER", "u1", false)];
+     expect(resolveFeature("earn", ov, USER)).toBe(false); // u1
+     expect(resolveFeature("earn", ov, REVIEWER)).toBe(true); // u2
+   });
+@@ -89,14 +100,20 @@ describe("Feature Visibility resolver (DR-040)", () => {
+     expect(hidden.learn).toBe(true);
+     expect(hidden.account).toBe(true);
+ 
+-    const visible = resolveAllFeatures([], USER);
++    // FV-1: with the launch GLOBAL SHOW present, earn (and derived share) are visible.
++    const visible = resolveAllFeatures([SHOW_EARN], USER);
+     expect(visible.earn).toBe(true);
+     expect(visible.share).toBe(true);
++
++    // FV-1: with NO overrides, earn is fail-closed hidden (and share follows).
++    const bare = resolveAllFeatures([], USER);
++    expect(bare.earn).toBe(false);
++    expect(bare.share).toBe(false);
+   });
+ 
+   it("overrides for other features do not bleed across keys", () => {
+-    // hiding marketplace must not affect earn.
+-    const ov = [row("GLOBAL", "", false, "marketplace")];
++    // hiding marketplace must not affect earn (which is visible here via its GLOBAL SHOW).
++    const ov = [SHOW_EARN, row("GLOBAL", "", false, "marketplace")];
+     expect(resolveFeature("earn", ov, USER)).toBe(true);
+     expect(resolveFeature("marketplace", ov, USER)).toBe(false);
+   });
+diff --git a/tests/kyc-doc-route.test.ts b/tests/kyc-doc-route.test.ts
+index 4056c55..d8d90b0 100644
+--- a/tests/kyc-doc-route.test.ts
++++ b/tests/kyc-doc-route.test.ts
+@@ -18,6 +18,11 @@ vi.mock("@/lib/kyc/doc-access", () => ({
+ vi.mock("@/lib/auth/action-rate-limit", () => ({
+   checkActionRate: vi.fn(async () => ({ ok: true })),
+ }));
++// FV-1: the owner doc route re-asserts earn visibility (now fail-closed by default). Mock the launch
++// GLOBAL SHOW state so the self-only/404 access logic under test runs, not the feature gate.
++vi.mock("@/lib/feature-visibility/context", () => ({
++  isFeatureVisible: vi.fn().mockResolvedValue(true),
++}));
+ 
+ import { GET as adminDoc } from "@/app/admin/kyc/[userId]/doc/[kind]/route";
+ import { GET as ownerDoc } from "@/app/dashboard/earn/kyc/doc/[kind]/route";
+diff --git a/tests/login-actions.test.ts b/tests/login-actions.test.ts
+index fb2738e..84e61b3 100644
+--- a/tests/login-actions.test.ts
++++ b/tests/login-actions.test.ts
+@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
+   sendOtp: vi.fn(),
+   verifyOtp: vi.fn(),
+   checkOtpSendRate: vi.fn(),
++  checkOtpVerifyRate: vi.fn(),
+   checkLoginRate: vi.fn(),
+   syncUser: vi.fn(),
+   readRefCookie: vi.fn(),
+@@ -27,6 +28,7 @@ vi.mock("@/lib/auth/otp", () => ({
+ }));
+ vi.mock("@/lib/auth/otp-rate-limit", () => ({
+   checkOtpSendRate: h.checkOtpSendRate,
++  checkOtpVerifyRate: h.checkOtpVerifyRate,
+ }));
+ vi.mock("@/lib/auth/login-rate-limit", () => ({
+   checkLoginRate: h.checkLoginRate,
+@@ -49,6 +51,7 @@ beforeEach(() => {
+   vi.clearAllMocks();
+   h.checkLoginRate.mockResolvedValue({ ok: true });
+   h.checkOtpSendRate.mockResolvedValue({ ok: true });
++  h.checkOtpVerifyRate.mockResolvedValue({ ok: true });
+   h.readRefCookie.mockResolvedValue(undefined);
+   h.syncUser.mockResolvedValue({
+     id: "u-1",
+diff --git a/tests/money-spine.test.ts b/tests/money-spine.test.ts
+index d599f51..dec20fd 100644
+--- a/tests/money-spine.test.ts
++++ b/tests/money-spine.test.ts
+@@ -185,6 +185,24 @@ describe("Webhook decision flow", () => {
+       "FLAG_MANUAL_REVIEW",
+     ]);
+   });
++  it("M-3: PARTIAL refund → manual review only, NO clawback/revoke (even in-window)", () => {
++    const d = decideWebhookActions(
++      {
++        kind: "refund.processed",
++        orderId: "o1",
++        refundId: "r1",
++        amountInPaise: 50000, // partial (< 149900)
++      },
++      paid,
++      { alreadyProcessed: false, now: inWin },
++    );
++    expect(d.actions).toHaveLength(1);
++    expect(d.actions[0].do).toBe("FLAG_MANUAL_REVIEW");
++    // Order is NOT marked refunded, enrollments NOT revoked, commissions NOT clawed back.
++    expect(d.actions.map((a) => a.do)).not.toContain("MARK_REFUNDED");
++    expect(d.actions.map((a) => a.do)).not.toContain("CLAWBACK_COMMISSIONS");
++    expect(d.actions.map((a) => a.do)).not.toContain("REVOKE_ENROLLMENTS");
++  });
+ });
+ 
+ describe("Upline resolution (DR-007)", () => {
+diff --git a/tests/network-export-route.test.ts b/tests/network-export-route.test.ts
+index beba659..06a215c 100644
+--- a/tests/network-export-route.test.ts
++++ b/tests/network-export-route.test.ts
+@@ -14,6 +14,11 @@ vi.mock("@/lib/affiliate/network", () => ({
+   l1ToCsv: (rows: unknown[]) =>
+     `Name,Mobile,Joined (IST),Packages\n#rows=${rows.length}`,
+ }));
++// FV-1: earn is fail-closed by default; the launch GLOBAL SHOW makes it visible. Mock that state so
++// this test exercises the route's OWN auth/level logic, not the feature gate.
++vi.mock("@/lib/feature-visibility/context", () => ({
++  isFeatureVisible: vi.fn().mockResolvedValue(true),
++}));
+ 
+ import { GET } from "@/app/dashboard/earn/network/export/route";
+ 
+diff --git a/tests/otp-rate-limit.test.ts b/tests/otp-rate-limit.test.ts
+index 73b0b5b..674f15b 100644
+--- a/tests/otp-rate-limit.test.ts
++++ b/tests/otp-rate-limit.test.ts
+@@ -1,7 +1,7 @@
+ // GPS-M4 carried ticket — OTP-send throttle (per-IP + per-phone). Pure decision over the shared
+ // limiter; no DB, no request context.
+ import { describe, it, expect, beforeEach } from "vitest";
+-import { evaluateOtpSend } from "@/lib/auth/otp-rate-limit";
++import { evaluateOtpSend, evaluateOtpVerify } from "@/lib/auth/otp-rate-limit";
+ import { __resetRateLimits } from "@/lib/rate-limit";
+ 
+ const NOW = 1_000_000;
+@@ -42,3 +42,32 @@ describe("evaluateOtpSend", () => {
+     expect(evaluateOtpSend(ip, phone, NOW + 10 * 60 * 1000 + 1).ok).toBe(true);
+   });
+ });
++
++describe("evaluateOtpVerify (A-2 — brute-force backstop)", () => {
++  beforeEach(() => __resetRateLimits());
++
++  it("allows the first verify attempt", () => {
++    expect(evaluateOtpVerify("1.1.1.1", "9000000001", NOW).ok).toBe(true);
++  });
++
++  it("throttles a single phone after 6 attempts in the window", () => {
++    const ip = "1.1.1.1";
++    const phone = "9000000002";
++    for (let i = 0; i < 6; i++)
++      expect(evaluateOtpVerify(ip, phone, NOW + i).ok).toBe(true);
++    const blocked = evaluateOtpVerify(ip, phone, NOW + 7);
++    expect(blocked.ok).toBe(false);
++    if (!blocked.ok) expect(blocked.error).toMatch(/this number/i);
++  });
++
++  it("throttles a single IP after 15 attempts across different phones", () => {
++    const ip = "2.2.2.2";
++    for (let i = 0; i < 15; i++)
++      expect(
++        evaluateOtpVerify(ip, `90000${String(i).padStart(5, "0")}`, NOW + i).ok,
++      ).toBe(true);
++    const blocked = evaluateOtpVerify(ip, "9000099999", NOW + 16);
++    expect(blocked.ok).toBe(false);
++    if (!blocked.ok) expect(blocked.error).toMatch(/too many/i);
++  });
++});
+diff --git a/tests/post-auth-redirect.test.ts b/tests/post-auth-redirect.test.ts
+index c594e93..0167030 100644
+--- a/tests/post-auth-redirect.test.ts
++++ b/tests/post-auth-redirect.test.ts
+@@ -12,6 +12,12 @@ describe("safeNext (open-redirect guard)", () => {
+     expect(safeNext("//evil.com")).toBeNull();
+   });
+ 
++  it("A-4: rejects backslash escapes that browsers normalise to //host", () => {
++    expect(safeNext("/\\evil.com")).toBeNull();
++    expect(safeNext("/\\/evil.com")).toBeNull();
++    expect(safeNext("\\\\evil.com")).toBeNull();
++  });
++
+   it("rejects absolute URLs and non-rooted paths", () => {
+     expect(safeNext("https://evil.com")).toBeNull();
+     expect(safeNext("dashboard")).toBeNull();
+diff --git a/tests/register-actions.test.ts b/tests/register-actions.test.ts
+index f53808a..5c7156d 100644
+--- a/tests/register-actions.test.ts
++++ b/tests/register-actions.test.ts
+@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
+   sendOtp: vi.fn(),
+   verifyOtp: vi.fn(),
+   checkOtpSendRate: vi.fn(),
++  checkOtpVerifyRate: vi.fn(),
+   setPasswordForCurrentUser: vi.fn(),
+   syncUser: vi.fn(),
+   ensureGettingStartedEnrollment: vi.fn(),
+@@ -26,6 +27,7 @@ vi.mock("@/lib/auth/otp", () => ({
+ }));
+ vi.mock("@/lib/auth/otp-rate-limit", () => ({
+   checkOtpSendRate: h.checkOtpSendRate,
++  checkOtpVerifyRate: h.checkOtpVerifyRate,
+ }));
+ vi.mock("@/lib/auth/password", () => ({
+   passwordIssue: (pw: string) =>
+@@ -63,6 +65,7 @@ const PW = "hunter2pass";
+ beforeEach(() => {
+   vi.clearAllMocks();
+   h.checkOtpSendRate.mockResolvedValue({ ok: true });
++  h.checkOtpVerifyRate.mockResolvedValue({ ok: true });
+   h.sendOtp.mockResolvedValue(undefined);
+   h.verifyOtp.mockResolvedValue({
+     user: { id: "sb-new-1", phone: `+91${PHONE}` },

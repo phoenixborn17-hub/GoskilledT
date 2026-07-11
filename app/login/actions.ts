@@ -5,7 +5,10 @@
 import { z } from "zod";
 import { phoneSchema } from "../../modules/payments/schemas";
 import { getOtpProvider } from "../../lib/auth/otp";
-import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
+import {
+  checkOtpSendRate,
+  checkOtpVerifyRate,
+} from "../../lib/auth/otp-rate-limit";
 import { checkLoginRate } from "../../lib/auth/login-rate-limit";
 import {
   signInWithPassword,
@@ -108,6 +111,8 @@ export async function verifyLoginOtp(
       ok: false,
       error: parsed.error.issues[0]?.message ?? "Invalid OTP",
     };
+  const rl = await checkOtpVerifyRate(parsed.data.phone); // A-2
+  if (!rl.ok) return { ok: false, error: rl.error };
   try {
     const { user } = await getOtpProvider().verifyOtp(
       parsed.data.phone,
@@ -137,6 +142,8 @@ export async function resetPasswordWithOtp(
     };
   const pwIssue = passwordIssue(parsed.data.password);
   if (pwIssue) return { ok: false, error: pwIssue };
+  const rl = await checkOtpVerifyRate(parsed.data.phone); // A-2
+  if (!rl.ok) return { ok: false, error: rl.error };
   try {
     // OTP verify establishes the session → updateUser sets the new password on THIS user.
     const { user } = await getOtpProvider().verifyOtp(

@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   sendOtp: vi.fn(),
   verifyOtp: vi.fn(),
   checkOtpSendRate: vi.fn(),
+  checkOtpVerifyRate: vi.fn(),
   setPasswordForCurrentUser: vi.fn(),
   syncUser: vi.fn(),
   ensureGettingStartedEnrollment: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock("@/lib/auth/otp", () => ({
 }));
 vi.mock("@/lib/auth/otp-rate-limit", () => ({
   checkOtpSendRate: h.checkOtpSendRate,
+  checkOtpVerifyRate: h.checkOtpVerifyRate,
 }));
 vi.mock("@/lib/auth/password", () => ({
   passwordIssue: (pw: string) =>
@@ -63,6 +65,7 @@ const PW = "hunter2pass";
 beforeEach(() => {
   vi.clearAllMocks();
   h.checkOtpSendRate.mockResolvedValue({ ok: true });
+  h.checkOtpVerifyRate.mockResolvedValue({ ok: true });
   h.sendOtp.mockResolvedValue(undefined);
   h.verifyOtp.mockResolvedValue({
     user: { id: "sb-new-1", phone: `+91${PHONE}` },

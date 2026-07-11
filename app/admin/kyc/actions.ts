@@ -9,12 +9,15 @@ import { revealKyc, reviewKyc, type RevealedKyc } from "../../../lib/admin/kyc";
 export type RevealResult =
   { ok: true; data: RevealedKyc } | { ok: false; error: string };
 
+const idSchema = z.string().trim().min(1).max(64); // AD-12: validate id at the boundary
+
 export async function revealKycAction(userId: string): Promise<RevealResult> {
   const admin = await getAdminUser();
   if (!admin) return { ok: false, error: "Not authorized" };
-  if (!userId) return { ok: false, error: "Missing user" };
+  const id = idSchema.safeParse(userId);
+  if (!id.success) return { ok: false, error: "Missing user" };
   try {
-    const data = await revealKyc(admin, userId);
+    const data = await revealKyc(admin, id.data);
     return { ok: true, data };
   } catch {
     // Generic — never echo ciphertext or the underlying decrypt error.

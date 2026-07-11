@@ -18,7 +18,8 @@ export async function resolveReviewAction(
   const parsed = orderIdSchema.safeParse(orderId);
   if (!parsed.success) return { ok: false, error: "Missing order" };
   try {
-    await resolveReview(admin, parsed.data);
+    const res = await resolveReview(admin, parsed.data);
+    if (!res.ok) return res;
     revalidatePath("/admin/review-queue");
     revalidatePath("/admin");
     return { ok: true };

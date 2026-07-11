@@ -14,6 +14,11 @@ vi.mock("@/lib/affiliate/network", () => ({
   l1ToCsv: (rows: unknown[]) =>
     `Name,Mobile,Joined (IST),Packages\n#rows=${rows.length}`,
 }));
+// FV-1: earn is fail-closed by default; the launch GLOBAL SHOW makes it visible. Mock that state so
+// this test exercises the route's OWN auth/level logic, not the feature gate.
+vi.mock("@/lib/feature-visibility/context", () => ({
+  isFeatureVisible: vi.fn().mockResolvedValue(true),
+}));
 
 import { GET } from "@/app/dashboard/earn/network/export/route";
 

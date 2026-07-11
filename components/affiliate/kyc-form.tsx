@@ -166,8 +166,8 @@ export function KycForm({ initial }: { initial: KycInitial }) {
 
       {!emailOk || !waOk ? (
         <p className="text-xs text-muted">
-          Tip: verify your email and WhatsApp above so we can reach you about
-          payouts.
+          Verify your email and WhatsApp above (each with a one-time code)
+          before submitting — we need both to reach you about payouts.
         </p>
       ) : null}
       {error && (
@@ -175,7 +175,7 @@ export function KycForm({ initial }: { initial: KycInitial }) {
           {error}
         </p>
       )}
-      <Button type="submit" variant="gold" disabled={busy}>
+      <Button type="submit" variant="gold" disabled={busy || !emailOk || !waOk}>
         {busy ? "Submitting…" : "Submit for review"}
       </Button>
     </form>

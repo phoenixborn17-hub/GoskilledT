@@ -15,6 +15,14 @@ export interface EmailProvider {
   send(msg: EmailMessage): Promise<void>;
 }
 
+// A-6: mask the recipient so an email address (PII) never lands in logs — console mode is
+// prod-allowed (degraded), so the `to` field must never be logged in the clear.
+function maskEmail(t: string): string {
+  const at = t.indexOf("@");
+  if (at <= 0) return "***";
+  return `${t.slice(0, 1)}***@${t.slice(at + 1)}`;
+}
+
 // ── console: one structured line per email — dev-readable, prod-ALLOWED (degraded, soft-warned). ──
 export const consoleEmailProvider: EmailProvider = {
   name: "console",
@@ -22,7 +30,7 @@ export const consoleEmailProvider: EmailProvider = {
     console.log(
       JSON.stringify({
         email: "receipt",
-        to: msg.to,
+        to: maskEmail(msg.to),
         subject: msg.subject,
         idempotencyKey: msg.idempotencyKey,
       }),

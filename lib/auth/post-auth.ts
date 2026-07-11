@@ -12,6 +12,9 @@ const DASHBOARD = "/dashboard/home";
 /** Only same-origin absolute paths are honoured as a post-login `next` (blocks open-redirects). */
 export function safeNext(next: string | null | undefined): string | null {
   if (!next) return null;
+  // A-4: reject backslashes — browsers normalise "\" → "/", so "/\evil.com" or "/\\evil.com"
+  // would otherwise become a protocol-relative "//evil.com" escape after the startsWith checks.
+  if (next.includes("\\")) return null;
   // Must be a root-relative path and NOT a protocol-relative "//host" escape.
   if (!next.startsWith("/") || next.startsWith("//")) return null;
   return next;

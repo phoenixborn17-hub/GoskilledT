@@ -10,6 +10,10 @@ import {
   rejectWithdrawal,
 } from "../../../lib/admin/withdrawals";
 
+// AD-12: validate the id at the boundary (not just presence) — consistent with the project's
+// "Zod at every boundary" rule and the well-validated reject/review siblings.
+const idSchema = z.string().trim().min(1).max(64);
+
 export type MarkResult =
   { ok: true; idempotent: boolean } | { ok: false; error: string };
 
@@ -18,8 +22,9 @@ export async function markPaidAction(
 ): Promise<MarkResult> {
   const admin = await getAdminUser();
   if (!admin) return { ok: false, error: "Not authorized" };
-  if (!withdrawalId) return { ok: false, error: "Missing withdrawal" };
-  const res = await markWithdrawalPaid(admin, withdrawalId);
+  const id = idSchema.safeParse(withdrawalId);
+  if (!id.success) return { ok: false, error: "Missing withdrawal" };
+  const res = await markWithdrawalPaid(admin, id.data);
   if (!res.ok) return res;
   revalidatePath("/admin/withdrawals");
   revalidatePath("/admin");
@@ -33,8 +38,9 @@ export async function markInProgressAction(
 ): Promise<SimpleResult> {
   const admin = await getAdminUser();
   if (!admin) return { ok: false, error: "Not authorized" };
-  if (!withdrawalId) return { ok: false, error: "Missing withdrawal" };
-  const res = await markWithdrawalInProgress(admin, withdrawalId);
+  const id = idSchema.safeParse(withdrawalId);
+  if (!id.success) return { ok: false, error: "Missing withdrawal" };
+  const res = await markWithdrawalInProgress(admin, id.data);
   if (!res.ok) return res;
   revalidatePath("/admin/withdrawals");
   revalidatePath("/admin");

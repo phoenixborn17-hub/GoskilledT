@@ -18,16 +18,32 @@ const actor: AdminIdentity = {
 };
 const testUserId = `fvtest_${Date.now()}`;
 
-async function overridesForEarn() {
-  return (await prisma.featureOverride.findMany({
+type EarnRow = {
+  featureKey: string;
+  scope: "GLOBAL" | "ROLE" | "USER";
+  scopeValue: string;
+  visible: boolean;
+};
+
+// FV-1: `earn` is now fail-closed by default; launch reveals it via a GLOBAL SHOW override. Model that
+// launch baseline explicitly here so the resolver assertions are deterministic regardless of whether
+// the seed/migration GLOBAL SHOW row has been applied to this DB yet (deduped by the resolver anyway).
+const LAUNCH_SHOW_EARN: EarnRow = {
+  featureKey: "earn",
+  scope: "GLOBAL",
+  scopeValue: "",
+  visible: true,
+};
+
+async function overridesForEarn(): Promise<EarnRow[]> {
+  const rows = (await prisma.featureOverride.findMany({
     where: { featureKey: "earn" },
     select: { featureKey: true, scope: true, scopeValue: true, visible: true },
-  })) as {
-    featureKey: string;
-    scope: "GLOBAL" | "ROLE" | "USER";
-    scopeValue: string;
-    visible: boolean;
-  }[];
+  })) as EarnRow[];
+  const hasGlobalShow = rows.some(
+    (r) => r.scope === "GLOBAL" && r.visible === true,
+  );
+  return hasGlobalShow ? rows : [...rows, LAUNCH_SHOW_EARN];
 }
 
 describe.skipIf(!HAS_DB)("Feature Visibility admin adapter (DR-040)", () => {
@@ -98,7 +114,7 @@ describe.skipIf(!HAS_DB)("Feature Visibility admin adapter (DR-040)", () => {
     const rows = await overridesForEarn();
     expect(
       resolveFeature("earn", rows, { userId: testUserId, role: "USER" }),
-    ).toBe(true); // back to default (visible)
+    ).toBe(true); // no user override → visible via the launch GLOBAL SHOW (FV-1)
 
     const audit = await prisma.adminAction.findFirst({
       where: {

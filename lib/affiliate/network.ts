@@ -170,8 +170,12 @@ export async function getL1Export(
 }
 
 function csvCell(v: string): string {
+  // A-3: neutralise CSV formula injection — a cell starting with = + - @ (or a leading tab/CR) is
+  // executed as a formula by Excel/Sheets. The Name column is attacker-controllable (a downline sets
+  // their own display name), so prefix any such value with a single quote before quoting.
+  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
   // Quote if the value contains a comma, quote, or newline; double embedded quotes.
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 /** CSV for the L1 export (server-generated). Columns: Name, Mobile, Joined, Packages. */

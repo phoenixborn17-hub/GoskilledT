@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   sendOtp: vi.fn(),
   verifyOtp: vi.fn(),
   checkOtpSendRate: vi.fn(),
+  checkOtpVerifyRate: vi.fn(),
   syncUser: vi.fn(),
   placeOrder: vi.fn(),
   getPaymentProvider: vi.fn(),
@@ -23,6 +24,7 @@ vi.mock("@/lib/auth/otp", () => ({
 }));
 vi.mock("@/lib/auth/otp-rate-limit", () => ({
   checkOtpSendRate: h.checkOtpSendRate,
+  checkOtpVerifyRate: h.checkOtpVerifyRate,
 }));
 vi.mock("@/lib/auth/user-sync", () => ({ syncUser: h.syncUser }));
 vi.mock("@/lib/payments/checkout", () => ({ startCheckout: h.placeOrder }));
@@ -38,6 +40,7 @@ const PHONE = "9812345678";
 beforeEach(() => {
   vi.clearAllMocks();
   h.checkOtpSendRate.mockResolvedValue({ ok: true });
+  h.checkOtpVerifyRate.mockResolvedValue({ ok: true });
   h.anonId.mockReturnValue("anon-1");
   h.sendOtp.mockResolvedValue(undefined);
 });

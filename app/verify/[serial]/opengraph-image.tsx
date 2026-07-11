@@ -3,9 +3,22 @@
 // social proof (D-29: no earnings, just a real learning credential). Invalid serial → neutral brand
 // fallback (never renders fabricated data).
 import { ImageResponse } from "next/og";
+import { headers } from "next/headers";
 import { getCertificateBySerial } from "../../../lib/lms/certificate";
+import { rateLimit } from "../../../lib/rate-limit";
 
 export const runtime = "nodejs"; // certificate lookup uses Prisma
+
+// A-5: throttle per IP, matching the /verify page — the image endpoint is another channel to the
+// same certificate lookup (learner name), so it must share the page's anti-enumeration limit.
+async function clientIp(): Promise<string> {
+  const h = await headers();
+  return (
+    h.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    h.get("x-real-ip") ||
+    "local"
+  );
+}
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 export const alt = "GoSkilled certificate";
@@ -22,7 +35,14 @@ export default async function Image({
 }: {
   params: { serial: string };
 }) {
-  const cert = await getCertificateBySerial(params.serial).catch(() => null);
+  // Over the per-IP limit → skip the lookup and render the neutral fallback (never leak a name).
+  const rl = rateLimit(`verify:${await clientIp()}`, {
+    max: 20,
+    windowMs: 60_000,
+  });
+  const cert = rl.ok
+    ? await getCertificateBySerial(params.serial).catch(() => null)
+    : null;
 
   const GREEN = "#137E49";
   const GOLD = "#EDC825";

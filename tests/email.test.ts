@@ -35,6 +35,13 @@ describe("buildReceiptEmail (pure)", () => {
     expect(m.html).toContain("Career Booster");
   });
 
+  it("M-1: never mentions GST (LLP not GST-registered) in text or HTML", () => {
+    const m = buildReceiptEmail(BASE);
+    expect(m.text.toLowerCase()).not.toContain("gst");
+    expect(m.html.toLowerCase()).not.toContain("gst");
+    expect(m.text).toContain("no hidden charges");
+  });
+
   it("escapes HTML in user-supplied fields (buyerName injection guard)", () => {
     const m = buildReceiptEmail({
       ...BASE,
@@ -70,6 +77,15 @@ describe("email provider selection", () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     await consoleEmailProvider.send(buildReceiptEmail(BASE));
     expect(log).toHaveBeenCalledWith(expect.stringContaining("receipt"));
+    log.mockRestore();
+  });
+
+  it("A-6: console provider masks the recipient (no PII email in logs)", async () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await consoleEmailProvider.send(buildReceiptEmail(BASE));
+    const line = log.mock.calls[0]?.[0] as string;
+    expect(line).not.toContain("buyer@example.com");
+    expect(line).toContain("b***@example.com");
     log.mockRestore();
   });
 });
@@ -108,8 +124,9 @@ describe("sendPurchaseReceipt", () => {
     findUnique.mockResolvedValue({ email: "buyer@example.com", name: "Asha" });
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     await sendPurchaseReceipt(order);
+    // A-6: recipient is masked in the console line, never logged in the clear.
     expect(log).toHaveBeenCalledWith(
-      expect.stringContaining("buyer@example.com"),
+      expect.stringContaining("b***@example.com"),
     );
     log.mockRestore();
   });

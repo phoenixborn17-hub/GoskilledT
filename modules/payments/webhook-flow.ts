@@ -109,6 +109,20 @@ export function decideWebhookActions(
             },
           ],
         };
+      if (event.amountInPaise !== order.amountInPaise) {
+        // Partial (or mismatched) refund: only an exact-amount refund is a "full refund".
+        // Auto-clawback + revoke would over-react to a partial money-back — route to a
+        // human instead. Order stays PAID; commissions and enrollments untouched.
+        return {
+          actions: [
+            {
+              do: "FLAG_MANUAL_REVIEW",
+              orderId: order.id,
+              reason: `partial refund — manual handling (refunded ${event.amountInPaise} of ${order.amountInPaise})`,
+            },
+          ],
+        };
+      }
       if (isWithinRefundWindow(order.paidAt, now)) {
         // DR-025: within 48h — automatic clawback; commission never becomes available.
         return {

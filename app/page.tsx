@@ -142,6 +142,9 @@ export default async function HomePage() {
                 Making potential visible
               </span>
               {/* COPY: brand tagline (approved) + safe subline explaining the model (no income, D-29) */}
+              {/* "Seekho. Badho. Kamao." is an APPROVED D-29 exception (founder decision): brand
+                  tagline only — no income number, promise, or guarantee. The Guru income-language
+                  guardrail (modules/ai/guru/guardrail.ts) stays strict for dynamic content. */}
               <h1 className="enter enter-2 mt-4 font-heading text-5xl font-extrabold leading-[1.05] text-charcoal sm:text-6xl">
                 Seekho.
                 <br />

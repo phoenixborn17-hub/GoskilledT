@@ -48,6 +48,7 @@ export default async function OpengraphImage() {
             letterSpacing: "-2px",
           }}
         >
+          {/* Approved D-29 exception: brand tagline only, no income claim (see app/page.tsx). */}
           Seekho. Badho. Kamao.
         </span>
         <span

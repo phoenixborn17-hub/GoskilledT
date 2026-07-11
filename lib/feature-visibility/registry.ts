@@ -66,9 +66,11 @@ export const FEATURES: Record<FeatureKey, FeatureDef> = {
     label: "Affiliate (Earn)",
     description:
       "The Affiliate/Earn layer: Earn workspace, referral share links, network, wallet, commissions, leaderboard, rewards, KYC-for-payout. DR-040 legal launch-gate — disable until affiliate legal review clears.",
-    // Default preserves current product behaviour (Earn is live). Flip the GLOBAL override to hidden
-    // for a review window or until D-01 legal clears (a LAUNCH_CONFIG decision, not a code default).
-    defaultVisible: true,
+    // FAIL-CLOSED default (Wave-2 FV-1): a legal gate must never be open by accident. Earn is made
+    // visible for launch by an EXPLICIT GLOBAL SHOW override (FeatureOverride, seeded) — an intentional
+    // act, not a code default. With an empty override table earn stays hidden. Payouts remain OFF (D-01);
+    // commissions stay display-only/range (DR-043/D-29). Remove the SHOW override to re-close the gate.
+    defaultVisible: false,
     failSafeHidden: true, // any error/ambiguity → hidden (compliance-safe)
     adminControllable: true,
   },
