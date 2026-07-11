@@ -16,13 +16,21 @@ import {
   HeartHandshake,
   Languages,
   Sprout,
+  Lightbulb,
+  Rocket,
+  TrendingUp,
+  BadgeCheck,
 } from "lucide-react";
 import { listCatalogCourses, listPackages } from "../lib/catalog/queries";
 import { courseStats, packagesIncludingCourse } from "../lib/catalog/shape";
+import { buildSkillNodes } from "../lib/marketing/skill-universe";
 import { pageMetadata, organizationJsonLd } from "../lib/seo";
 import { JsonLd } from "../components/marketing/json-ld";
 import { SiteHeader } from "../components/marketing/site-header";
 import { SiteFooter } from "../components/marketing/site-footer";
+import { ScrollProgress } from "../components/marketing/scroll-progress";
+import { SkillUniverse } from "../components/marketing/skill-universe";
+import { MobileCtaBar } from "../components/marketing/mobile-cta-bar";
 import {
   CourseCard,
   type CourseCardData,
@@ -35,27 +43,9 @@ import { Button } from "../components/ui/button";
 export const metadata = pageMetadata({
   title: "Learn in-demand skills",
   description:
-    "GoSkilled — practical, job-ready skills in Hinglish. GST-inclusive pricing, 48-hour refund. We sell skills, not dreams.",
+    "GoSkilled — practical, job-ready skills in Hinglish. One price, no hidden charges, 48-hour refund. We sell skills, not dreams.",
   path: "/",
 });
-
-const STEPS = [
-  {
-    Icon: BookOpen,
-    title: "Learn a skill",
-    body: "Short, practical lessons you can finish on your phone — starting with a free preview.",
-  },
-  {
-    Icon: Sparkles,
-    title: "Apply it",
-    body: "Use what you learn on real, everyday work. No fluff, no filler.",
-  },
-  {
-    Icon: Share2,
-    title: "Share it",
-    body: "Our affiliate program activates after review — you'll be able to refer friends once it's live.",
-  },
-];
 
 // Why GoSkilled — brand canon (trust-first vs a scam-heavy market · Hinglish for Tier-2/3 · real
 // skills + honest pricing). D-29-clean: no income framing anywhere.
@@ -63,7 +53,7 @@ const WHY = [
   {
     Icon: HeartHandshake,
     title: "Trust in a noisy market",
-    body: "Online learning is full of big promises and hidden charges. We do the opposite — honest, GST-inclusive pricing and a 48-hour refund, no dark patterns.",
+    body: "Online learning is full of big promises and hidden charges. We do the opposite — honest pricing with no hidden charges and a 48-hour refund, no dark patterns.",
   },
   {
     Icon: Languages,
@@ -77,11 +67,49 @@ const WHY = [
   },
 ];
 
+// The Learn→Grow scroll-story (charter: the visitor FEELS the journey). Honest + aspirational,
+// zero income/earning mechanics on the public site (D-29) — "growth" is capability, not cash.
+const JOURNEY = [
+  {
+    Icon: BookOpen,
+    step: "Learn",
+    body: "Start with a free preview. Short, practical lessons in simple Hinglish, built for your phone.",
+  },
+  {
+    Icon: Lightbulb,
+    step: "Build a skill",
+    body: "Apply each lesson to real work. You finish with capability you can actually use — not just notes.",
+  },
+  {
+    Icon: BadgeCheck,
+    step: "Gain confidence",
+    body: "Track your progress and earn a verifiable certificate as proof of what you've learned.",
+  },
+  {
+    Icon: Rocket,
+    step: "Open opportunities",
+    body: "Real skills open real doors. We teach the capability; the momentum is yours to carry forward.",
+  },
+  {
+    Icon: TrendingUp,
+    step: "Keep growing",
+    body: "New courses keep arriving. Your skill map grows with the platform — one honest step at a time.",
+  },
+];
+
 export default async function HomePage() {
   const [courses, packages] = await Promise.all([
     listCatalogCourses(),
     listPackages(),
   ]);
+  // ⭐ Skill Universe nodes — derived from REAL catalog categories only (honest live/soon status).
+  const skillNodes = buildSkillNodes(
+    courses.map((c) => ({
+      slug: c.slug,
+      category: c.category,
+      status: c.status,
+    })),
+  );
   const featured: CourseCardData[] = courses.slice(0, 2).map((c) => {
     const s = courseStats(c.modules);
     return {
@@ -92,42 +120,71 @@ export default async function HomePage() {
       status: c.status,
       lessonCount: s.lessonCount,
       durationLabel: s.durationLabel,
+      hasFreePreview: s.hasFreePreview,
       packageNames: packagesIncludingCourse(c.slug, packages),
     };
   });
 
   return (
     <>
+      <ScrollProgress />
       <SiteHeader />
       <JsonLd data={organizationJsonLd()} />
       <main>
-        {/* 1. Hero — the one signature moment (CSS aurora + staged entrance; reduced-motion safe) */}
+        {/* 1. Hero — ⭐ signature moment: the Living Skill Universe. Text + primary CTA render first
+               (LCP + thumb-reach on mobile); the interactive universe sits beside it on desktop,
+               below it on mobile. CSS aurora backdrop kept for depth (reduced-motion safe). */}
         <section className="hero-aurora">
-          <div className="mx-auto w-full max-w-5xl px-4 py-16 sm:py-24">
-            {/* COPY: draft — brand tagline (approved) + safe subline (no income claim, D-29) */}
-            <h1 className="enter font-heading text-5xl font-extrabold leading-[1.05] text-charcoal sm:text-6xl">
-              Seekho.
-              <br />
-              Badho.
-              <br />
-              <span className="text-brand-gradient">Kamao.</span>
-            </h1>
-            <p className="enter enter-2 mt-5 max-w-lg text-lg text-charcoal/70">
-              Practical, job-ready skills in simple Hinglish — learn at your own
-              pace, right from your phone.
-            </p>
-            {/* GPS-M1 §2.1: cold-traffic primary CTA → free Webinar; secondary ghost → /packages. */}
-            <div className="enter enter-3 mt-8 flex flex-col gap-3 sm:flex-row">
-              <div className="sm:w-56">
-                <Link href="/webinar">
-                  <Button>Join a free webinar</Button>
-                </Link>
+          <div className="mx-auto grid w-full max-w-6xl items-center gap-10 px-4 py-14 sm:py-20 lg:grid-cols-2 lg:gap-8">
+            <div>
+              <span className="enter inline-flex items-center gap-1.5 rounded-full border border-brand/20 bg-white/70 px-3 py-1 text-xs font-semibold text-brand-deep">
+                <Sparkles className="h-3.5 w-3.5" aria-hidden />
+                Making potential visible
+              </span>
+              {/* COPY: brand tagline (approved) + safe subline explaining the model (no income, D-29) */}
+              <h1 className="enter enter-2 mt-4 font-heading text-5xl font-extrabold leading-[1.05] text-charcoal sm:text-6xl">
+                Seekho.
+                <br />
+                Badho.
+                <br />
+                <span className="text-brand-gradient">Kamao.</span>
+              </h1>
+              <p className="enter enter-2 mt-5 max-w-lg text-lg text-charcoal/70">
+                Learn a real skill, build real capability, and grow — all in
+                simple Hinglish, right from your phone.
+              </p>
+              <div className="enter enter-3 mt-8 flex flex-col gap-3 sm:flex-row">
+                <div className="sm:w-52">
+                  <Link href="/register">
+                    <Button>Register free</Button>
+                  </Link>
+                </div>
+                <div className="sm:w-52">
+                  <Link href="/webinar">
+                    <Button variant="outline">Join a free webinar</Button>
+                  </Link>
+                </div>
               </div>
-              <div className="sm:w-44">
-                <Link href="/packages">
-                  <Button variant="ghost">See packages</Button>
-                </Link>
-              </div>
+              {/* Trust microline at the decision (Amendments §G) — honest, registration-true only. */}
+              <ul className="enter enter-3 mt-6 flex flex-wrap gap-x-4 gap-y-2 text-xs font-medium text-muted">
+                <li className="inline-flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-brand" aria-hidden />
+                  Registered LLP
+                </li>
+                <li className="inline-flex items-center gap-1.5">
+                  <ReceiptText className="h-4 w-4 text-brand" aria-hidden />
+                  No hidden charges
+                </li>
+                <li className="inline-flex items-center gap-1.5">
+                  <BadgeCheck className="h-4 w-4 text-brand" aria-hidden />
+                  48-hour refund
+                </li>
+              </ul>
+            </div>
+
+            {/* The interactive Skill Universe (client island; degrades to a static, legible network) */}
+            <div className="enter enter-2">
+              <SkillUniverse nodes={skillNodes} />
             </div>
           </div>
         </section>
@@ -150,8 +207,8 @@ export default async function HomePage() {
             />
             <Trust
               Icon={ReceiptText}
-              title="GST invoice"
-              body="Price is final — no hidden charges"
+              title="One final price"
+              body="No hidden charges, ever"
             />
             {/* D-29, stated proudly */}
             <Trust
@@ -195,28 +252,50 @@ export default async function HomePage() {
           </div>
         </section>
 
-        {/* 4. Learn → Earn explainer */}
-        <section aria-labelledby="how" className="reveal bg-white">
-          <div className="mx-auto w-full max-w-5xl px-4 py-14">
-            <h2 id="how" className="mb-6 font-heading text-2xl font-bold">
-              How it works
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-3">
-              {STEPS.map(({ Icon, title, body }, i) => (
-                <Card key={title} className="h-full">
-                  <div
-                    className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand/10 text-brand"
-                    aria-hidden
-                  >
-                    <Icon className="h-5 w-5" />
-                  </div>
-                  <p className="font-heading text-lg font-bold">
-                    {i + 1}. {title}
-                  </p>
-                  <p className="mt-1 text-sm text-muted">{body}</p>
-                </Card>
-              ))}
+        {/* 4. The journey — Learn → Grow scroll-story (charter). A connected path the visitor FEELS:
+               vertical timeline on mobile, horizontal on desktop. Learning-first, no earn mechanics. */}
+        <section aria-labelledby="journey" className="bg-white">
+          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-20">
+            <div className="mb-10 max-w-2xl">
+              <h2
+                id="journey"
+                className="font-heading text-2xl font-bold sm:text-3xl"
+              >
+                Your journey with GoSkilled
+              </h2>
+              <p className="mt-2 text-muted">
+                One honest path — from your first free lesson to real, lasting
+                capability.
+              </p>
             </div>
+
+            <ol className="relative grid gap-8 lg:grid-cols-5 lg:gap-4">
+              {/* Connecting spine — vertical on mobile, horizontal on desktop (decorative). */}
+              <span
+                aria-hidden
+                className="pointer-events-none absolute left-[1.4rem] top-2 bottom-2 w-px bg-gradient-to-b from-brand/30 via-brand/20 to-transparent lg:left-8 lg:right-8 lg:top-8 lg:bottom-auto lg:h-px lg:w-auto lg:bg-gradient-to-r lg:from-brand/30 lg:via-brand/25 lg:to-brand/10"
+              />
+              {JOURNEY.map(({ Icon, step, body }, i) => (
+                <li key={step} className="reveal relative flex gap-4 lg:block">
+                  <div className="relative z-10 flex flex-col items-center lg:items-start">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-brand/20 bg-white text-brand shadow-gs-sm">
+                      <Icon className="h-5 w-5" aria-hidden />
+                    </span>
+                  </div>
+                  <div className="lg:mt-4">
+                    <p className="text-xs font-bold uppercase tracking-wide text-brand-deep">
+                      Step {i + 1}
+                    </p>
+                    <p className="mt-0.5 font-heading text-lg font-bold text-charcoal">
+                      {step}
+                    </p>
+                    <p className="mt-1 text-sm leading-relaxed text-muted">
+                      {body}
+                    </p>
+                  </div>
+                </li>
+              ))}
+            </ol>
           </div>
         </section>
 
@@ -260,7 +339,7 @@ export default async function HomePage() {
               id="packages-teaser"
               className="font-heading text-2xl font-bold"
             >
-              One price. GST included. No hidden charges.
+              One price. No hidden charges.
             </h2>
             <p className="max-w-md text-brand-fg">
               Pick a single course, or get everything plus future releases with
@@ -376,6 +455,9 @@ export default async function HomePage() {
         </section>
       </main>
       <SiteFooter />
+      {/* Sticky mobile CTA + a spacer so the footer's last line clears it at scroll-end. */}
+      <div aria-hidden className="h-24 lg:hidden" />
+      <MobileCtaBar />
     </>
   );
 }

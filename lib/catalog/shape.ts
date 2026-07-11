@@ -36,7 +36,7 @@ export function courseStats(modules: ModuleLite[]): CourseStats {
   };
 }
 
-/** GST-inclusive single price, whole rupees when exact (DR-023). ₹1,499 not ₹1,499.00. */
+/** Single one-time price, whole rupees when exact (DR-023). ₹1,499 not ₹1,499.00. */
 export function priceLabel(paise: number): string {
   const rupees = paise / 100;
   return `₹${rupees.toLocaleString("en-IN", { maximumFractionDigits: rupees % 1 === 0 ? 0 : 2 })}`;
@@ -73,7 +73,7 @@ export function packageComparison(
       highlight: true,
     },
     {
-      feature: "Price (GST-inclusive)",
+      feature: "Price (one-time)",
       skillBuilder: priceLabel(sb.priceInPaise),
       careerBooster: priceLabel(cb.priceInPaise),
     },
@@ -83,9 +83,9 @@ export function packageComparison(
       careerBooster: "48 hours",
     },
     {
-      feature: "GST",
-      skillBuilder: "Included — no hidden charges",
-      careerBooster: "Included — no hidden charges",
+      feature: "Hidden charges",
+      skillBuilder: "None",
+      careerBooster: "None",
     },
     {
       feature: "Access after payment",

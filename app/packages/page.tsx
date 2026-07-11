@@ -1,13 +1,25 @@
 // /packages — THE MONEY PAGE (Ticket 5, Task 3 · Blueprint §7). Server component, read-only.
-// Prices/refund/GST/composition copy is display-only and MUST match DR-010/021/023/025.
-// D-29: value framing only — zero income claims. Escalation-flagged for review.
+// Prices/refund/composition copy is display-only and MUST match DR-010/021/025.
+// COMPLIANCE (founder 2026-07-11): the LLP is NOT GST-registered yet, so NO "GST-inclusive" copy —
+// use "one price · no hidden charges" framing. Do not re-add GST wording until registration confirmed.
+// D-29: value framing only — zero income claims. Re-skinned to Public Experience standard; NO money
+// logic touched (checkout links + prices come straight from listPackages). Escalation-flagged.
 import Link from "next/link";
-import { Check, Minus } from "lucide-react";
+import {
+  Check,
+  Minus,
+  Tag,
+  ShieldCheck,
+  Lock,
+  BadgeIndianRupee,
+  Zap,
+  Star,
+} from "lucide-react";
 import { listPackages } from "../../lib/catalog/queries";
 import { packageComparison, priceLabel } from "../../lib/catalog/shape";
 import { pageMetadata } from "../../lib/seo";
-import { SiteHeader } from "../../components/marketing/site-header";
-import { SiteFooter } from "../../components/marketing/site-footer";
+import { MarketingShell } from "../../components/marketing/marketing-shell";
+import { Container, Section } from "../../components/marketing/kit";
 import { Card } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -16,19 +28,18 @@ import { cn } from "../../lib/utils";
 export const metadata = pageMetadata({
   title: "Packages & Pricing",
   description:
-    "Simple, GST-inclusive pricing. Skill Builder or Career Booster — no hidden charges, 48-hour refund.",
+    "Simple, honest pricing — no hidden charges. Skill Builder or Career Booster, 48-hour refund.",
   path: "/packages",
 });
 
-// COPY: draft
 const FAQS = [
   {
     q: "What is the refund policy?",
     a: "Full refund within 48 hours of purchase — no questions asked. After 48 hours, purchases are final.",
   },
   {
-    q: "Are there any hidden charges or GST?",
-    a: "No. The price you see is the final price — GST is already included. Koi hidden charge nahi.",
+    q: "Are there any hidden charges?",
+    a: "No. The price you see is the final price — one payment, no hidden charges. Koi hidden charge nahi.",
   },
   {
     q: "How quickly do I get access?",
@@ -47,13 +58,11 @@ export default async function PackagesPage() {
 
   if (!sb || !cb) {
     return (
-      <>
-        <SiteHeader />
+      <MarketingShell>
         <main className="mx-auto w-full max-w-md px-4 py-16 text-center text-muted">
           Packages are being set up. Please check back soon.
         </main>
-        <SiteFooter />
-      </>
+      </MarketingShell>
     );
   }
 
@@ -61,87 +70,143 @@ export default async function PackagesPage() {
   const extraForCb = cb.priceInPaise - sb.priceInPaise;
 
   return (
-    <>
-      <SiteHeader />
-      <main className="mx-auto w-full max-w-4xl px-4 pb-28 pt-10 md:pb-12">
-        <header className="text-center">
-          <h1 className="font-heading text-3xl font-extrabold">
-            Simple, honest pricing
-          </h1>
-          {/* COPY: draft — DR-023 GST-inclusive */}
-          <p className="mx-auto mt-2 max-w-xl text-muted">
-            One price, GST included. Koi hidden charge nahi — and a 48-hour
-            refund if it&apos;s not for you.
-          </p>
-          {/* Phase 1B — Founding Batch note. NO percentages, NO commission (D-30 pending). */}
-          <p className="mx-auto mt-4 inline-block rounded-full bg-gold/15 px-4 py-1.5 text-sm font-semibold text-charcoal">
-            Exclusive Founding Batch pricing — available to a limited number of
-            founding learners.
-          </p>
-        </header>
+    <MarketingShell>
+      <main>
+        {/* Hero */}
+        <section className="hero-aurora">
+          <Container className="py-14 text-center sm:py-20">
+            <span className="enter inline-flex items-center gap-1.5 rounded-full border border-brand/20 bg-brand/5 px-3 py-1 text-xs font-semibold text-brand-deep">
+              <BadgeIndianRupee className="h-3.5 w-3.5" /> One price · no hidden
+              charges
+            </span>
+            <h1 className="enter enter-2 mx-auto mt-4 max-w-2xl font-heading text-4xl font-extrabold leading-[1.08] text-charcoal sm:text-5xl">
+              Simple, honest pricing
+            </h1>
+            <p className="enter enter-2 mx-auto mt-4 max-w-xl text-lg text-charcoal/70">
+              One price, no hidden charges. Koi hidden charge nahi — and a
+              48-hour refund if it&apos;s not for you.
+            </p>
+            <p className="enter enter-3 mx-auto mt-5 inline-flex items-center gap-2 rounded-full bg-gold/15 px-4 py-1.5 text-sm font-semibold text-charcoal">
+              <Star className="h-4 w-4" aria-hidden />
+              Exclusive Founding Batch pricing — limited founding seats
+            </p>
+          </Container>
+        </section>
 
         {/* Pricing cards */}
-        <div className="mt-8 grid gap-4 md:grid-cols-2">
-          <Card className="lift flex flex-col">
-            <h2 className="font-heading text-xl font-bold">{sb.name}</h2>
-            <p className="mt-1 text-3xl font-extrabold text-charcoal">
-              {priceLabel(sb.priceInPaise)}
-            </p>
-            <p className="text-xs text-muted">GST-inclusive · one-time</p>
-            {/* COPY: draft — DR-021 */}
-            <p className="mt-3 text-sm text-charcoal/70">
-              One launch course of your choice. Perfect if you want to master a
-              single skill.
-            </p>
-            <div className="mt-auto pt-4">
-              <Link href="/checkout?package=skill-builder">
-                <Button variant="outline">Choose Skill Builder</Button>
-              </Link>
-            </div>
-          </Card>
+        <Container className="pb-4">
+          <div className="grid gap-5 md:grid-cols-2">
+            {/* Skill Builder */}
+            <Card className="lift flex flex-col">
+              <h2 className="font-heading text-xl font-bold text-charcoal">
+                {sb.name}
+              </h2>
+              <p className="mt-3 text-4xl font-extrabold text-charcoal">
+                {priceLabel(sb.priceInPaise)}
+              </p>
+              <p className="text-xs text-muted">
+                One-time payment · no hidden charges
+              </p>
+              <p className="mt-4 text-sm text-charcoal/70">
+                One launch course of your choice. Perfect if you want to master
+                a single skill first.
+              </p>
+              <ul className="mt-4 space-y-2.5 text-sm text-charcoal/80">
+                <Feature>1 launch course (your choice)</Feature>
+                <Feature>Verifiable certificate on completion</Feature>
+                <Feature>Learn on your phone, at your own pace</Feature>
+                <Feature>48-hour refund</Feature>
+              </ul>
+              <p className="mt-4 rounded-lg bg-brand/[0.04] px-3 py-2 text-xs text-muted">
+                Best for: focused learners starting with one specific skill.
+              </p>
+              <div className="mt-auto pt-5">
+                <Link href="/checkout?package=skill-builder">
+                  <Button variant="outline">Choose {sb.name}</Button>
+                </Link>
+              </div>
+            </Card>
 
-          <Card className="lift flex flex-col border-brand ring-1 ring-brand">
-            <div className="flex items-center justify-between">
-              <h2 className="font-heading text-xl font-bold">{cb.name}</h2>
-              <Badge variant="gold">Recommended</Badge>
-            </div>
-            <p className="mt-1 text-3xl font-extrabold text-charcoal">
-              {priceLabel(cb.priceInPaise)}
-            </p>
-            <p className="text-xs text-muted">GST-inclusive · one-time</p>
-            {/* COPY: draft — DR-021 honest "as released"; value framing, NOT income (D-29) */}
-            <p className="mt-3 text-sm text-charcoal/70">
-              Both launch courses{" "}
-              <strong>plus every future course as it&apos;s released</strong> —
-              the second course and all future releases for just{" "}
-              {priceLabel(extraForCb)} more.
-            </p>
-            <div className="mt-auto pt-4">
-              <Link href="/checkout?package=career-booster">
-                <Button>Choose Career Booster</Button>
-              </Link>
-            </div>
-          </Card>
-        </div>
+            {/* Career Booster — recommended */}
+            <Card className="lift relative flex flex-col border-brand ring-1 ring-brand">
+              <span className="absolute -top-3 left-6 inline-flex items-center gap-1 rounded-full bg-brand px-3 py-1 text-xs font-bold text-brand-fg">
+                <Zap className="h-3 w-3" aria-hidden /> Recommended
+              </span>
+              <div className="flex items-center justify-between">
+                <h2 className="font-heading text-xl font-bold text-charcoal">
+                  {cb.name}
+                </h2>
+                <Badge variant="gold">Best value</Badge>
+              </div>
+              <p className="mt-3 text-4xl font-extrabold text-charcoal">
+                {priceLabel(cb.priceInPaise)}
+              </p>
+              <p className="text-xs text-muted">
+                One-time payment · no hidden charges
+              </p>
+              <p className="mt-4 text-sm text-charcoal/70">
+                Both launch courses{" "}
+                <strong>plus every future course as it&apos;s released</strong>{" "}
+                — the second course and all future releases for just{" "}
+                {priceLabel(extraForCb)} more.
+              </p>
+              <ul className="mt-4 space-y-2.5 text-sm text-charcoal/80">
+                <Feature>Both launch courses</Feature>
+                <Feature strong>Future courses included as released</Feature>
+                <Feature>Verifiable certificates</Feature>
+                <Feature>48-hour refund</Feature>
+              </ul>
+              <p className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gold/10 px-3 py-2 text-xs font-medium text-charcoal">
+                <Tag className="h-3.5 w-3.5" aria-hidden />
+                Every future course for {priceLabel(extraForCb)} more than Skill
+                Builder
+              </p>
+              <div className="mt-auto pt-5">
+                <Link href="/checkout?package=career-booster">
+                  <Button>Choose {cb.name}</Button>
+                </Link>
+              </div>
+            </Card>
+          </div>
+
+          {/* Payment trust row — refund + secure checkout only (no unverified badges, D-29) */}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm text-muted">
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-brand" aria-hidden /> 48-hour
+              refund, no questions
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <Lock className="h-4 w-4 text-brand" aria-hidden /> Secure
+              checkout
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <BadgeIndianRupee className="h-4 w-4 text-brand" aria-hidden />{" "}
+              One-time payment · no hidden charges
+            </span>
+          </div>
+        </Container>
 
         {/* Comparison table */}
-        <section aria-labelledby="compare" className="reveal mt-10">
-          <h2 id="compare" className="mb-3 font-heading text-xl font-bold">
-            Compare
+        <Section aria-labelledby="compare" innerClassName="max-w-4xl">
+          <h2
+            id="compare"
+            className="mb-4 font-heading text-2xl font-bold text-charcoal"
+          >
+            Compare plans
           </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[32rem] border-collapse text-sm">
+          <div className="overflow-x-auto rounded-2xl border border-charcoal/10 bg-white">
+            <table className="w-full min-w-[34rem] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-charcoal/10 text-left">
-                  <th scope="col" className="py-3 pr-4 font-medium text-muted">
+                  <th scope="col" className="p-4 font-medium text-muted">
                     Feature
                   </th>
-                  <th scope="col" className="px-4 py-3 font-semibold">
+                  <th scope="col" className="p-4 font-semibold text-charcoal">
                     {sb.name}
                   </th>
                   <th
                     scope="col"
-                    className="rounded-t-lg bg-brand/5 px-4 py-3 font-semibold text-brand"
+                    className="bg-brand/[0.04] p-4 font-semibold text-brand-deep"
                   >
                     {cb.name}
                   </th>
@@ -152,15 +217,19 @@ export default async function PackagesPage() {
                   <tr key={r.feature} className="border-b border-charcoal/5">
                     <th
                       scope="row"
-                      className="py-3 pr-4 text-left font-normal text-muted"
+                      className="p-4 text-left font-normal text-muted"
                     >
                       {r.feature}
                     </th>
-                    <td className="px-4 py-3">{cellValue(r.skillBuilder)}</td>
+                    <td className="p-4 text-charcoal/80">
+                      {cellValue(r.skillBuilder)}
+                    </td>
                     <td
                       className={cn(
-                        "bg-brand/5 px-4 py-3",
-                        r.highlight && "font-semibold text-brand",
+                        "bg-brand/[0.04] p-4",
+                        r.highlight
+                          ? "font-semibold text-brand-deep"
+                          : "text-charcoal/80",
                       )}
                     >
                       {cellValue(r.careerBooster)}
@@ -170,11 +239,14 @@ export default async function PackagesPage() {
               </tbody>
             </table>
           </div>
-        </section>
+        </Section>
 
-        {/* FAQ — native <details>, no JS */}
-        <section aria-labelledby="faq" className="reveal mt-10">
-          <h2 id="faq" className="mb-3 font-heading text-xl font-bold">
+        {/* FAQ */}
+        <Section aria-labelledby="faq" bg="raised" innerClassName="max-w-3xl">
+          <h2
+            id="faq"
+            className="mb-4 font-heading text-2xl font-bold text-charcoal"
+          >
             Frequently asked
           </h2>
           <div className="space-y-2">
@@ -196,23 +268,44 @@ export default async function PackagesPage() {
               </details>
             ))}
           </div>
-        </section>
+        </Section>
       </main>
 
       {/* Sticky mobile CTA bar */}
-      <div className="glass fixed inset-x-0 bottom-0 z-30 border-t border-charcoal/10 p-3 md:hidden">
+      <div className="glass fixed inset-x-0 bottom-0 z-40 border-t border-charcoal/10 px-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 md:hidden">
         <div className="mx-auto flex max-w-md gap-2">
-          <Link href="/checkout?package=skill-builder" className="flex-1">
-            <Button variant="outline">{priceLabel(sb.priceInPaise)}</Button>
+          <Link
+            href="/checkout?package=skill-builder"
+            className="press inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-brand/30 text-sm font-semibold text-charcoal"
+          >
+            {priceLabel(sb.priceInPaise)}
           </Link>
-          <Link href="/checkout?package=career-booster" className="flex-1">
-            <Button>Get {cb.name}</Button>
+          <Link
+            href="/checkout?package=career-booster"
+            className="press inline-flex h-11 flex-[1.3] items-center justify-center rounded-xl bg-brand text-sm font-semibold text-brand-fg"
+          >
+            Get {cb.name}
           </Link>
         </div>
       </div>
+    </MarketingShell>
+  );
+}
 
-      <SiteFooter />
-    </>
+function Feature({
+  children,
+  strong,
+}: {
+  children: React.ReactNode;
+  strong?: boolean;
+}) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
+      <span className={cn(strong && "font-semibold text-charcoal")}>
+        {children}
+      </span>
+    </li>
   );
 }
 

@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { LoginForm } from "./login-form";
+import { AuthShell } from "../../components/marketing/auth-shell";
 import { pageMetadata } from "../../lib/seo";
 
 export const metadata = pageMetadata({
@@ -10,12 +11,18 @@ export const metadata = pageMetadata({
 });
 
 // Server page wraps the client form so useSearchParams() has a Suspense boundary (next build).
+// AuthShell is a presentation-only split-screen wrapper — the LoginForm logic is unchanged.
 export default function LoginPage() {
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
-      <Suspense>
-        <LoginForm />
-      </Suspense>
+    <main>
+      <AuthShell
+        heading="Welcome back"
+        subheading="Pick up right where you left off — your courses, progress, and certificate path are waiting."
+      >
+        <Suspense>
+          <LoginForm />
+        </Suspense>
+      </AuthShell>
     </main>
   );
 }

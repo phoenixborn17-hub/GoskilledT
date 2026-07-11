@@ -2,8 +2,7 @@
 // On-brand, honest about being a planned state, and always routes the visitor to a live action.
 import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
-import { SiteHeader } from "./site-header";
-import { SiteFooter } from "./site-footer";
+import { MarketingShell } from "./marketing-shell";
 import { Badge } from "../ui/badge";
 import { Card } from "../ui/card";
 import { Button } from "../ui/button";
@@ -24,8 +23,7 @@ export function ComingSoon({
   cta: { href: string; label: string; sub: string };
 }) {
   return (
-    <>
-      <SiteHeader />
+    <MarketingShell>
       <main className="mx-auto w-full max-w-3xl px-4 py-16">
         <div className="hero-aurora -mx-4 rounded-3xl px-4 py-12 text-center">
           <div
@@ -71,7 +69,6 @@ export function ComingSoon({
           </Card>
         </section>
       </main>
-      <SiteFooter />
-    </>
+    </MarketingShell>
   );
 }

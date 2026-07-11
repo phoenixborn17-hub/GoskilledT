@@ -1,0 +1,10 @@
+ .claude/launch.json                     |   3 +-
+ app/globals.css                         | 308 ++++++++++++++++++++++++++++++++
+ app/layout.tsx                          |   4 +
+ app/page.tsx                            | 205 ++++++++++++++-------
+ components/marketing/mobile-cta-bar.tsx |  29 +++
+ components/marketing/skill-universe.tsx | 172 ++++++++++++++++++
+ docs/specs/Public_Experience_Brief.md   |  41 +++++
+ lib/marketing/skill-universe.ts         | 139 ++++++++++++++
+ tests/skill-universe.test.ts            |  73 ++++++++
+ 9 files changed, 910 insertions(+), 64 deletions(-)
