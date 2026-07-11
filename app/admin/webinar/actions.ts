@@ -45,14 +45,24 @@ export async function scheduleWebinarAction(
   return res;
 }
 
+const toggleSchema = z.object({
+  webinarId: z.string().trim().min(1).max(64),
+  isActive: z.boolean(),
+}); // AD-12: validate the (id, boolean) pair at the boundary
+
 export async function setWebinarActiveAction(
   webinarId: string,
   isActive: boolean,
 ): Promise<WebinarActionResult> {
   const admin = await getAdminUser();
   if (!admin) return { ok: false, error: "Not authorized" };
-  if (!webinarId) return { ok: false, error: "Missing session" };
-  const res = await setWebinarActive(admin, webinarId, isActive);
+  const parsed = toggleSchema.safeParse({ webinarId, isActive });
+  if (!parsed.success) return { ok: false, error: "Missing session" };
+  const res = await setWebinarActive(
+    admin,
+    parsed.data.webinarId,
+    parsed.data.isActive,
+  );
   if (res.ok) {
     revalidatePath("/admin/webinar");
     revalidatePath("/webinar");

@@ -123,6 +123,19 @@ export async function submitKyc(formData: FormData): Promise<ActionResult> {
   const rl = await checkActionRate("kyc-submit", user.id, 8);
   if (!rl.ok) return { ok: false, error: rl.error };
 
+  // D-4: both contact channels must be verified server-side before a KYC submission is accepted —
+  // the client hint is advisory only, so enforce the invariant where it can't be bypassed.
+  const contact = await prisma.kyc.findUnique({
+    where: { userId: user.id },
+    select: { emailVerifiedAt: true, whatsappVerifiedAt: true },
+  });
+  if (!contact?.emailVerifiedAt || !contact?.whatsappVerifiedAt)
+    return {
+      ok: false,
+      error:
+        "Verify your email and WhatsApp with a code before submitting KYC.",
+    };
+
   const parsed = kycSchema.safeParse({
     pan: String(formData.get("pan") ?? ""),
     accountNumber: String(formData.get("accountNumber") ?? ""),

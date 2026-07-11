@@ -6,7 +6,10 @@
 import { z } from "zod";
 import { phoneSchema } from "../../modules/payments/schemas";
 import { getOtpProvider } from "../../lib/auth/otp";
-import { checkOtpSendRate } from "../../lib/auth/otp-rate-limit";
+import {
+  checkOtpSendRate,
+  checkOtpVerifyRate,
+} from "../../lib/auth/otp-rate-limit";
 import { syncUser } from "../../lib/auth/user-sync";
 import { resolveSponsorByCode } from "../../lib/auth/sponsor";
 import { isFeatureVisible } from "../../lib/feature-visibility/context";
@@ -111,6 +114,9 @@ export async function verifyRegisterOtp(
   if (!sponsor) return { ok: false, error: INVALID_CODE };
   const pwIssue = passwordIssue(parsed.data.password);
   if (pwIssue) return { ok: false, error: pwIssue };
+
+  const rl = await checkOtpVerifyRate(parsed.data.phone); // A-2
+  if (!rl.ok) return { ok: false, error: rl.error };
 
   try {
     const { user } = await getOtpProvider().verifyOtp(

@@ -13,10 +13,12 @@ import {
 export function WithdrawalActions({
   withdrawalId,
   canMark,
+  payoutsEnabled,
   status,
 }: {
   withdrawalId: string;
   canMark: boolean;
+  payoutsEnabled: boolean;
   status: "APPLIED" | "IN_PROGRESS" | "PAID" | "REJECTED";
 }) {
   const router = useRouter();
@@ -35,6 +37,9 @@ export function WithdrawalActions({
   }
 
   async function onMarkPaid() {
+    // D-01: never invite an out-of-band bank transfer while payouts are OFF — the server
+    // would reject the ledger move, leaving a real transfer with no record.
+    if (!payoutsEnabled) return;
     if (
       !window.confirm(
         "Confirm you have ALREADY transferred this amount via bank. Mark PAID?",
@@ -74,7 +79,11 @@ export function WithdrawalActions({
           onClick={onMarkPaid}
           disabled={busy || !canMark}
           title={
-            canMark ? undefined : "KYC must be approved and balance sufficient"
+            !payoutsEnabled
+              ? "Payouts are disabled (D-01) — no transfers"
+              : canMark
+                ? undefined
+                : "KYC must be approved and balance sufficient"
           }
           className="rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-brand-fg hover:bg-brand/90 disabled:opacity-40"
         >

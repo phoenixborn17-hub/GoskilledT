@@ -56,3 +56,43 @@ export function evaluateOtpSend(
 export async function checkOtpSendRate(phone: string): Promise<OtpRateCheck> {
   return evaluateOtpSend(await clientIp(), phone);
 }
+
+// A-2: throttle OTP *verify* attempts too (defence-in-depth against online brute-force of the 4–6
+// digit code). Supabase has its own attempt limits; this adds an app-level backstop. Slightly more
+// generous than send, since a code arrives once and a user may fat-finger it a couple of times.
+const VERIFY_PER_IP_MAX = 15;
+const VERIFY_PER_PHONE_MAX = 6;
+
+/** Pure throttle decision for an OTP verify attempt — testable without a request context. */
+export function evaluateOtpVerify(
+  ip: string,
+  phone: string,
+  now: number = Date.now(),
+): OtpRateCheck {
+  const byPhone = rateLimit(
+    `otp-verify:phone:${phone}`,
+    { windowMs: WINDOW_MS, max: VERIFY_PER_PHONE_MAX },
+    now,
+  );
+  if (!byPhone.ok)
+    return {
+      ok: false,
+      error: "Too many attempts for this number. Please wait a few minutes.",
+    };
+  const byIp = rateLimit(
+    `otp-verify:ip:${ip}`,
+    { windowMs: WINDOW_MS, max: VERIFY_PER_IP_MAX },
+    now,
+  );
+  if (!byIp.ok)
+    return {
+      ok: false,
+      error: "Too many attempts. Please try again in a few minutes.",
+    };
+  return { ok: true };
+}
+
+/** Throttle an OTP verify for `phone` from the current request's IP. Call BEFORE provider.verifyOtp. */
+export async function checkOtpVerifyRate(phone: string): Promise<OtpRateCheck> {
+  return evaluateOtpVerify(await clientIp(), phone);
+}

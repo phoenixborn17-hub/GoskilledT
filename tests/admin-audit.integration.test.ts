@@ -31,11 +31,36 @@ describe.skipIf(!HAS_DB)("admin audit (integration)", () => {
 
   it("resolveReview writes a REVIEW_RESOLVED audit row", async () => {
     const orderId = `order_${runId}`;
-    await resolveReview(actor, orderId);
+    // AD-11: resolveReview refuses to resolve an order that was never flagged. Seed the
+    // FLAG_MANUAL_REVIEW the webhook would have written (actor "system"), matching real behaviour,
+    // then resolve it.
+    await prisma.adminAction.create({
+      data: {
+        actorSupabaseId: "system",
+        action: "FLAG_MANUAL_REVIEW",
+        entity: "Order",
+        entityId: orderId,
+        meta: { reason: "test flag" },
+      },
+    });
+
+    const res = await resolveReview(actor, orderId);
+    expect(res.ok).toBe(true);
+
     const audit = await prisma.adminAction.findFirst({
       where: { action: "REVIEW_RESOLVED", entityId: orderId },
     });
     expect(audit).not.toBeNull();
     expect(audit!.actorSupabaseId).toBe(actor.supabaseId);
+  });
+
+  it("resolveReview refuses to resolve an un-flagged order (AD-11)", async () => {
+    const orderId = `order_noflag_${runId}`;
+    const res = await resolveReview(actor, orderId);
+    expect(res.ok).toBe(false);
+    const audit = await prisma.adminAction.findFirst({
+      where: { action: "REVIEW_RESOLVED", entityId: orderId },
+    });
+    expect(audit).toBeNull(); // nothing written for an order that was never flagged
   });
 });

@@ -6,6 +6,7 @@ import {
   type WithdrawalRow,
 } from "../../../lib/admin/withdrawals";
 import { formatINR } from "../../../lib/money";
+import { payoutsEnabled } from "../../../lib/env";
 import { WithdrawalActions } from "../../../components/admin/withdrawal-actions";
 import { PageHeading, fmtDateTime } from "../../../components/admin/primitives";
 import { Card } from "../../../components/ui/card";
@@ -31,6 +32,7 @@ export default async function WithdrawalsPage() {
     listWithdrawalQueue(),
     listWithdrawalHistory(),
   ]);
+  const payouts = payoutsEnabled();
 
   return (
     <section className="space-y-6">
@@ -38,6 +40,14 @@ export default async function WithdrawalsPage() {
         title="Withdrawals"
         subtitle={`${queue.length} awaiting payout · manual bank rail (Tuesday cadence).`}
       />
+
+      {!payouts && (
+        <Card className="border-warning-strong/30 bg-warning-soft/40 text-sm text-warning-strong">
+          <strong>Payouts disabled (D-01).</strong> Affiliate payouts are OFF
+          until legal clearance. Do <strong>not</strong> transfer money — Mark
+          PAID is disabled and the server will reject any payout attempt.
+        </Card>
+      )}
 
       <div className="space-y-3">
         {queue.length === 0 ? (
@@ -84,7 +94,8 @@ export default async function WithdrawalsPage() {
                 <div className="md:w-64 md:shrink-0">
                   <WithdrawalActions
                     withdrawalId={w.id}
-                    canMark={kycOk && amountOk}
+                    canMark={kycOk && amountOk && payouts}
+                    payoutsEnabled={payouts}
                     status={w.status}
                   />
                 </div>

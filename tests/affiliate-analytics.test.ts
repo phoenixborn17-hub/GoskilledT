@@ -83,4 +83,19 @@ describe("l1ToCsv", () => {
     expect(lines[1]).toContain("+919812345678");
     expect(lines[2].startsWith(",,")).toBe(true); // null name + mobile → empty cells
   });
+
+  it("A-3: neutralises CSV formula injection in the attacker-controlled name", () => {
+    const csv = l1ToCsv([
+      {
+        name: "=HYPERLINK(0)",
+        mobile: "+919812345678",
+        joinedAt: d("2026-07-09T06:00:00Z"),
+        packages: [],
+      },
+    ]);
+    const row = csv.split("\n")[1];
+    // The cell must be prefixed with a single quote so Excel/Sheets treats it as text, not a formula.
+    expect(row).toContain("'=HYPERLINK(0)");
+    expect(row.startsWith("=")).toBe(false);
+  });
 });

@@ -1,5 +1,7 @@
 // Purchase-receipt email builder (2a). PURE — no I/O, no env — so it's fully unit-testable.
 // D-29: a receipt states facts (what was bought, price, refund window). No income claims.
+// COMPLIANCE: the LLP is NOT GST-registered — no "GST" wording anywhere in this receipt
+// until registration is confirmed (founder lock, see app/packages/page.tsx).
 import { formatINR } from "../money";
 
 export interface ReceiptInput {
@@ -50,7 +52,7 @@ export function buildReceiptEmail(i: ReceiptInput): EmailMessage {
     `Thank you for your purchase on GoSkilled. Here is your receipt:`,
     "",
     `Package: ${i.packageName}`,
-    `Amount paid: ${amount} (GST-inclusive)`,
+    `Amount paid: ${amount} — no hidden charges`,
     `Order ID: ${i.orderId}`,
     `Date: ${when} IST`,
     "",
@@ -64,7 +66,7 @@ export function buildReceiptEmail(i: ReceiptInput): EmailMessage {
   <p>Thank you for your purchase on GoSkilled. Here is your receipt:</p>
   <table style="border-collapse:collapse">
     <tr><td style="padding:2px 12px 2px 0"><strong>Package</strong></td><td>${escapeHtml(i.packageName)}</td></tr>
-    <tr><td style="padding:2px 12px 2px 0"><strong>Amount paid</strong></td><td>${amount} (GST-inclusive)</td></tr>
+    <tr><td style="padding:2px 12px 2px 0"><strong>Amount paid</strong></td><td>${amount} — no hidden charges</td></tr>
     <tr><td style="padding:2px 12px 2px 0"><strong>Order ID</strong></td><td>${escapeHtml(i.orderId)}</td></tr>
     <tr><td style="padding:2px 12px 2px 0"><strong>Date</strong></td><td>${when} IST</td></tr>
   </table>

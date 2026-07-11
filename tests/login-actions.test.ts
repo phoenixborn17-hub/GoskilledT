@@ -8,6 +8,7 @@ const h = vi.hoisted(() => ({
   sendOtp: vi.fn(),
   verifyOtp: vi.fn(),
   checkOtpSendRate: vi.fn(),
+  checkOtpVerifyRate: vi.fn(),
   checkLoginRate: vi.fn(),
   syncUser: vi.fn(),
   readRefCookie: vi.fn(),
@@ -27,6 +28,7 @@ vi.mock("@/lib/auth/otp", () => ({
 }));
 vi.mock("@/lib/auth/otp-rate-limit", () => ({
   checkOtpSendRate: h.checkOtpSendRate,
+  checkOtpVerifyRate: h.checkOtpVerifyRate,
 }));
 vi.mock("@/lib/auth/login-rate-limit", () => ({
   checkLoginRate: h.checkLoginRate,
@@ -49,6 +51,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.checkLoginRate.mockResolvedValue({ ok: true });
   h.checkOtpSendRate.mockResolvedValue({ ok: true });
+  h.checkOtpVerifyRate.mockResolvedValue({ ok: true });
   h.readRefCookie.mockResolvedValue(undefined);
   h.syncUser.mockResolvedValue({
     id: "u-1",

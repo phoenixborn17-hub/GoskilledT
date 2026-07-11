@@ -18,6 +18,11 @@ vi.mock("@/lib/kyc/doc-access", () => ({
 vi.mock("@/lib/auth/action-rate-limit", () => ({
   checkActionRate: vi.fn(async () => ({ ok: true })),
 }));
+// FV-1: the owner doc route re-asserts earn visibility (now fail-closed by default). Mock the launch
+// GLOBAL SHOW state so the self-only/404 access logic under test runs, not the feature gate.
+vi.mock("@/lib/feature-visibility/context", () => ({
+  isFeatureVisible: vi.fn().mockResolvedValue(true),
+}));
 
 import { GET as adminDoc } from "@/app/admin/kyc/[userId]/doc/[kind]/route";
 import { GET as ownerDoc } from "@/app/dashboard/earn/kyc/doc/[kind]/route";

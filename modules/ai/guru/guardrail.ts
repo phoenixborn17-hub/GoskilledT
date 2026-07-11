@@ -6,6 +6,12 @@
 // Precision matters: legitimate course concepts (revenue, profit, ROI, margin) are NOT blocked —
 // only PERSONAL earning intent ("kitna kamaunga", "how much can I earn", "refer and earn", salary,
 // income, payout, commission…). Bias, when ambiguous, is toward redirecting (D-29 is a floor).
+//
+// SCOPE: this guardrail governs DYNAMIC content only (learner questions + Guru answers) and stays
+// strict — do NOT weaken it. The static brand tagline "Seekho. Badho. Kamao." is an APPROVED D-29
+// exception (founder decision): brand copy with no income number, promise, or guarantee. It is never
+// routed through this function, so the "kamao" stem matching here does not — and must not — apply
+// to the tagline. Keep the two concerns separate: brand mark ≠ personalised income claim.
 
 /** Normalize for matching: lowercase, keep ₹ + word chars, collapse whitespace. */
 function normalize(text: string): string {

@@ -84,8 +84,9 @@ model Package {
   id            String   @id @default(cuid())
   slug          String   @unique            // skill-builder | career-booster
   name          String
-  priceInPaise  Int                          // GST-INCLUSIVE display price (DR-023)
-  gstRateBps    Int      @default(1800)     // 18% in basis points
+  priceInPaise  Int                          // single display price (DR-023)
+  gstRateBps    Int      @default(0)        // basis points; 0 until GST registration is
+                                            // confirmed (LLP not GST-registered — founder lock)
   isActive      Boolean  @default(true)
   includesFutureCourses Boolean @default(false) // DR-021: true for Career Booster
   courses       PackageCourse[]

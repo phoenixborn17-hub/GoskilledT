@@ -185,6 +185,24 @@ describe("Webhook decision flow", () => {
       "FLAG_MANUAL_REVIEW",
     ]);
   });
+  it("M-3: PARTIAL refund → manual review only, NO clawback/revoke (even in-window)", () => {
+    const d = decideWebhookActions(
+      {
+        kind: "refund.processed",
+        orderId: "o1",
+        refundId: "r1",
+        amountInPaise: 50000, // partial (< 149900)
+      },
+      paid,
+      { alreadyProcessed: false, now: inWin },
+    );
+    expect(d.actions).toHaveLength(1);
+    expect(d.actions[0].do).toBe("FLAG_MANUAL_REVIEW");
+    // Order is NOT marked refunded, enrollments NOT revoked, commissions NOT clawed back.
+    expect(d.actions.map((a) => a.do)).not.toContain("MARK_REFUNDED");
+    expect(d.actions.map((a) => a.do)).not.toContain("CLAWBACK_COMMISSIONS");
+    expect(d.actions.map((a) => a.do)).not.toContain("REVOKE_ENROLLMENTS");
+  });
 });
 
 describe("Upline resolution (DR-007)", () => {

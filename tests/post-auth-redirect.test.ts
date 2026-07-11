@@ -12,6 +12,12 @@ describe("safeNext (open-redirect guard)", () => {
     expect(safeNext("//evil.com")).toBeNull();
   });
 
+  it("A-4: rejects backslash escapes that browsers normalise to //host", () => {
+    expect(safeNext("/\\evil.com")).toBeNull();
+    expect(safeNext("/\\/evil.com")).toBeNull();
+    expect(safeNext("\\\\evil.com")).toBeNull();
+  });
+
   it("rejects absolute URLs and non-rooted paths", () => {
     expect(safeNext("https://evil.com")).toBeNull();
     expect(safeNext("dashboard")).toBeNull();

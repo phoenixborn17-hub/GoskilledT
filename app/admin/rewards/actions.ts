@@ -37,13 +37,24 @@ export async function createRewardAction(
   return { ok: true };
 }
 
+const toggleSchema = z.object({
+  id: z.string().trim().min(1).max(64),
+  isActive: z.boolean(),
+}); // AD-12: validate the (id, boolean) pair at the boundary
+
 export async function setRewardActiveAction(
   id: string,
   isActive: boolean,
 ): Promise<RewardActionResult> {
   const admin = await getAdminUser();
   if (!admin) return { ok: false, error: "Not authorized" };
-  const res = await setRewardActive(admin, id, isActive);
+  const parsed = toggleSchema.safeParse({ id, isActive });
+  if (!parsed.success) return { ok: false, error: "Invalid input" };
+  const res = await setRewardActive(
+    admin,
+    parsed.data.id,
+    parsed.data.isActive,
+  );
   if (!res.ok) return res;
   revalidatePath("/admin/rewards");
   return { ok: true };

@@ -76,7 +76,9 @@ export async function recentAudit(limit = 10): Promise<AuditRow[]> {
 }
 
 function csvCell(v: string): string {
-  return /[",\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
+  // A-3: neutralise CSV formula injection (Excel/Sheets execute cells starting with = + - @ / tab / CR).
+  const safe = /^[=+\-@\t\r]/.test(v) ? `'${v}` : v;
+  return /[",\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
 }
 
 /** Serialize audit rows to CSV (no PII — meta is JSON-stringified as-is). */
