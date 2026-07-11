@@ -30,6 +30,7 @@ const spanClass: Record<CardSize, string> = {
   primary: "md:col-span-1 xl:col-span-1",
   secondary: "md:col-span-1 xl:col-span-1",
   wide: "md:col-span-2 xl:col-span-4",
+  metric: "md:col-span-1 xl:col-span-1",
 };
 
 /** Places a card in the bento with the span matching its size. */
