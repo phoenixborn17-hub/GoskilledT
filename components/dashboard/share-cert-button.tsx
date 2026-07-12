@@ -40,11 +40,11 @@ export function ShareCertButton({
   }
 
   const base =
-    "press inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold";
+    "press inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-small font-semibold";
   const cls =
     variant === "ghost"
-      ? `${base} border border-brand/30 text-brand hover:bg-brand/5`
-      : `${base} bg-brand text-brand-fg`;
+      ? `${base} border border-theme/30 text-theme-strong hover:bg-theme/5`
+      : `${base} bg-theme text-theme-fg`;
 
   return (
     <button type="button" onClick={share} className={cls}>

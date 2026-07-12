@@ -86,6 +86,12 @@ export function AppShell({
   const active = workspaces.find((w) => w.key === activeKey) ?? workspaces[0];
   const hasContext = active.items.length > 0;
   const dataTheme = active.theme;
+  // FOCUS MODE (Command_Center_Spec §4.1) — on a course-player route the learning canvas gets
+  // primacy: the contextual sidebar collapses to a slim icon rail and the topbar drops the
+  // workspace label (the page owns its course-title header). Nav v1.1 structure is INTACT — the
+  // switcher stays (1-tap escape), every sidebar destination stays reachable (icons + labels for
+  // AT), mobile chrome unchanged. Presentation only; matches exactly /dashboard/learn/<courseSlug>.
+  const focusMode = /^\/dashboard\/learn\/[^/]+$/.test(pathname);
 
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);
@@ -197,23 +203,55 @@ export function AppShell({
         )}
       </nav>
 
-      {/* Desktop: contextual sidebar (only when the workspace has pages) */}
-      {hasContext && (
-        <aside className="fixed inset-y-0 left-[72px] z-30 hidden w-[232px] flex-col border-r border-line bg-surface-raised md:flex">
-          {/* R2: the header carries the workspace SNAPSHOT, not a third copy of the label
+      {/* Desktop: contextual sidebar (only when the workspace has pages). In player focus mode it
+          collapses to a slim ICON rail — same destinations, chrome recedes (§4.1). */}
+      {hasContext &&
+        (focusMode ? (
+          <aside className="fixed inset-y-0 left-[72px] z-30 hidden w-14 flex-col border-r border-line bg-surface-raised py-3 md:flex">
+            <nav
+              aria-label={`${active.label} pages`}
+              className="flex flex-col items-center gap-1"
+            >
+              {active.items.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-label={item.label}
+                  title={item.label}
+                  aria-current={
+                    item.href === activeItemHref ? "page" : undefined
+                  }
+                  className={cn(
+                    "flex h-10 w-10 items-center justify-center rounded-gs transition-colors",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2",
+                    item.href === activeItemHref
+                      ? "bg-theme/10 text-theme-strong"
+                      : "text-ink-muted hover:bg-charcoal/5 hover:text-ink",
+                  )}
+                >
+                  <item.icon className="h-5 w-5" aria-hidden />
+                </Link>
+              ))}
+            </nav>
+          </aside>
+        ) : (
+          <aside className="fixed inset-y-0 left-[72px] z-30 hidden w-[232px] flex-col border-r border-line bg-surface-raised md:flex">
+            {/* R2: the header carries the workspace SNAPSHOT, not a third copy of the label
               (switcher + topbar already name it). Falls back to the label when no snapshot. */}
-          <div className="flex h-16 items-center px-4">
-            {snapshots?.[active.key] ? (
-              <SidebarSnapshot {...snapshots[active.key]!} />
-            ) : (
-              <p className="font-heading text-h4 font-bold text-ink">
-                {active.label}
-              </p>
-            )}
-          </div>
-          <div className="flex-1 overflow-y-auto px-3 pb-3">{contextNav()}</div>
-        </aside>
-      )}
+            <div className="flex h-16 items-center px-4">
+              {snapshots?.[active.key] ? (
+                <SidebarSnapshot {...snapshots[active.key]!} />
+              ) : (
+                <p className="font-heading text-h4 font-bold text-ink">
+                  {active.label}
+                </p>
+              )}
+            </div>
+            <div className="flex-1 overflow-y-auto px-3 pb-3">
+              {contextNav()}
+            </div>
+          </aside>
+        ))}
 
       {/* Mobile drawer — the contextual pages (overflow only). */}
       <Drawer
@@ -226,7 +264,12 @@ export function AppShell({
       </Drawer>
 
       {/* Main column */}
-      <div className={cn("md:pl-[72px]", hasContext && "md:pl-[304px]")}>
+      <div
+        className={cn(
+          "md:pl-[72px]",
+          hasContext && (focusMode ? "md:pl-[128px]" : "md:pl-[304px]"),
+        )}
+      >
         <Topbar
           left={
             <>
@@ -239,9 +282,12 @@ export function AppShell({
                   <Menu className="h-5 w-5" aria-hidden />
                 </IconButton>
               )}
-              <h1 className="truncate font-heading text-h4 font-bold text-ink">
-                {active.label}
-              </h1>
+              {/* Focus mode: the page owns its course-title header — no competing label here. */}
+              {!focusMode && (
+                <h1 className="truncate font-heading text-h4 font-bold text-ink">
+                  {active.label}
+                </h1>
+              )}
             </>
           }
           actions={
