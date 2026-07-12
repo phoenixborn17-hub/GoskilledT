@@ -1,10 +1,11 @@
-// VIBRANT HOME — direction study (branch gps-vibrant-home · founder sign-off BEFORE any rollout).
-// A high-fidelity mockup of the dashboard Home at the bold/vibrant end, on a STANDALONE preview
-// route: the live Home is untouched; all styles are scoped (.vibrant-home / .vh-*). It renders the
-// VIEWER'S REAL Home data through the same loaders the product uses — greeting, spark line, the
-// eligibility-forked metric row, momentum, for-you feed — so every number is real or honest-zero
-// (D-29/D-01/DR-043 hold even in a mockup). Multi-accent system is MEANINGFUL, not rainbow:
-// learn=green · earn=gold (amber for text — Rule 14) · achievement=violet · status=blue.
+// VIBRANT HOME v2 — direction study (branch gps-vibrant-home · founder sign-off BEFORE rollout).
+// Bolder on all four axes vs v1: saturated FOCAL cards (hero + Progress + the Earn slot — white
+// AA text on dark-green / dark-amber gradients; supporting cards stay tinted so it reads premium,
+// not rainbow), layered depth + glass + glow, a prominent hero chart (gradient area + glow edge),
+// and micro-interactions (count-up on NON-money numbers only, ring fill-in, staggered entrance,
+// glow hover). Standalone + scoped (.vibrant-home/.vh-*): the live Home is untouched. All data is
+// the VIEWER'S REAL state via the product's own loaders — honest zeros, eligibility-forked earn,
+// DR-043 copy, money static via <DataValue> (D-29/D-01 hold even in a mockup).
 import Link from "next/link";
 import { format } from "date-fns";
 import {
@@ -33,15 +34,15 @@ import {
 } from "../../../lib/format";
 import { Badge } from "../../../components/ui/badge";
 import { DataValue } from "../../../components/data/data-value";
-import { ProgressRing } from "../../../components/data/progress-ring";
 import { HeatStrip } from "../../../components/data/heat-strip";
 import { NetworkNodes } from "../../../components/data/network-nodes";
 import { AreaChart } from "../../../components/data/area-chart";
 import { Spark } from "../../../components/data/spark";
 import { DeviceTierProvider } from "../../../components/system/device-tier-provider";
+import { CountUp, AnimatedRing } from "./vibrant-bits";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Vibrant Home — direction study" };
+export const metadata = { title: "Vibrant Home v2 — direction study" };
 
 export default async function VibrantHomePage() {
   const user = await getCurrentUser();
@@ -59,15 +60,15 @@ export default async function VibrantHomePage() {
       <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-8 md:px-8">
         {/* Preview banner — this is a direction study, never the live surface. */}
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="gold">Direction study</Badge>
+          <Badge variant="gold">Direction study · v2 bold</Badge>
           <p className="text-caption text-ink-muted">
             Vibrant Home mockup · real data, honest zeros · the live Home is
             unchanged. Sign-off decides rollout.
           </p>
         </div>
 
-        {/* ① Command hero — deep-green aurora, the greeting owns the stage. */}
-        <header className="vh-hero p-6 md:p-8">
+        {/* ① Command hero — deep-green aurora; the greeting owns the stage. */}
+        <header className="vh-hero dc-enter p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
               <span className="vh-hero-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-caption font-bold uppercase tracking-wide">
@@ -78,7 +79,7 @@ export default async function VibrantHomePage() {
                 {summary.greetingTitle}
               </h1>
               <p className="mt-2 flex items-center gap-2 text-body text-white/85">
-                <span className="text-gold-400" style={{ color: "#EDC825" }}>
+                <span style={{ color: "#EDC825" }}>
                   <Spark size={6} />
                 </span>
                 {summary.sparkLine}
@@ -96,14 +97,79 @@ export default async function VibrantHomePage() {
                 label={`${m.overallPercent}%`}
                 sub="progress"
               />
+              <HeroChip
+                icon={Award}
+                label={formatCount(m.certificates)}
+                sub="certs"
+              />
             </div>
           </div>
         </header>
 
-        {/* ② Key-metric row — the meaningful multi-accent system. */}
+        {/* ② HERO CHART — the "live command center" panel (real 14-day series, glow edge). */}
+        <section aria-label="Learning activity" className="dc-enter">
+          <div className="vh-card vh-accent-learn vh-chart-glow p-5 md:p-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span
+                  className="vh-plate flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+                  aria-hidden
+                >
+                  <TrendingUp className="h-5 w-5" />
+                </span>
+                <div>
+                  <h2 className="font-heading text-h4 font-bold text-ink">
+                    Learning activity
+                  </h2>
+                  <p className="text-caption text-ink-muted">Last 14 days</p>
+                </div>
+              </div>
+              {momentum.learningTotal > 0 && (
+                <div className="text-right">
+                  <p className="dc-number text-h1 font-bold leading-none text-ink">
+                    <CountUp value={momentum.learningTotal} />
+                    <span className="dc-unit">
+                      {momentum.learningTotal === 1 ? "lesson" : "lessons"}
+                    </span>
+                  </p>
+                  {m.weekLessons > 0 && (
+                    <p className="vh-delta mt-1 inline-flex rounded-full px-2.5 py-0.5 text-caption font-semibold">
+                      ▲ {m.weekLessons} this week
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="mt-4">
+              {momentum.learningTotal > 0 ? (
+                <>
+                  <AreaChart
+                    points={momentum.learning}
+                    height={140}
+                    color="#137E49"
+                    label="Lessons completed per day, last 14 days"
+                  />
+                  <p className="sr-only">
+                    {momentum.learningTotal} lessons completed over the last 14
+                    days
+                  </p>
+                </>
+              ) : (
+                <UnlockShell
+                  line="Your momentum graph starts with your first lesson."
+                  cta={{ label: "Start learning", href: "/dashboard/learn" }}
+                />
+              )}
+            </div>
+          </div>
+        </section>
+
+        {/* ③ Key-metric row — 2 saturated FOCAL cards (Progress + Earn slot) + 2 calm tinted. */}
         <section aria-label="Your key metrics">
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             <VibrantMetric
+              bold
+              index={0}
               accent="vh-accent-learn"
               icon={GraduationCap}
               label="Progress"
@@ -111,19 +177,19 @@ export default async function VibrantHomePage() {
               href="/dashboard/learn"
               value={
                 <>
-                  {m.overallPercent}
+                  <CountUp value={m.overallPercent} />
                   <span className="dc-unit">%</span>
                 </>
               }
               viz={
-                <ProgressRing
+                <AnimatedRing
                   value={m.overallPercent}
-                  size={46}
+                  size={48}
                   strokeWidth={5}
                   label={`Overall progress ${m.overallPercent}%`}
                 >
                   <span aria-hidden />
-                </ProgressRing>
+                </AnimatedRing>
               }
               delta={
                 m.weekLessons > 0
@@ -140,6 +206,7 @@ export default async function VibrantHomePage() {
             />
 
             <VibrantMetric
+              index={1}
               accent="vh-accent-earn"
               icon={Flame}
               label="Streak"
@@ -147,7 +214,7 @@ export default async function VibrantHomePage() {
               href="/dashboard/learn"
               value={
                 <>
-                  {m.streak.current}
+                  <CountUp value={m.streak.current} />
                   <span className="dc-unit">
                     {m.streak.current === 1 ? "day" : "days"}
                   </span>
@@ -176,11 +243,12 @@ export default async function VibrantHomePage() {
             />
 
             <VibrantMetric
+              index={2}
               accent="vh-accent-achieve"
               icon={Award}
               label="Certificates"
               href="/dashboard/progress"
-              value={formatCount(m.certificates)}
+              value={<CountUp value={m.certificates} />}
               viz={<Award className="h-8 w-8" aria-hidden />}
               caption={
                 m.certificates === 0
@@ -193,55 +261,32 @@ export default async function VibrantHomePage() {
           </div>
         </section>
 
-        {/* ③ Momentum — gradient-glow analytics, honest unlock shells at zero. */}
-        <section aria-label="Your momentum">
-          <h2 className="mb-3 font-heading text-h4 font-bold text-ink">
-            Your momentum
-          </h2>
-          <div
-            className={
-              momentum.earn ? "grid gap-4 lg:grid-cols-2" : "grid gap-4"
-            }
-          >
-            <VibrantPanel
-              accent="vh-accent-learn"
-              icon={TrendingUp}
-              title="Learning activity"
-              meta="Last 14 days"
-            >
-              {momentum.learningTotal > 0 ? (
-                <>
-                  <AreaChart
-                    points={momentum.learning}
-                    height={104}
-                    color="#137E49"
-                    label="Lessons completed per day, last 14 days"
-                  />
-                  <p className="sr-only">
-                    {momentum.learningTotal} lessons completed over the last 14
-                    days
+        {/* ④ Earn momentum (ELIGIBLE only — recomposed away otherwise, never a teaser). */}
+        {momentum.earn && (
+          <section aria-label="Recorded earnings trend" className="dc-enter">
+            <div className="vh-card vh-accent-earn vh-chart-glow p-5 md:p-6">
+              <div className="flex items-center gap-3">
+                <span
+                  className="vh-plate flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+                  aria-hidden
+                >
+                  <Coins className="h-5 w-5" />
+                </span>
+                <div className="min-w-0">
+                  <h3 className="font-heading text-small font-bold text-ink">
+                    Recorded earnings
+                  </h3>
+                  <p className="text-caption text-ink-muted">
+                    Last 14 days · recorded to your wallet
                   </p>
-                </>
-              ) : (
-                <UnlockShell
-                  line="Your momentum graph starts with your first lesson."
-                  cta={{ label: "Start learning", href: "/dashboard/learn" }}
-                />
-              )}
-            </VibrantPanel>
-
-            {momentum.earn && (
-              <VibrantPanel
-                accent="vh-accent-earn"
-                icon={Coins}
-                title="Recorded earnings"
-                meta="Last 14 days · recorded to your wallet"
-              >
+                </div>
+              </div>
+              <div className="mt-4">
                 {momentum.earn.totalInPaise > 0 ? (
                   <>
                     <AreaChart
                       points={momentum.earn.series}
-                      height={104}
+                      height={110}
                       color="#B87A00"
                       label="Commission recorded per day, last 14 days"
                     />
@@ -256,13 +301,13 @@ export default async function VibrantHomePage() {
                     cta={{ label: "Open Earn", href: "/dashboard/earn" }}
                   />
                 )}
-              </VibrantPanel>
-            )}
-          </div>
-        </section>
+              </div>
+            </div>
+          </section>
+        )}
 
-        {/* ④ For-you feed — accent-plated rows, real events only. */}
-        <section aria-label="For you today">
+        {/* ⑤ For-you feed — accent-plated rows, real events only. */}
+        <section aria-label="For you today" className="dc-enter">
           <h2 className="mb-3 font-heading text-h4 font-bold text-ink">
             For you today
           </h2>
@@ -323,9 +368,9 @@ export default async function VibrantHomePage() {
         </section>
 
         <p className="text-caption text-ink-muted">
-          Direction study only — colors/gradients/shadows are the proposal; the
-          data, honesty rules, and eligibility gates are the product&apos;s own.
-          Compare with the live{" "}
+          Direction study only — colors/gradients/shadows/motion are the
+          proposal; the data, honesty rules, and eligibility gates are the
+          product&apos;s own. Money never animates. Compare with the live{" "}
           <Link
             href="/dashboard/home"
             className="font-semibold text-theme-strong"
@@ -361,6 +406,8 @@ function HeroChip({
 
 function VibrantMetric({
   accent,
+  bold = false,
+  index = 0,
   icon: Icon,
   label,
   value,
@@ -372,6 +419,8 @@ function VibrantMetric({
   badge,
 }: {
   accent: string;
+  bold?: boolean;
+  index?: number;
   icon: LucideIcon;
   label: string;
   value: React.ReactNode;
@@ -382,14 +431,17 @@ function VibrantMetric({
   href: string;
   badge?: string;
 }) {
+  const ink = bold ? "text-white" : "text-ink";
+  const muted = bold ? "text-white/80" : "text-ink-muted";
   return (
     <Link
       href={href}
-      className={`vh-card ${accent} flex h-full flex-col p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2 md:p-5`}
+      style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }}
+      className={`vh-card dc-enter ${accent} ${bold ? "vh-bold" : ""} flex h-full flex-col p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2 md:p-5`}
     >
       <div className="flex items-start justify-between gap-2">
         <span
-          className={`vh-plate flex h-10 w-10 shrink-0 items-center justify-center rounded-xl`}
+          className="vh-plate flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
           aria-hidden
         >
           <Icon className="h-5 w-5" />
@@ -402,28 +454,32 @@ function VibrantMetric({
       </div>
       <div className="mt-2 flex items-center gap-1.5">
         {live ? (
-          <span className="vh-text">
+          <span className={bold ? "text-white" : "vh-text"}>
             <Spark size={6} />
           </span>
         ) : null}
-        <p className="font-heading text-small font-semibold text-ink">
+        <p className={`font-heading text-small font-semibold ${ink}`}>
           {label}
         </p>
       </div>
       <div className="mt-2 flex flex-1 items-end justify-between gap-3">
-        <p className="dc-number text-h2 font-bold leading-none text-ink md:text-h1">
+        <p
+          className={`dc-number text-h2 font-bold leading-none md:text-h1 ${ink}`}
+        >
           {value}
         </p>
-        {viz && <div className="vh-text shrink-0 pb-0.5">{viz}</div>}
+        {viz && (
+          <div className={`shrink-0 pb-0.5 ${bold ? "text-white" : "vh-text"}`}>
+            {viz}
+          </div>
+        )}
       </div>
       {delta ? (
         <p className="vh-delta mt-3 inline-flex w-fit rounded-full px-2.5 py-1 text-caption font-semibold">
           {delta}
         </p>
       ) : caption ? (
-        <p className="mt-3 text-caption leading-snug text-ink-muted">
-          {caption}
-        </p>
+        <p className={`mt-3 text-caption leading-snug ${muted}`}>{caption}</p>
       ) : null}
     </Link>
   );
@@ -435,6 +491,8 @@ function VibrantEarnSlot({ summary }: { summary: HomeSummary }) {
   if (earn.kind === "recorded") {
     return (
       <VibrantMetric
+        bold
+        index={3}
         accent="vh-accent-earn"
         icon={Wallet}
         label="Recorded earnings"
@@ -460,6 +518,8 @@ function VibrantEarnSlot({ summary }: { summary: HomeSummary }) {
   if (earn.kind === "network") {
     return (
       <VibrantMetric
+        bold
+        index={3}
         accent="vh-accent-earn"
         icon={Users}
         label="Your network"
@@ -477,6 +537,7 @@ function VibrantEarnSlot({ summary }: { summary: HomeSummary }) {
   if (summary.webinarNext) {
     return (
       <VibrantMetric
+        index={3}
         accent="vh-accent-status"
         icon={CalendarDays}
         label="Next webinar"
@@ -493,6 +554,7 @@ function VibrantEarnSlot({ summary }: { summary: HomeSummary }) {
   }
   return (
     <VibrantMetric
+      index={3}
       accent="vh-accent-status"
       icon={Target}
       label="Next milestone"
@@ -508,40 +570,6 @@ function VibrantEarnSlot({ summary }: { summary: HomeSummary }) {
           : "You've earned every milestone we have."
       }
     />
-  );
-}
-
-function VibrantPanel({
-  accent,
-  icon: Icon,
-  title,
-  meta,
-  children,
-}: {
-  accent: string;
-  icon: LucideIcon;
-  title: string;
-  meta?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className={`vh-card ${accent} p-5 md:p-6`}>
-      <div className="flex items-center gap-3">
-        <span
-          className="vh-plate flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-          aria-hidden
-        >
-          <Icon className="h-5 w-5" />
-        </span>
-        <div className="min-w-0">
-          <h3 className="font-heading text-small font-bold text-ink">
-            {title}
-          </h3>
-          {meta && <p className="text-caption text-ink-muted">{meta}</p>}
-        </div>
-      </div>
-      <div className="mt-4">{children}</div>
-    </div>
   );
 }
 
