@@ -1,32 +1,43 @@
-// VIBRANT HOME v2 — direction study (branch gps-vibrant-home · founder sign-off BEFORE rollout).
-// Bolder on all four axes vs v1: saturated FOCAL cards (hero + Progress + the Earn slot — white
-// AA text on dark-green / dark-amber gradients; supporting cards stay tinted so it reads premium,
-// not rainbow), layered depth + glass + glow, a prominent hero chart (gradient area + glow edge),
-// and micro-interactions (count-up on NON-money numbers only, ring fill-in, staggered entrance,
-// glow hover). Standalone + scoped (.vibrant-home/.vh-*): the live Home is untouched. All data is
-// the VIEWER'S REAL state via the product's own loaders — honest zeros, eligibility-forked earn,
-// DR-043 copy, money static via <DataValue> (D-29/D-01 hold even in a mockup).
+// VIBRANT COMMAND-CENTER v3 — direction study (branch gps-vibrant-home · founder sign-off BEFORE
+// rollout). Data-rich iteration: ① a full-width PROMO BANNER SLOT (static placeholder — the
+// admin-managed image/GIF/video version is a separate feature build) · ② one consistent card
+// system with a MEANINGFUL six-accent map (learning=emerald · earn=gold/amber · network=indigo ·
+// achievement=purple · streak=orange · status=cyan; 2–3 saturated focal cards, the rest calm
+// tints) · ③ the full curated metric set in hierarchy: hero → hero chart → Learning KPI grid →
+// EARN block (ONLY for eligible affiliates — DR-040/DR-038; honest DR-043 recorded-not-payable
+// framing, payouts OFF D-01) → feed. Every number is the viewer's REAL state via existing product
+// loaders — honest zeros, no fabrication, money static (D-29). Scoped .vh-*; live Home untouched.
 import Link from "next/link";
 import { format } from "date-fns";
 import {
   GraduationCap,
+  BookOpen,
+  Clock,
   Flame,
   Award,
+  Package,
   Wallet,
+  Coins,
+  Hourglass,
+  Banknote,
   Users,
+  Network,
   CalendarDays,
+  Trophy,
+  Gift,
+  ShieldCheck,
+  ReceiptText,
   Target,
   TrendingUp,
-  Coins,
   PlayCircle,
   Sparkles,
   ArrowRight,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 import { getCurrentUser } from "../../../lib/auth/session";
-import { getHomeSummary, type HomeSummary } from "../../../lib/home/summary";
-import { getHomeMomentum } from "../../../lib/home/momentum";
-import { getRecentActivity, relativeDayLabel } from "../../../lib/home/feed";
+import { type HomeSummary } from "../../../lib/home/summary";
+import { relativeDayLabel } from "../../../lib/home/feed";
 import {
   safeMoney,
   formatCount,
@@ -40,34 +51,73 @@ import { AreaChart } from "../../../components/data/area-chart";
 import { Spark } from "../../../components/data/spark";
 import { DeviceTierProvider } from "../../../components/system/device-tier-provider";
 import { CountUp, AnimatedRing } from "./vibrant-bits";
+import { getVibrantData, type EarnBlock } from "./vibrant-data";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "Vibrant Home v2 — direction study" };
+export const metadata = {
+  title: "Vibrant Command Center v3 — direction study",
+};
+
+const KYC_LABEL: Record<string, { value: string; caption: string }> = {
+  APPROVED: { value: "Approved", caption: "You're payout-ready." },
+  SUBMITTED: { value: "In review", caption: "We're checking your documents." },
+  REJECTED: { value: "Needs attention", caption: "Re-submit your documents." },
+  DRAFT: {
+    value: "In progress",
+    caption: "Finish your KYC to get payout-ready.",
+  },
+};
 
 export default async function VibrantHomePage() {
   const user = await getCurrentUser();
-  const [summary, momentum, activity] = await Promise.all([
-    getHomeSummary(user!.id),
-    getHomeMomentum(user!.id),
-    getRecentActivity(user!.id, 3),
-  ]);
+  const { summary, momentum, activity, kpis, earn } = await getVibrantData(
+    user!.id,
+  );
   const m = summary.metrics;
   const learnedToday = m.last7[m.last7.length - 1] > 0;
 
   return (
     <div className="vibrant-home min-h-dvh">
       <DeviceTierProvider />
-      <main className="mx-auto w-full max-w-5xl space-y-8 px-4 py-8 md:px-8">
+      <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 md:px-8">
         {/* Preview banner — this is a direction study, never the live surface. */}
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="gold">Direction study · v2 bold</Badge>
+          <Badge variant="gold">Direction study · v3 command center</Badge>
           <p className="text-caption text-ink-muted">
-            Vibrant Home mockup · real data, honest zeros · the live Home is
-            unchanged. Sign-off decides rollout.
+            Real data, honest zeros · earn block eligibility-gated · the live
+            Home is unchanged.
           </p>
         </div>
 
-        {/* ① Command hero — deep-green aurora; the greeting owns the stage. */}
+        {/* ① PROMO BANNER SLOT — static placeholder; admin-managed media is a separate build. */}
+        <section aria-label="Announcement banner" className="dc-enter">
+          <Link
+            href="/dashboard/learn/browse"
+            className="vh-banner block p-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2 md:p-8"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="min-w-0">
+                <span className="vh-hero-chip inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-caption font-bold uppercase tracking-wide">
+                  <Megaphone className="h-3.5 w-3.5" aria-hidden />
+                  Promo slot · admin-managed soon
+                </span>
+                <h2 className="mt-3 font-heading text-h2 font-extrabold leading-tight">
+                  New skills are landing on GoSkilled
+                </h2>
+                <p className="mt-1 max-w-prose text-small text-white/80">
+                  Browse the catalog — every course is mobile-first, in simple
+                  Hinglish, with a verifiable certificate.
+                </p>
+              </div>
+              <span className="vh-hero-chip inline-flex shrink-0 items-center gap-2 rounded-2xl px-5 py-3 text-small font-bold">
+                Browse courses
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </span>
+            </div>
+          </Link>
+        </section>
+
+        {/* ② Command hero — greeting + spark line + glance chips. */}
         <header className="vh-hero dc-enter p-6 md:p-8">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="min-w-0">
@@ -85,28 +135,27 @@ export default async function VibrantHomePage() {
                 {summary.sparkLine}
               </p>
             </div>
-            {/* Live glance chips — real values only. */}
             <div className="flex shrink-0 flex-wrap gap-2">
               <HeroChip
                 icon={Flame}
-                label={`${m.streak.current} ${m.streak.current === 1 ? "day" : "days"}`}
+                label={`${kpis.streak.current}d`}
                 sub="streak"
               />
               <HeroChip
                 icon={GraduationCap}
-                label={`${m.overallPercent}%`}
+                label={`${kpis.overallPercent}%`}
                 sub="progress"
               />
               <HeroChip
                 icon={Award}
-                label={formatCount(m.certificates)}
+                label={formatCount(kpis.certificates)}
                 sub="certs"
               />
             </div>
           </div>
         </header>
 
-        {/* ② HERO CHART — the "live command center" panel (real 14-day series, glow edge). */}
+        {/* ③ Hero chart — the live-command-center panel. */}
         <section aria-label="Learning activity" className="dc-enter">
           <div className="vh-card vh-accent-learn vh-chart-glow p-5 md:p-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
@@ -164,9 +213,10 @@ export default async function VibrantHomePage() {
           </div>
         </section>
 
-        {/* ③ Key-metric row — 2 saturated FOCAL cards (Progress + Earn slot) + 2 calm tinted. */}
-        <section aria-label="Your key metrics">
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+        {/* ④ LEARNING KPI grid — six real KPIs, one card system, meaningful accents. */}
+        <section aria-label="Your learning">
+          <SectionHead title="Your learning" />
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
             <VibrantMetric
               bold
               index={0}
@@ -177,16 +227,16 @@ export default async function VibrantHomePage() {
               href="/dashboard/learn"
               value={
                 <>
-                  <CountUp value={m.overallPercent} />
+                  <CountUp value={kpis.overallPercent} />
                   <span className="dc-unit">%</span>
                 </>
               }
               viz={
                 <AnimatedRing
-                  value={m.overallPercent}
+                  value={kpis.overallPercent}
                   size={48}
                   strokeWidth={5}
-                  label={`Overall progress ${m.overallPercent}%`}
+                  label={`Overall progress ${kpis.overallPercent}%`}
                 >
                   <span aria-hidden />
                 </AnimatedRing>
@@ -204,19 +254,53 @@ export default async function VibrantHomePage() {
                     : "Pick up where you left off."
               }
             />
-
             <VibrantMetric
               index={1}
-              accent="vh-accent-earn"
+              accent="vh-accent-learn"
+              icon={BookOpen}
+              label="Courses"
+              href="/dashboard/courses"
+              value={
+                <>
+                  <CountUp value={kpis.coursesCompleted} />
+                  <span className="dc-unit">/{kpis.coursesEnrolled} done</span>
+                </>
+              }
+              caption={
+                kpis.coursesEnrolled === 0
+                  ? "Pick your first course to begin."
+                  : "completed / enrolled"
+              }
+            />
+            <VibrantMetric
+              index={2}
+              accent="vh-accent-cyan"
+              icon={Clock}
+              label="Learning time"
+              href="/dashboard/progress"
+              value={
+                <span className="text-h3 font-bold leading-snug md:text-h2">
+                  {kpis.learningTimeLabel}
+                </span>
+              }
+              caption={
+                kpis.learningTimeLabel === "0 min"
+                  ? "Your watched-lessons time appears here."
+                  : "across completed lessons"
+              }
+            />
+            <VibrantMetric
+              index={3}
+              accent="vh-accent-streak"
               icon={Flame}
               label="Streak"
-              live={learnedToday && m.streak.current > 0}
+              live={learnedToday && kpis.streak.current > 0}
               href="/dashboard/learn"
               value={
                 <>
-                  <CountUp value={m.streak.current} />
+                  <CountUp value={kpis.streak.current} />
                   <span className="dc-unit">
-                    {m.streak.current === 1 ? "day" : "days"}
+                    {kpis.streak.current === 1 ? "day" : "days"}
                   </span>
                 </>
               }
@@ -226,96 +310,65 @@ export default async function VibrantHomePage() {
                   label={`Active ${m.last7.filter((v) => v > 0).length} of the last 7 days`}
                 />
               }
-              delta={
-                m.streak.longest > m.streak.current && m.streak.current > 0
-                  ? `Best: ${m.streak.longest} days`
-                  : null
-              }
               caption={
-                m.streak.current === 0
-                  ? "Complete a lesson today to start your streak."
-                  : m.streak.atRisk
+                kpis.streak.current === 0
+                  ? "A lesson today starts your streak."
+                  : kpis.streak.atRisk
                     ? "A lesson today keeps it going."
-                    : m.streak.longest <= m.streak.current
-                      ? "Your best streak yet."
-                      : null
+                    : kpis.streak.longest > kpis.streak.current
+                      ? `Best: ${kpis.streak.longest} days`
+                      : "Your best streak yet."
               }
             />
-
             <VibrantMetric
-              index={2}
+              index={4}
               accent="vh-accent-achieve"
               icon={Award}
               label="Certificates"
               href="/dashboard/progress"
-              value={<CountUp value={m.certificates} />}
+              value={<CountUp value={kpis.certificates} />}
               viz={<Award className="h-8 w-8" aria-hidden />}
               caption={
-                m.certificates === 0
+                kpis.certificates === 0
                   ? "Your first seal awaits."
                   : "Verified & shareable."
               }
             />
-
-            <VibrantEarnSlot summary={summary} />
+            <VibrantMetric
+              index={5}
+              accent="vh-accent-earn"
+              icon={Package}
+              label="Package"
+              href="/dashboard/learn/browse#packages"
+              value={
+                <span className="text-h3 font-bold leading-snug md:text-h2">
+                  {kpis.packageName ?? "None yet"}
+                </span>
+              }
+              caption={
+                kpis.packageName
+                  ? "your current package"
+                  : "Pick a package to unlock everything."
+              }
+            />
           </div>
         </section>
 
-        {/* ④ Earn momentum (ELIGIBLE only — recomposed away otherwise, never a teaser). */}
-        {momentum.earn && (
-          <section aria-label="Recorded earnings trend" className="dc-enter">
-            <div className="vh-card vh-accent-earn vh-chart-glow p-5 md:p-6">
-              <div className="flex items-center gap-3">
-                <span
-                  className="vh-plate flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
-                  aria-hidden
-                >
-                  <Coins className="h-5 w-5" />
-                </span>
-                <div className="min-w-0">
-                  <h3 className="font-heading text-small font-bold text-ink">
-                    Recorded earnings
-                  </h3>
-                  <p className="text-caption text-ink-muted">
-                    Last 14 days · recorded to your wallet
-                  </p>
-                </div>
-              </div>
-              <div className="mt-4">
-                {momentum.earn.totalInPaise > 0 ? (
-                  <>
-                    <AreaChart
-                      points={momentum.earn.series}
-                      height={110}
-                      color="#B87A00"
-                      label="Commission recorded per day, last 14 days"
-                    />
-                    <p className="sr-only">
-                      {formatINRFromPaise(momentum.earn.totalInPaise)} recorded
-                      over the last 14 days
-                    </p>
-                  </>
-                ) : (
-                  <UnlockShell
-                    line="Your earnings trend appears with your first recorded commission."
-                    cta={{ label: "Open Earn", href: "/dashboard/earn" }}
-                  />
-                )}
-              </div>
-            </div>
-          </section>
+        {/* ⑤ EARN block — ELIGIBLE AFFILIATES ONLY (DR-040/DR-038). Absent = recomposed away. */}
+        {earn ? (
+          <EarnSection earn={earn} />
+        ) : (
+          <NonEligibleSlot summary={summary} />
         )}
 
-        {/* ⑤ For-you feed — accent-plated rows, real events only. */}
+        {/* ⑥ For-you feed — real events only. */}
         <section aria-label="For you today" className="dc-enter">
-          <h2 className="mb-3 font-heading text-h4 font-bold text-ink">
-            For you today
-          </h2>
-          <div className="vh-card vh-accent-status p-2">
+          <SectionHead title="For you today" />
+          <div className="vh-card vh-accent-cyan p-2">
             <div className="space-y-1 pt-1.5">
               {summary.webinarToday && (
                 <FeedRow
-                  accent="vh-accent-status"
+                  accent="vh-accent-cyan"
                   icon={CalendarDays}
                   title="Live webinar today"
                   description={`Starts at ${format(summary.webinarToday.startsAt, "h:mm a")}`}
@@ -325,7 +378,7 @@ export default async function VibrantHomePage() {
               )}
               {summary.streak.atRisk && (
                 <FeedRow
-                  accent="vh-accent-earn"
+                  accent="vh-accent-streak"
                   icon={Flame}
                   title="Keep your streak alive"
                   description="A 2-minute lesson today keeps it going."
@@ -340,7 +393,7 @@ export default async function VibrantHomePage() {
                     e.kind === "certificate"
                       ? "vh-accent-achieve"
                       : e.kind === "referral"
-                        ? "vh-accent-earn"
+                        ? "vh-accent-network"
                         : "vh-accent-learn"
                   }
                   icon={
@@ -369,7 +422,7 @@ export default async function VibrantHomePage() {
 
         <p className="text-caption text-ink-muted">
           Direction study only — colors/gradients/shadows/motion are the
-          proposal; the data, honesty rules, and eligibility gates are the
+          proposal; data, honesty rules, and eligibility gates are the
           product&apos;s own. Money never animates. Compare with the live{" "}
           <Link
             href="/dashboard/home"
@@ -384,7 +437,297 @@ export default async function VibrantHomePage() {
   );
 }
 
-// ── pieces (mockup-local — nothing shared with the live Home) ────────────────────
+// ── EARN block (eligible only) ───────────────────────────────────────────────────
+function EarnSection({ earn }: { earn: EarnBlock }) {
+  const d = earn.dash;
+  const w = d.wallet;
+  const totalNetwork = d.tree.l1Count + d.tree.l2Count + d.tree.l3Count;
+  const kyc = d.kycStatus
+    ? (KYC_LABEL[d.kycStatus] ?? {
+        value: d.kycStatus,
+        caption: "KYC status",
+      })
+    : { value: "Not started", caption: "Complete KYC to get payout-ready." };
+  const activeReward =
+    earn.rewards.find((r) => !r.achieved) ?? earn.rewards[0] ?? null;
+
+  return (
+    <section aria-label="Your earn numbers">
+      <SectionHead
+        title="Earn"
+        sub={
+          d.payoutsOpen
+            ? "Recorded to your wallet."
+            : "Recorded to your wallet — payouts open at launch."
+        }
+      />
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 xl:grid-cols-4">
+        <VibrantMetric
+          bold
+          index={0}
+          accent="vh-accent-earn"
+          icon={Wallet}
+          label="Available"
+          href="/dashboard/earn/wallet"
+          badge={
+            d.payoutsOpen && w.availableInPaise > 0 ? "Available" : undefined
+          }
+          value={<DataValue value={safeMoney(w.availableInPaise)} raiseUnit />}
+          caption={
+            d.payoutsOpen
+              ? "cleared and in your wallet"
+              : "cleared · payouts open at launch"
+          }
+        />
+        <VibrantMetric
+          index={1}
+          accent="vh-accent-earn"
+          icon={Coins}
+          label="Lifetime recorded"
+          href="/dashboard/earn/wallet"
+          value={<DataValue value={safeMoney(w.totalInPaise)} raiseUnit />}
+          caption="all commissions ever recorded"
+        />
+        <VibrantMetric
+          index={2}
+          accent="vh-accent-earn"
+          icon={Hourglass}
+          label="Pending"
+          href="/dashboard/earn/wallet"
+          value={<DataValue value={safeMoney(w.heldInPaise)} raiseUnit />}
+          caption="held — clears after the 48h refund window"
+        />
+        <VibrantMetric
+          index={3}
+          accent="vh-accent-earn"
+          icon={Banknote}
+          label={d.payoutsOpen ? "Withdrawable" : "Withdrawable at launch"}
+          href="/dashboard/earn/wallet"
+          value={<DataValue value={safeMoney(w.availableInPaise)} raiseUnit />}
+          caption={
+            d.payoutsOpen
+              ? "ready to withdraw from your wallet"
+              : "recorded, not payable yet — opens at launch"
+          }
+        />
+        <VibrantMetric
+          index={4}
+          accent="vh-accent-network"
+          icon={Users}
+          label="Total referrals"
+          href="/dashboard/earn/network"
+          value={<CountUp value={totalNetwork} />}
+          viz={<NetworkNodes count={d.tree.l1Count} height={40} />}
+          caption={
+            totalNetwork === 0
+              ? "Invite your first friend to build your network."
+              : "across all three levels"
+          }
+        />
+        <VibrantMetric
+          index={5}
+          accent="vh-accent-network"
+          icon={Network}
+          label="Network levels"
+          href="/dashboard/earn/network"
+          value={
+            <span className="tabular-nums">
+              {formatCount(d.tree.l1Count)}·{formatCount(d.tree.l2Count)}·
+              {formatCount(d.tree.l3Count)}
+            </span>
+          }
+          caption="L1 · L2 · L3"
+        />
+        <VibrantMetric
+          index={6}
+          accent="vh-accent-network"
+          icon={CalendarDays}
+          label="This month"
+          href="/dashboard/earn/network"
+          value={<CountUp value={d.tree.thisMonth} />}
+          caption={
+            d.tree.thisMonth === 0
+              ? "No new referrals yet this month."
+              : "friends joined this month"
+          }
+        />
+        <VibrantMetric
+          index={7}
+          accent="vh-accent-achieve"
+          icon={Trophy}
+          label="Leaderboard"
+          href="/dashboard/earn/leaderboard"
+          value={
+            earn.rank ? (
+              <>
+                #<CountUp value={earn.rank.rank} />
+              </>
+            ) : (
+              <span className="text-h3 font-bold leading-snug md:text-h2">
+                Not ranked
+              </span>
+            )
+          }
+          caption={
+            earn.rank
+              ? `${earn.rank.completedReferrals} completed ${earn.rank.completedReferrals === 1 ? "referral" : "referrals"}`
+              : "Rank comes from friends who complete their course."
+          }
+        />
+        <VibrantMetric
+          index={8}
+          accent="vh-accent-achieve"
+          icon={Gift}
+          label="Reward progress"
+          href="/dashboard/earn/rewards"
+          value={
+            activeReward ? (
+              <>
+                <CountUp value={activeReward.current} />
+                <span className="dc-unit">/{activeReward.target}</span>
+              </>
+            ) : (
+              <span className="text-h3 font-bold leading-snug md:text-h2">
+                None active
+              </span>
+            )
+          }
+          viz={
+            activeReward ? (
+              <AnimatedRing
+                value={activeReward.percent}
+                size={44}
+                strokeWidth={5}
+                label={`${activeReward.percent}% toward ${activeReward.title}`}
+              >
+                <span aria-hidden />
+              </AnimatedRing>
+            ) : undefined
+          }
+          caption={
+            activeReward
+              ? activeReward.achieved
+                ? `${activeReward.title} — achieved!`
+                : activeReward.title
+              : "Rewards appear here when admin launches one."
+          }
+        />
+        <VibrantMetric
+          index={9}
+          accent="vh-accent-cyan"
+          icon={ShieldCheck}
+          label="KYC"
+          href="/dashboard/earn/kyc"
+          value={
+            <span className="text-h3 font-bold leading-snug md:text-h2">
+              {kyc.value}
+            </span>
+          }
+          caption={kyc.caption}
+        />
+        <VibrantMetric
+          index={10}
+          accent="vh-accent-cyan"
+          icon={ReceiptText}
+          label="Withdrawal"
+          href="/dashboard/earn/wallet"
+          value={
+            earn.latestWithdrawal ? (
+              <span className="text-h3 font-bold capitalize leading-snug md:text-h2">
+                {earn.latestWithdrawal.status.toLowerCase().replace(/_/g, " ")}
+              </span>
+            ) : (
+              <span className="text-h3 font-bold leading-snug md:text-h2">
+                None yet
+              </span>
+            )
+          }
+          caption={
+            earn.latestWithdrawal
+              ? `${formatINRFromPaise(earn.latestWithdrawal.amountInPaise)} · ${relativeDayLabel(earn.latestWithdrawal.requestedAt)}`
+              : "Your withdrawal requests will appear here."
+          }
+        />
+      </div>
+    </section>
+  );
+}
+
+/** Non-eligible / hidden-layer slot — people-not-money (DR-038) or learning-first (DR-040). */
+function NonEligibleSlot({ summary }: { summary: HomeSummary }) {
+  const { earn } = summary;
+  if (earn.kind === "network") {
+    return (
+      <section aria-label="Your network">
+        <SectionHead title="Your network" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+          <VibrantMetric
+            bold
+            index={0}
+            accent="vh-accent-network"
+            icon={Users}
+            label="Friends joined"
+            href="/dashboard/earn"
+            value={<CountUp value={earn.l1Count} />}
+            viz={<NetworkNodes count={earn.l1Count} height={40} />}
+            caption={
+              earn.l1Count === 0
+                ? "See how earning works."
+                : "joined with your link"
+            }
+          />
+        </div>
+      </section>
+    );
+  }
+  if (earn.kind === "hidden" && summary.webinarNext) {
+    return (
+      <section aria-label="Next webinar">
+        <SectionHead title="Coming up" />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+          <VibrantMetric
+            index={0}
+            accent="vh-accent-cyan"
+            icon={CalendarDays}
+            label="Next webinar"
+            href="/dashboard/learn/webinars"
+            badge={summary.webinarToday ? "Today" : undefined}
+            value={
+              <span className="text-h3 font-bold leading-snug md:text-h2">
+                {format(summary.webinarNext.startsAt, "EEE, d MMM")}
+              </span>
+            }
+            caption={summary.webinarNext.title}
+          />
+          <VibrantMetric
+            index={1}
+            accent="vh-accent-achieve"
+            icon={Target}
+            label="Next milestone"
+            href="/dashboard/progress"
+            value={
+              <span className="text-h4 font-bold leading-snug">
+                {summary.nextMilestone ?? "All earned"}
+              </span>
+            }
+            caption="Your next learning achievement."
+          />
+        </div>
+      </section>
+    );
+  }
+  return null;
+}
+
+// ── shared mockup pieces ─────────────────────────────────────────────────────────
+function SectionHead({ title, sub }: { title: string; sub?: string }) {
+  return (
+    <div className="mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+      <h2 className="font-heading text-h4 font-bold text-ink">{title}</h2>
+      {sub && <p className="text-caption text-ink-muted">{sub}</p>}
+    </div>
+  );
+}
 
 function HeroChip({
   icon: Icon,
@@ -482,94 +825,6 @@ function VibrantMetric({
         <p className={`mt-3 text-caption leading-snug ${muted}`}>{caption}</p>
       ) : null}
     </Link>
-  );
-}
-
-/** Slot 4 — the SAME three-way eligibility fork as the live Home (structural, spec §2.3). */
-function VibrantEarnSlot({ summary }: { summary: HomeSummary }) {
-  const { earn } = summary;
-  if (earn.kind === "recorded") {
-    return (
-      <VibrantMetric
-        bold
-        index={3}
-        accent="vh-accent-earn"
-        icon={Wallet}
-        label="Recorded earnings"
-        href="/dashboard/earn/wallet"
-        badge={
-          earn.payoutsOpen && earn.availableInPaise > 0
-            ? "Available"
-            : undefined
-        }
-        value={<DataValue value={safeMoney(earn.totalInPaise)} raiseUnit />}
-        caption={
-          earn.payoutsOpen
-            ? earn.heldInPaise > 0
-              ? "Includes held commissions clearing their 48h window."
-              : "Recorded to your wallet."
-            : earn.totalInPaise > 0
-              ? "Recorded to your wallet — payouts open at launch."
-              : "Your wallet is ready to receive commissions."
-        }
-      />
-    );
-  }
-  if (earn.kind === "network") {
-    return (
-      <VibrantMetric
-        bold
-        index={3}
-        accent="vh-accent-earn"
-        icon={Users}
-        label="Your network"
-        href="/dashboard/earn"
-        value={formatCount(earn.l1Count)}
-        viz={<NetworkNodes count={earn.l1Count} height={40} />}
-        caption={
-          earn.l1Count === 0
-            ? "See how earning works."
-            : `${earn.l1Count === 1 ? "friend has" : "friends have"} joined with your link.`
-        }
-      />
-    );
-  }
-  if (summary.webinarNext) {
-    return (
-      <VibrantMetric
-        index={3}
-        accent="vh-accent-status"
-        icon={CalendarDays}
-        label="Next webinar"
-        href="/dashboard/learn/webinars"
-        badge={summary.webinarToday ? "Today" : undefined}
-        value={
-          <span className="text-h4 font-bold leading-snug">
-            {format(summary.webinarNext.startsAt, "EEE, d MMM")}
-          </span>
-        }
-        caption={summary.webinarNext.title}
-      />
-    );
-  }
-  return (
-    <VibrantMetric
-      index={3}
-      accent="vh-accent-status"
-      icon={Target}
-      label="Next milestone"
-      href="/dashboard/progress"
-      value={
-        <span className="text-h4 font-bold leading-snug">
-          {summary.nextMilestone ?? "All milestones earned"}
-        </span>
-      }
-      caption={
-        summary.nextMilestone
-          ? "Your next learning achievement."
-          : "You've earned every milestone we have."
-      }
-    />
   );
 }
 
