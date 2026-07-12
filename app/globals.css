@@ -1412,3 +1412,181 @@ html {
   background: var(--vh);
   box-shadow: none;
 }
+
+/* ── VIBRANT v5 — craft pass. #1: GOLD redesigned as LUXURY METALLIC (champagne gradient + bright
+      top sheen + warm dark-amber shadow — brushed gold, not yellow fill); the focal wallet card is
+      a deep emerald-charcoal vault with METALLIC-GOLD numerals. #2: four distinct focal identities
+      (emerald Progress · gold-vault Available · indigo Network · royal-purple Leaderboard).
+      #3–5: larger radii, scale+glow hover, icon micro-motion, brighter borders. AA everywhere:
+      ink on champagne; white / gilded #E6C875 on the deep focals. Low tier flattens all of it. ── */
+.vibrant-home .vh-card {
+  border-radius: 1.75rem;
+}
+
+/* Champagne metallic accent (replaces the flat pale-yellow earn tint). */
+.vibrant-home .vh-accent-earn {
+  --vh: #b8860b;
+  --vh-2: #e6c875;
+  --vh-text: #8a5a00;
+  --vh-tint: rgb(184 134 11 / 0.14);
+  --vh-shadow: rgb(166 124 0 / 0.32);
+}
+.vibrant-home .vh-soft.vh-accent-earn {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.85) 0%,
+      rgb(255 255 255 / 0) 18%
+    ),
+    radial-gradient(
+      120% 70% at 100% 0%,
+      rgb(230 200 117 / 0.55),
+      transparent 60%
+    ),
+    linear-gradient(165deg, #fdf6e1 0%, #f6e6bb 55%, #eed9a4 100%);
+  border-color: rgb(184 134 11 / 0.38);
+  box-shadow:
+    inset 0 1.5px 0 rgb(255 255 255 / 0.9),
+    0 2px 6px -2px rgb(166 124 0 / 0.35),
+    0 20px 44px -16px rgb(166 124 0 / 0.4);
+}
+.vibrant-home .vh-soft.vh-accent-earn .vh-plate-grad {
+  background: linear-gradient(135deg, #a67c00, #e6c875);
+}
+
+/* The gold-vault focal (Available) — deep emerald-charcoal, gilded sheen, metallic numerals. */
+.vibrant-home .vh-bold.vh-accent-earn {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.14) 0%,
+      rgb(255 255 255 / 0) 16%
+    ),
+    radial-gradient(
+      30rem 16rem at 100% -30%,
+      rgb(230 200 117 / 0.32),
+      transparent 60%
+    ),
+    radial-gradient(
+      22rem 14rem at -10% 120%,
+      rgb(19 126 73 / 0.45),
+      transparent 60%
+    ),
+    linear-gradient(140deg, #161c16 0%, #22301f 50%, #0c4a2c 100%);
+  border: 1px solid rgb(230 200 117 / 0.32);
+  box-shadow:
+    inset 0 1px 0 rgb(230 200 117 / 0.4),
+    0 2px 6px -2px rgb(22 28 22 / 0.4),
+    0 26px 60px -18px rgb(166 124 0 / 0.45);
+}
+.vibrant-home .vh-bold.vh-accent-earn::before {
+  background: linear-gradient(90deg, #e6c875, rgb(230 200 117 / 0.1));
+}
+/* Metallic-gold numerals — gradient-clipped text with a solid gilded fallback (AA on the vault). */
+.vh-gold-num {
+  color: #e6c875;
+}
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  .vh-gold-num {
+    background: linear-gradient(
+      170deg,
+      #f7e7b4 8%,
+      #e6c875 45%,
+      #c9a24b 78%,
+      #f1dfae 100%
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: #e6c875;
+  }
+}
+
+/* Distinct focal identities #3 + #4: indigo Network · royal-purple Leaderboard (white AA). */
+.vibrant-home .vh-bold.vh-accent-network {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.16) 0%,
+      rgb(255 255 255 / 0) 16%
+    ),
+    radial-gradient(
+      24rem 14rem at 100% -20%,
+      rgb(129 140 248 / 0.5),
+      transparent 60%
+    ),
+    linear-gradient(140deg, #27255f 0%, #3730a3 52%, #4f46e5 100%);
+  border: 1px solid rgb(255 255 255 / 0.16);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 2px 6px -2px rgb(49 46 129 / 0.4),
+    0 26px 60px -18px rgb(79 70 229 / 0.55);
+}
+.vibrant-home .vh-bold.vh-accent-achieve {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.16) 0%,
+      rgb(255 255 255 / 0) 16%
+    ),
+    radial-gradient(
+      24rem 14rem at 100% -20%,
+      rgb(167 139 250 / 0.5),
+      transparent 60%
+    ),
+    linear-gradient(140deg, #3b1478 0%, #5b21b6 52%, #7c3aed 100%);
+  border: 1px solid rgb(255 255 255 / 0.16);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.25),
+    0 2px 6px -2px rgb(59 20 120 / 0.4),
+    0 26px 60px -18px rgb(124 58 237 / 0.55);
+}
+
+/* Hover micro-interactions — lift + ~1.02 scale + glow + border brighten + icon pop (capable). */
+@media (prefers-reduced-motion: no-preference) {
+  a.vh-card:hover {
+    transform: translateY(-4px) scale(1.02);
+  }
+  .vibrant-home a.vh-soft:hover {
+    border-color: var(--vh);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.85),
+      0 4px 10px -2px var(--vh-shadow),
+      0 30px 60px -16px var(--vh-shadow),
+      0 0 26px -8px var(--vh-shadow);
+  }
+  .vh-plate-grad,
+  .vh-bold .vh-plate {
+    transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  a.vh-card:hover .vh-plate-grad,
+  a.vh-card:hover .vh-plate {
+    transform: translateY(-1px) scale(1.06) rotate(-2deg);
+  }
+}
+
+/* Low tier — flatten every v5 richness (solid fills, plain shadows, no clip-text sheen). */
+:root[data-device-tier="low"] .vibrant-home .vh-soft.vh-accent-earn {
+  background: #f6e6bb;
+  box-shadow: var(--gs-shadow-sm);
+}
+:root[data-device-tier="low"] .vibrant-home .vh-bold.vh-accent-earn {
+  background: #22301f;
+  box-shadow: var(--gs-shadow);
+}
+:root[data-device-tier="low"] .vibrant-home .vh-bold.vh-accent-network {
+  background: #3730a3;
+  box-shadow: var(--gs-shadow);
+}
+:root[data-device-tier="low"] .vibrant-home .vh-bold.vh-accent-achieve {
+  background: #5b21b6;
+  box-shadow: var(--gs-shadow);
+}
+:root[data-device-tier="low"] .vh-gold-num {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: #e6c875;
+}
+:root[data-device-tier="low"] a.vh-card:hover {
+  transform: none;
+}
