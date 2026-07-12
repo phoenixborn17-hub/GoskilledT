@@ -158,7 +158,7 @@ export default async function VibrantHomePage() {
 
         {/* ③ Hero chart — the live-command-center panel. */}
         <section aria-label="Learning activity" className="dc-enter">
-          <div className="vh-card vh-accent-learn vh-chart-glow p-5 md:p-6">
+          <div className="vh-card vh-soft vh-accent-learn vh-chart-glow p-5 md:p-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span
