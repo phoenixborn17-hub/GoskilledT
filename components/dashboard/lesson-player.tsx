@@ -25,6 +25,7 @@ export function LessonPlayer({
   poster,
   initiallyCompleted,
   nextLessonId,
+  nextLessonTitle,
 }: {
   courseSlug: string;
   courseTitle: string;
@@ -34,9 +35,14 @@ export function LessonPlayer({
   poster?: string;
   initiallyCompleted: boolean;
   nextLessonId: string | null;
+  /** Up-next preview for the momentum CTA (§4.1) — display only. */
+  nextLessonTitle?: string | null;
 }) {
   const router = useRouter();
   const [completed, setCompleted] = useState(initiallyCompleted);
+  // Momentum (§4.1): after marking complete, focus moves to the promoted "Next" button so a
+  // lesson never ends on a dead stop. Display/focus behavior only — completion logic unchanged.
+  const nextBtnRef = useRef<HTMLButtonElement>(null);
   const [celebrate, setCelebrate] = useState(false);
   const [firstWin, setFirstWin] = useState(false);
   const [certSerial, setCertSerial] = useState<string | null>(null);
@@ -124,6 +130,8 @@ export function LessonPlayer({
     } else {
       setCelebrate(true); // purposeful-delight moment (§5) — reduced-motion safe inside <Confetti>
       if (res.progress.completed === 1) setFirstWin(true);
+      // Momentum: hand the keyboard to the promoted Next CTA (rendered on the next paint).
+      requestAnimationFrame(() => nextBtnRef.current?.focus());
     }
     router.refresh(); // updates the lesson list + progress ring
   }
@@ -139,19 +147,19 @@ export function LessonPlayer({
       {firstWin && (
         <div
           role="status"
-          className="enter flex items-center gap-3 rounded-2xl bg-gradient-to-br from-brand/10 to-gold/15 p-4"
+          className="enter flex items-center gap-3 rounded-gs-lg bg-gradient-to-br from-theme/10 to-gold/15 p-4"
         >
           <span
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand/15 text-brand"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-theme/10 text-theme-strong"
             aria-hidden
           >
             <PartyPopper className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <p className="font-heading font-bold text-charcoal">
+            <p className="font-heading font-bold text-ink">
               Pehla lesson complete! 🎉
             </p>
-            <p className="text-sm text-muted">
+            <p className="text-small text-ink-muted">
               Shabaash — aapne shuru kar diya. Isi tarah aage badhte raho.
             </p>
           </div>
@@ -164,7 +172,7 @@ export function LessonPlayer({
           onClose={() => setCertSerial(null)}
         />
       )}
-      <div className="overflow-hidden rounded-2xl bg-charcoal">
+      <div className="overflow-hidden rounded-gs-lg bg-charcoal">
         {/* Guru companion-panel slot (§1E, GPS-M5) reserved alongside the player — no UI in M2. */}
         {videoError ? (
           <div className="flex aspect-video w-full flex-col items-center justify-center gap-3 p-6 text-center">
@@ -178,7 +186,7 @@ export function LessonPlayer({
                   setVideoError(false);
                   setAttempt((a) => a + 1);
                 }}
-                className="press rounded-xl bg-white px-4 py-2 text-sm font-semibold text-charcoal"
+                className="press rounded-xl bg-white px-4 py-2 text-small font-semibold text-ink"
               >
                 Retry
               </button>
@@ -222,7 +230,7 @@ export function LessonPlayer({
             <button
               type="button"
               onClick={resume}
-              className="press inline-flex items-center gap-2 rounded-xl bg-brand/10 px-3 py-2 text-sm font-semibold text-brand-deep"
+              className="press inline-flex items-center gap-2 rounded-xl bg-theme/10 px-3 py-2 text-small font-semibold text-theme-strong"
             >
               <RotateCcw className="h-4 w-4" aria-hidden />
               Resume from {mmss(resumeAt)}
@@ -234,7 +242,7 @@ export function LessonPlayer({
             checked={dataSaver}
             onChange={(e) => toggleDataSaver(e.target.checked)}
             label={
-              <span className="inline-flex items-center gap-1.5 text-sm text-muted">
+              <span className="inline-flex items-center gap-1.5 text-small text-ink-muted">
                 <Gauge className="h-4 w-4" aria-hidden />
                 Data saver
               </span>
@@ -243,31 +251,48 @@ export function LessonPlayer({
         </div>
       )}
 
-      <h2 className="font-heading text-xl font-bold">{title}</h2>
+      <h2 className="font-heading text-h3 font-bold text-ink">{title}</h2>
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-small text-danger">
           {error}
         </p>
       )}
 
-      <div className="flex flex-wrap gap-3">
+      {/* Momentum (§4.1): a finished lesson pulls forward. Not yet complete → Mark-complete is the
+          primary action; complete → the promoted PRIMARY "Next" previews the up-next title, and
+          the completed state is a calm chip. Same actions, same logic — re-weighted. */}
+      <div className="flex flex-wrap items-center gap-3">
         {completed ? (
-          <span className="inline-flex h-11 items-center gap-2 rounded-xl bg-brand/10 px-4 text-sm font-semibold text-brand">
-            <Check className="h-4 w-4" aria-hidden /> Completed
-          </span>
+          <>
+            <span className="inline-flex h-11 items-center gap-2 rounded-xl bg-success/10 px-4 text-small font-semibold text-success">
+              <Check className="h-4 w-4" aria-hidden /> Completed
+            </span>
+            {nextLessonId && (
+              <div className="w-full max-w-[20rem] sm:w-auto sm:min-w-[14rem]">
+                <Button ref={nextBtnRef} onClick={goNext}>
+                  <span className="truncate">
+                    {nextLessonTitle ? `Next: ${nextLessonTitle}` : "Next lesson"}
+                  </span>
+                  <span aria-hidden>&nbsp;→</span>
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
-          <div className="w-full max-w-[14rem]">
-            <Button onClick={markComplete} disabled={busy}>
-              {busy ? "Saving…" : "Mark as complete"}
-            </Button>
-          </div>
-        )}
-        {nextLessonId && (
-          <div className="w-full max-w-[12rem]">
-            <Button variant="outline" onClick={goNext}>
-              Next lesson →
-            </Button>
-          </div>
+          <>
+            <div className="w-full max-w-[14rem]">
+              <Button onClick={markComplete} disabled={busy}>
+                {busy ? "Saving…" : "Mark as complete"}
+              </Button>
+            </div>
+            {nextLessonId && (
+              <div className="w-full max-w-[12rem]">
+                <Button variant="outline" onClick={goNext}>
+                  Next lesson →
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
