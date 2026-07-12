@@ -1,8 +1,8 @@
-// v4 mini-viz (mockup-local, server-safe). Real values only — an all-zero series renders honest
-// baseline stubs, never a fabricated shape (D-29). `currentColor` so the card accent colors it.
+// Mini vertical bar cluster (Vibrant Card System v1.0 — promoted from the v5 preview).
+// Real values only — an all-zero series renders honest baseline stubs, never a fabricated
+// shape (D-29). `currentColor` so the card accent colors it.
 import * as React from "react";
 
-/** Tiny vertical bar cluster (per-course %, network levels, etc.). */
 export function MiniBars({
   values,
   label,
