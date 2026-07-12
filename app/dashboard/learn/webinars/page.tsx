@@ -122,8 +122,8 @@ export default async function WebinarsPage() {
               </h2>
               <p className="mt-2 max-w-prose text-body text-ink-muted">
                 The next Sunday session will appear here as soon as it&apos;s
-                scheduled. Register below and we&apos;ll message you the
-                joining details.
+                scheduled. Register below and we&apos;ll message you the joining
+                details.
               </p>
             </div>
           )}
@@ -133,9 +133,7 @@ export default async function WebinarsPage() {
         <section aria-label="Register" className="min-w-0">
           <div className="mb-2 flex items-center gap-2">
             <Badge variant="gold">Free</Badge>
-            <p className="text-small font-semibold text-ink">
-              Save your seat
-            </p>
+            <p className="text-small font-semibold text-ink">Save your seat</p>
           </div>
           <Suspense>
             <LeadCaptureForm

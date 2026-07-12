@@ -81,7 +81,7 @@ function NotEligible() {
         accent="gold"
         size="hero"
         cta="Browse packages"
-        href="/packages"
+        href="/dashboard/learn/browse#packages"
       >
         <div>
           <h2 className="font-heading text-h2 font-bold text-ink">

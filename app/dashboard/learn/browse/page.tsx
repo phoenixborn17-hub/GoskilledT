@@ -6,7 +6,10 @@
 import Link from "next/link";
 import { ArrowRight, BadgeCheck, Store } from "lucide-react";
 import { getCurrentUser } from "../../../../lib/auth/session";
-import { listCatalogCourses, listPackages } from "../../../../lib/catalog/queries";
+import {
+  listCatalogCourses,
+  listPackages,
+} from "../../../../lib/catalog/queries";
 import { getEnrolledCourses } from "../../../../lib/lms/queries";
 import {
   courseStats,
@@ -33,9 +36,7 @@ export default async function BrowsePage() {
   return (
     <div className="space-y-10">
       <header>
-        <h1 className="font-heading text-h1 font-extrabold text-ink">
-          Browse
-        </h1>
+        <h1 className="font-heading text-h1 font-extrabold text-ink">Browse</h1>
         <p className="mt-1 text-body text-ink-muted">
           Every course and package — yours are marked, the rest are one honest
           price away.
@@ -184,10 +185,7 @@ function PackageTable({
         <tbody>
           {rows.map((r) => (
             <tr key={r.feature} className="border-b border-line last:border-0">
-              <th
-                scope="row"
-                className="px-4 py-3 font-medium text-ink"
-              >
+              <th scope="row" className="px-4 py-3 font-medium text-ink">
                 {r.feature}
                 {r.highlight && (
                   <span className="ml-2 align-middle">

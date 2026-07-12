@@ -301,7 +301,7 @@ export function GuruPanel({
                   Guru enrolled students ke liye hai.
                 </p>
                 <a
-                  href="/packages"
+                  href="/dashboard/learn/browse#packages"
                   className="press shrink-0 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-brand-fg"
                 >
                   Unlock

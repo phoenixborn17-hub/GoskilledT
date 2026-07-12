@@ -133,7 +133,7 @@ export default async function CoursePlayerPage({
                 <div className="mx-auto mt-5 max-w-xs">
                   {/* Honest CTA: a locked course may come via Skill Builder OR Career Booster —
                       the packages page is the truthful chooser (was hardcoded career-booster). */}
-                  <Link href="/packages">
+                  <Link href="/dashboard/learn/browse#packages">
                     <Button>See packages</Button>
                   </Link>
                 </div>
