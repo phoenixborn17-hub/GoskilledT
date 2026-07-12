@@ -271,7 +271,9 @@ export function LessonPlayer({
               <div className="w-full max-w-[20rem] sm:w-auto sm:min-w-[14rem]">
                 <Button ref={nextBtnRef} onClick={goNext}>
                   <span className="truncate">
-                    {nextLessonTitle ? `Next: ${nextLessonTitle}` : "Next lesson"}
+                    {nextLessonTitle
+                      ? `Next: ${nextLessonTitle}`
+                      : "Next lesson"}
                   </span>
                   <span aria-hidden>&nbsp;→</span>
                 </Button>

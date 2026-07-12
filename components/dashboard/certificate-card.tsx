@@ -18,15 +18,15 @@ export function CertificateCard({
 }) {
   if (certificate) {
     return (
-      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-brand/5 p-3">
-        <Award className="h-5 w-5 shrink-0 text-brand" aria-hidden />
+      <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl bg-theme/5 p-3">
+        <Award className="h-5 w-5 shrink-0 text-theme-strong" aria-hidden />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-charcoal">
+          <p className="text-small font-semibold text-ink">
             Certificate earned
           </p>
           <Link
             href={`/verify/${certificate.serial}`}
-            className="text-sm font-semibold text-brand hover:underline"
+            className="text-small font-semibold text-theme-strong hover:underline"
           >
             View &amp; verify →
           </Link>
@@ -48,10 +48,10 @@ export function CertificateCard({
   return (
     <div className="mt-4 flex items-start gap-3 rounded-xl bg-charcoal/5 p-3">
       <CircleDashed
-        className="mt-0.5 h-5 w-5 shrink-0 text-muted"
+        className="mt-0.5 h-5 w-5 shrink-0 text-ink-muted"
         aria-hidden
       />
-      <p className="text-sm text-muted">{text}</p>
+      <p className="text-small text-ink-muted">{text}</p>
     </div>
   );
 }

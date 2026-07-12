@@ -54,14 +54,17 @@ export function QuizCheckpoint({
   // Already-cleared, not currently retrying → calm cleared state.
   if (quiz.alreadyPassed && !result) {
     return (
-      <Card className="border-brand/20 bg-brand/5">
+      <Card className="border-theme/20 bg-theme/5">
         <div className="flex items-center gap-3">
-          <CheckCircle2 className="h-6 w-6 shrink-0 text-brand" aria-hidden />
+          <CheckCircle2
+            className="h-6 w-6 shrink-0 text-theme-strong"
+            aria-hidden
+          />
           <div className="min-w-0 flex-1">
-            <p className="font-heading font-bold text-charcoal">
+            <p className="font-heading font-bold text-ink">
               Checkpoint clear ✓
             </p>
-            <p className="text-sm text-muted">
+            <p className="text-small text-ink-muted">
               Aapne ye quiz pass kar liya hai. Dobara try karna ho to —
             </p>
           </div>
@@ -80,13 +83,13 @@ export function QuizCheckpoint({
       <Confetti fire={celebrate} />
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <h2 className="font-heading text-lg font-bold text-charcoal">
+          <h2 className="font-heading text-h4 font-bold text-ink">
             {quiz.title}
           </h2>
           <Badge variant="brand">Checkpoint</Badge>
         </div>
         {quiz.isMandatory && (
-          <span className="inline-flex items-center gap-1 text-xs font-medium text-muted">
+          <span className="inline-flex items-center gap-1 text-caption font-medium text-ink-muted">
             <Award className="h-3.5 w-3.5" aria-hidden /> Certificate ke liye
             zaroori
           </span>
@@ -99,8 +102,8 @@ export function QuizCheckpoint({
           return (
             <li key={q.id}>
               <fieldset disabled={busy || !!result}>
-                <legend className="mb-2 flex gap-2 text-sm font-semibold text-charcoal">
-                  <span className="text-muted">{qi + 1}.</span>
+                <legend className="mb-2 flex gap-2 text-small font-semibold text-ink">
+                  <span className="text-ink-muted">{qi + 1}.</span>
                   <span>{q.prompt}</span>
                 </legend>
                 <div
@@ -125,31 +128,31 @@ export function QuizCheckpoint({
                           )
                         }
                         className={cn(
-                          "press flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-colors",
+                          "press flex w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-small transition-colors",
                           isAnswer
-                            ? "border-brand bg-brand/10 text-charcoal"
+                            ? "border-theme bg-theme/10 text-ink"
                             : isWrongPick
-                              ? "border-red-300 bg-red-50 text-charcoal"
+                              ? "border-danger/40 bg-danger/5 text-ink"
                               : selected
-                                ? "border-brand bg-brand/5 text-charcoal"
-                                : "border-charcoal/15 text-charcoal hover:bg-charcoal/5",
+                                ? "border-theme bg-theme/5 text-ink"
+                                : "border-charcoal/15 text-ink hover:bg-charcoal/5",
                         )}
                       >
                         <span
                           className={cn(
                             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
                             selected || isAnswer
-                              ? "border-brand"
+                              ? "border-theme"
                               : "border-charcoal/30",
                           )}
                           aria-hidden
                         >
                           {isAnswer ? (
-                            <CheckCircle2 className="h-5 w-5 text-brand" />
+                            <CheckCircle2 className="h-5 w-5 text-theme-strong" />
                           ) : isWrongPick ? (
-                            <XCircle className="h-5 w-5 text-red-500" />
+                            <XCircle className="h-5 w-5 text-danger" />
                           ) : selected ? (
-                            <span className="h-2.5 w-2.5 rounded-full bg-brand" />
+                            <span className="h-2.5 w-2.5 rounded-full bg-theme" />
                           ) : null}
                         </span>
                         <span className="min-w-0 flex-1">{opt}</span>
@@ -160,10 +163,10 @@ export function QuizCheckpoint({
                 {fb && fb.explanation && (
                   <p
                     className={cn(
-                      "mt-2 rounded-lg px-3 py-2 text-xs",
+                      "mt-2 rounded-lg px-3 py-2 text-caption",
                       fb.isCorrect
-                        ? "bg-brand/5 text-charcoal"
-                        : "bg-charcoal/5 text-muted",
+                        ? "bg-theme/5 text-ink"
+                        : "bg-charcoal/5 text-ink-muted",
                     )}
                   >
                     {fb.isCorrect ? "Sahi! " : ""}
@@ -177,7 +180,7 @@ export function QuizCheckpoint({
       </ol>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-small text-danger">
           {error}
         </p>
       )}
@@ -187,19 +190,19 @@ export function QuizCheckpoint({
         <div
           className={cn(
             "flex flex-wrap items-center gap-3 rounded-xl p-4",
-            result.passed ? "bg-brand/10" : "bg-charcoal/5",
+            result.passed ? "bg-theme/10" : "bg-charcoal/5",
           )}
         >
           {result.passed ? (
             <>
-              <CheckCircle2 className="h-6 w-6 text-brand" aria-hidden />
-              <p className="flex-1 text-sm font-semibold text-charcoal">
+              <CheckCircle2 className="h-6 w-6 text-theme-strong" aria-hidden />
+              <p className="flex-1 text-small font-semibold text-ink">
                 Shabaash! {result.scorePercent}% — checkpoint clear 🎉
               </p>
             </>
           ) : (
             <>
-              <p className="flex-1 text-sm font-medium text-charcoal">
+              <p className="flex-1 text-small font-medium text-ink">
                 {result.scorePercent}% — thodi aur practice. Upar sahi jawab
                 dekho, phir se try karo.
               </p>
