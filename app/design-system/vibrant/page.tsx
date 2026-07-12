@@ -56,7 +56,7 @@ import { getVibrantData, type EarnBlock } from "./vibrant-data";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Vibrant Command Center v4 — direction study",
+  title: "Vibrant Command Center v5 — direction study",
 };
 
 const KYC_LABEL: Record<string, { value: string; caption: string }> = {
@@ -83,7 +83,7 @@ export default async function VibrantHomePage() {
       <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 md:px-8">
         {/* Preview banner — this is a direction study, never the live surface. */}
         <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="gold">Direction study · v3 command center</Badge>
+          <Badge variant="gold">Direction study · v5 command center</Badge>
           <p className="text-caption text-ink-muted">
             Real data, honest zeros · earn block eligibility-gated · the live
             Home is unchanged.
