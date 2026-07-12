@@ -25,6 +25,8 @@ export interface LearningKpis {
   /** Real watched-content proxy: total duration of COMPLETED lessons ("0 min" honest zero). */
   learningTimeLabel: string;
   certificates: number;
+  /** Real per-course completion percents (first 6) — feeds the Courses mini-bars. */
+  coursePercents: number[];
   /** Highest owned package name, or null (honest "No package yet"). */
   packageName: string | null;
   streak: { current: number; longest: number; atRisk: boolean };
@@ -81,6 +83,7 @@ export async function getVibrantData(userId: string): Promise<VibrantData> {
     overallPercent: summary.metrics.overallPercent,
     learningTimeLabel: watchedSec > 0 ? formatDuration(watchedSec) : "0 min",
     certificates: summary.metrics.certificates,
+    coursePercents: enrolled.slice(0, 6).map((c) => c.progress.percent),
     packageName: pkg,
     streak: {
       current: summary.metrics.streak.current,
