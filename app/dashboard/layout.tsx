@@ -7,6 +7,7 @@ import { getCurrentUser } from "../../lib/auth/session";
 import { prisma } from "../../lib/prisma";
 import { siteUrl } from "../../lib/seo";
 import { getVisibleFeatures } from "../../lib/feature-visibility/context";
+import { getShellState } from "../../lib/nav/shell-state";
 import { AppShell } from "../../components/nav/app-shell";
 import { InstallPrompt } from "../../components/pwa/install-prompt";
 
@@ -38,13 +39,20 @@ export default async function DashboardLayout({
     ? `${siteUrl()}/register?ref=${referralCode}`
     : "";
 
+  const userName = record?.name?.trim() || "You";
+  // Sidebar snapshots + honest switcher pips (Command_Center_Spec §1.2 R2/R3) — composed from
+  // existing reads; the layout persists across client navigations so this runs on hard loads only.
+  const shellState = await getShellState(user.id, userName, affiliateVisible);
+
   return (
     <>
       <AppShell
-        userName={record?.name?.trim() || "You"}
+        userName={userName}
         referralCode={referralCode}
         shareUrl={shareUrl}
         visibleFeatures={visibleFeatures}
+        snapshots={shellState.snapshots}
+        pips={shellState.pips}
       >
         {children}
       </AppShell>

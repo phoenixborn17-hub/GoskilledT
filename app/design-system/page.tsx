@@ -76,6 +76,15 @@ import { LeaderboardCard } from "../../components/cards/leaderboard-card";
 import { AISuggestionCard } from "../../components/cards/ai-suggestion-card";
 import { ProfileCard } from "../../components/cards/profile-card";
 
+// Command Center (Command_Center_Dashboard_Spec §2 · Slice 1).
+import { MetricCard } from "../../components/cards/decision/metric-card";
+import { ChartPanel } from "../../components/cards/decision/chart-panel";
+import { HeatStrip } from "../../components/data/heat-strip";
+import { NetworkNodes } from "../../components/data/network-nodes";
+import { AreaChart } from "../../components/data/area-chart";
+import { Spark } from "../../components/data/spark";
+import { SidebarSnapshot } from "../../components/nav/sidebar-snapshot";
+
 import { ProgressRing } from "../../components/data/progress-ring";
 import { ProgressBar } from "../../components/data/progress-bar";
 import { Sparkline } from "../../components/data/sparkline";
@@ -206,6 +215,167 @@ export default function DesignSystemPage() {
             real data or an honest Error state — never ₹0.
           </p>
         </header>
+
+        <Section
+          title="Command Center — MetricCards (Slice 1 · ThreeState)"
+          subtitle="The Home key-metric row: a size=metric DecisionCard variant (not a new system). Row 1 = NEW user (honest zeros + unlock micro-lines). Row 2 = ACTIVE/POWER (real deltas, live Spark on the label when a real trigger exists). Slot 4 shows all three eligibility forks side by side: recorded (DR-043, eligible) · network (visible-not-eligible, people never ₹) · learning-first fallback (earn hidden)."
+        >
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+            <MetricCard
+              icon={GraduationCap}
+              label="Progress"
+              accent="green"
+              value={
+                <>
+                  0<span className="dc-unit">%</span>
+                </>
+              }
+              viz={
+                <ProgressRing value={0} size={44} strokeWidth={5} label="0%">
+                  <span aria-hidden />
+                </ProgressRing>
+              }
+              caption="Lesson 1 unlocks your analytics."
+            />
+            <MetricCard
+              icon={Flame}
+              label="Streak"
+              accent="green"
+              value={
+                <>
+                  0<span className="dc-unit">days</span>
+                </>
+              }
+              viz={
+                <HeatStrip
+                  values={[0, 0, 0, 0, 0, 0, 0]}
+                  label="Active 0 of the last 7 days"
+                />
+              }
+              caption="Complete a lesson today to start your streak."
+            />
+            <MetricCard
+              icon={Award}
+              label="Certificates"
+              accent="green"
+              value="0"
+              viz={<Award className="h-8 w-8" aria-hidden />}
+              caption="Your first seal awaits."
+            />
+            <MetricCard
+              icon={Wallet}
+              label="Recorded earnings"
+              accent="gold"
+              value={<DataValue value={safeMoney(0)} raiseUnit />}
+              caption="Your wallet is ready to receive commissions."
+            />
+            <MetricCard
+              icon={GraduationCap}
+              label="Progress"
+              accent="green"
+              live
+              value={
+                <>
+                  41<span className="dc-unit">%</span>
+                </>
+              }
+              viz={
+                <ProgressRing
+                  value={41}
+                  size={44}
+                  strokeWidth={5}
+                  label="41%"
+                  spark
+                >
+                  <span aria-hidden />
+                </ProgressRing>
+              }
+              caption="5 lessons this week"
+            />
+            <MetricCard
+              icon={Flame}
+              label="Streak"
+              accent="green"
+              live
+              value={
+                <>
+                  6<span className="dc-unit">days</span>
+                </>
+              }
+              viz={
+                <HeatStrip
+                  values={[1, 0, 2, 1, 3, 1, 2]}
+                  label="Active 6 of the last 7 days"
+                />
+              }
+              caption="Best: 9 days"
+            />
+            <MetricCard
+              icon={Wallet}
+              label="Recorded earnings"
+              accent="gold"
+              value={<DataValue value={safeMoney(425000)} raiseUnit />}
+              caption="Recorded to your wallet — payouts open at launch."
+            />
+            <MetricCard
+              icon={Users}
+              label="Your network"
+              accent="gold"
+              value="2"
+              viz={<NetworkNodes count={2} height={40} />}
+              caption="friends have joined with your link."
+            />
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <ChartPanel
+              icon={Sparkles}
+              title="Learning activity"
+              accent="green"
+              meta="Last 14 days"
+              ready
+              chart={
+                <AreaChart
+                  points={[0, 1, 0, 2, 1, 3, 2, 1, 0, 2, 4, 2, 3, 2]}
+                  height={96}
+                  label="Lessons per day"
+                />
+              }
+              summary="23 lessons over the last 14 days"
+              unlockLine=""
+            />
+            <ChartPanel
+              icon={Sparkles}
+              title="Learning activity (honest zero)"
+              accent="green"
+              meta="Last 14 days"
+              ready={false}
+              chart={null}
+              unlockLine="Your momentum graph starts with your first lesson."
+              unlockCta={{ label: "Start learning", href: "/dashboard/learn" }}
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-8 rounded-gs-lg border border-line bg-surface-raised p-5">
+            <span className="inline-flex items-center gap-2 text-theme-strong">
+              <Spark size={6} />
+              <span className="text-small text-ink-muted">
+                The Spark (DOM mark) — greeting bullet · switcher pip · metric
+                live-edge
+              </span>
+            </span>
+            <div className="border-l border-line pl-8">
+              <SidebarSnapshot
+                primary="3 courses · 41%"
+                caption="your learning so far"
+              />
+            </div>
+            <div className="border-l border-line pl-8">
+              <SidebarSnapshot
+                primary="₹4,250 recorded"
+                caption="your earnings so far"
+              />
+            </div>
+          </div>
+        </Section>
 
         <Section
           title="Decision Cards — sample bento dashboard"

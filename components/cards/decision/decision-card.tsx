@@ -4,9 +4,10 @@ import { ArrowRight, Sparkles, Flame, type LucideIcon } from "lucide-react";
 import { cn } from "../../../lib/utils";
 import { Skeleton } from "../../ui/skeleton";
 import { ErrorState } from "../../ui/error-state";
+import { Spark } from "../../data/spark";
 
 export type CardAccent = "green" | "gold" | "info" | "neutral";
-export type CardSize = "hero" | "primary" | "secondary" | "wide";
+export type CardSize = "hero" | "primary" | "secondary" | "wide" | "metric";
 
 export interface DecisionCardProps {
   icon: LucideIcon;
@@ -16,6 +17,9 @@ export interface DecisionCardProps {
   badge?: { label: string; tone?: "live" | "new" | "hot" };
   /** In-card AI nudge — real trigger only. Pass null/undefined to omit the line entirely (D-29). */
   aiLine?: string | null;
+  /** Live-edge (Command_Center_Spec §2.4): the label tick becomes the breathing Spark. HONEST
+   *  trigger only (streak alive today · lesson in progress · money moved) — absence is information. */
+  live?: boolean;
   /** One action per card. The whole card is the link; this is the visual affordance. */
   cta?: string;
   href?: string;
@@ -41,6 +45,7 @@ const sizePad: Record<CardSize, string> = {
   primary: "p-5",
   secondary: "p-5",
   wide: "p-6",
+  metric: "p-4 md:p-5",
 };
 
 function CardBadge({
@@ -87,6 +92,7 @@ export function DecisionCard({
   size = "primary",
   badge,
   aiLine,
+  live = false,
   cta,
   href,
   state = "ready",
@@ -111,13 +117,23 @@ export function DecisionCard({
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-center gap-3">
         <span
-          className="dc-icon dc-icon-plate flex h-11 w-11 shrink-0 items-center justify-center rounded-xl"
+          className={cn(
+            "dc-icon dc-icon-plate flex shrink-0 items-center justify-center rounded-xl",
+            size === "metric" ? "h-10 w-10" : "h-11 w-11",
+          )}
           aria-hidden
         >
           <Icon className="h-5 w-5" />
         </span>
         <span className="flex min-w-0 items-center gap-1.5">
-          <span className="dc-tick shrink-0" aria-hidden />
+          {/* Live-edge: the static tick becomes the breathing Spark (honest trigger only). */}
+          {live ? (
+            <span style={{ color: "var(--card-accent)" }}>
+              <Spark size={6} />
+            </span>
+          ) : (
+            <span className="dc-tick shrink-0" aria-hidden />
+          )}
           <span className="truncate font-heading text-small font-semibold text-ink">
             {label}
           </span>
@@ -145,7 +161,9 @@ export function DecisionCard({
       </div>
     ) : (
       <>
-        <div className="mt-4 flex-1">{children}</div>
+        <div className={cn("flex-1", size === "metric" ? "mt-3" : "mt-4")}>
+          {children}
+        </div>
         {aiLine ? (
           <p className="mt-4 flex items-start gap-1.5 rounded-lg bg-info/5 px-2.5 py-2 text-caption text-ink-muted">
             <Sparkles

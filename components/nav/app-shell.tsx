@@ -8,7 +8,10 @@ import {
   visibleWorkspaces,
   activeWorkspaceKey,
   type Workspace,
+  type WorkspaceKey,
 } from "../../lib/nav/workspaces";
+import { Spark } from "../data/spark";
+import { SidebarSnapshot, type WorkspaceSnapshot } from "./sidebar-snapshot";
 import { isVisibleIn, type FeatureKey } from "../../lib/feature-visibility";
 import { signOutAction } from "../../app/dashboard/actions";
 import { Topbar } from "./topbar";
@@ -26,8 +29,21 @@ export interface AppShellProps {
   /** Server-resolved feature visibility map (Feature Visibility, DR-040). Presentation gate on top
    *  of server enforcement — the switcher, Share affordance, etc. recompose from this. */
   visibleFeatures: Partial<Record<FeatureKey, boolean>>;
+  /** Per-workspace sidebar snapshots (Command_Center_Spec §1.2 R2) — server-composed real state
+   *  ("3 courses · 41%"), rendered in the sidebar header INSTEAD of repeating the workspace label. */
+  snapshots?: Partial<Record<WorkspaceKey, WorkspaceSnapshot>>;
+  /** Honest switcher pips (spec §1.2 R3) — a Spark on a workspace icon ONLY when real attention is
+   *  owed (e.g. streak at risk → Learn). Server-resolved triggers; shown on inactive workspaces. */
+  pips?: Partial<Record<WorkspaceKey, boolean>>;
   children: React.ReactNode;
 }
+
+// Pip accent per workspace theme (decorative colour; the meaning also exists as sr-only text).
+const pipColor: Record<Workspace["theme"], string> = {
+  neutral: "text-ink",
+  learn: "text-green-700",
+  earn: "text-warning-strong",
+};
 
 // Active-workspace accent (green Learn / gold Earn / neutral Home·Account).
 const activePill: Record<Workspace["theme"], string> = {
@@ -57,6 +73,8 @@ export function AppShell({
   referralCode,
   shareUrl,
   visibleFeatures,
+  snapshots,
+  pips,
   children,
 }: AppShellProps) {
   const pathname = usePathname() ?? "/dashboard/home";
@@ -85,6 +103,8 @@ export function AppShell({
   const switcher = (variant: "rail" | "bar") =>
     workspaces.map((ws) => {
       const isActive = ws.key === activeKey;
+      // Honest pip: only on INACTIVE workspaces (you're already looking at the active one).
+      const pip = !isActive && pips?.[ws.key] === true;
       return (
         <Link
           key={ws.key}
@@ -103,7 +123,22 @@ export function AppShell({
               : "text-ink-muted hover:text-ink",
           )}
         >
-          <ws.icon className="h-5 w-5" aria-hidden />
+          <span className="relative inline-flex">
+            <ws.icon className="h-5 w-5" aria-hidden />
+            {pip && (
+              <>
+                <span
+                  className={cn(
+                    "absolute -right-1.5 -top-1",
+                    pipColor[ws.theme],
+                  )}
+                >
+                  <Spark size={6} />
+                </span>
+                <span className="sr-only">— new activity</span>
+              </>
+            )}
+          </span>
           {ws.label}
         </Link>
       );
@@ -165,10 +200,16 @@ export function AppShell({
       {/* Desktop: contextual sidebar (only when the workspace has pages) */}
       {hasContext && (
         <aside className="fixed inset-y-0 left-[72px] z-30 hidden w-[232px] flex-col border-r border-line bg-surface-raised md:flex">
+          {/* R2: the header carries the workspace SNAPSHOT, not a third copy of the label
+              (switcher + topbar already name it). Falls back to the label when no snapshot. */}
           <div className="flex h-16 items-center px-4">
-            <p className="font-heading text-h4 font-bold text-ink">
-              {active.label}
-            </p>
+            {snapshots?.[active.key] ? (
+              <SidebarSnapshot {...snapshots[active.key]!} />
+            ) : (
+              <p className="font-heading text-h4 font-bold text-ink">
+                {active.label}
+              </p>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto px-3 pb-3">{contextNav()}</div>
         </aside>
