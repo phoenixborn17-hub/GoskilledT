@@ -11,10 +11,7 @@ import {
   type WorkspaceKey,
 } from "../../lib/nav/workspaces";
 import { Spark } from "../data/spark";
-import {
-  SidebarSnapshot,
-  type WorkspaceSnapshot,
-} from "./sidebar-snapshot";
+import { SidebarSnapshot, type WorkspaceSnapshot } from "./sidebar-snapshot";
 import { isVisibleIn, type FeatureKey } from "../../lib/feature-visibility";
 import { signOutAction } from "../../app/dashboard/actions";
 import { Topbar } from "./topbar";

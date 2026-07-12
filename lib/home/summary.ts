@@ -80,19 +80,26 @@ function istDay(d: Date): string {
 
 export async function getHomeSummary(userId: string): Promise<HomeSummary> {
   const now = new Date();
-  const [record, enrolled, game, webinar, certificates, last7, affiliateVisible] =
-    await Promise.all([
-      prisma.user.findUnique({
-        where: { id: userId },
-        select: { name: true, referralCode: true },
-      }),
-      getEnrolledCourses(userId),
-      getGamification(userId),
-      getNextWebinar(),
-      prisma.certificate.count({ where: { userId } }),
-      getDailyLessonActivity(userId, 7),
-      isFeatureVisible("earn"),
-    ]);
+  const [
+    record,
+    enrolled,
+    game,
+    webinar,
+    certificates,
+    last7,
+    affiliateVisible,
+  ] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, referralCode: true },
+    }),
+    getEnrolledCourses(userId),
+    getGamification(userId),
+    getNextWebinar(),
+    prisma.certificate.count({ where: { userId } }),
+    getDailyLessonActivity(userId, 7),
+    isFeatureVisible("earn"),
+  ]);
 
   const name = record?.name?.trim() || null;
   const referralCode = record?.referralCode ?? "";

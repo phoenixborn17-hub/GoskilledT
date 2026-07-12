@@ -270,7 +270,9 @@ function EarnSlot({ summary }: { summary: HomeSummary }) {
         accent="info"
         index={3}
         href="/webinar"
-        badge={summary.webinarToday ? { label: "Today", tone: "live" } : undefined}
+        badge={
+          summary.webinarToday ? { label: "Today", tone: "live" } : undefined
+        }
         value={
           <span className="text-h4 font-bold leading-snug">
             {format(summary.webinarNext.startsAt, "EEE, d MMM")}

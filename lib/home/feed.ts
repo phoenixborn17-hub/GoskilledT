@@ -76,9 +76,7 @@ export function relativeDayLabel(at: Date, now: Date = new Date()): string {
   if (ist(at) === ist(now)) return "Today";
   const days = Math.max(
     1,
-    Math.round(
-      (Date.parse(ist(now)) - Date.parse(ist(at))) / 86_400_000,
-    ),
+    Math.round((Date.parse(ist(now)) - Date.parse(ist(at))) / 86_400_000),
   );
   return days === 1 ? "Yesterday" : `${days}d ago`;
 }
