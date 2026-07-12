@@ -4,6 +4,7 @@
 // answered(+citations) · redirected · blocked · capped · empty-corpus · error · not-enrolled. All
 // answers come from the server engine (askGuruAction) — the client only renders verdicts.
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -300,12 +301,12 @@ export function GuruPanel({
                 <p className="flex-1 text-sm text-muted">
                   Guru enrolled students ke liye hai.
                 </p>
-                <a
+                <Link
                   href="/dashboard/learn/browse#packages"
                   className="press shrink-0 rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-brand-fg"
                 >
                   Unlock
-                </a>
+                </Link>
               </div>
             )}
           </div>
