@@ -1338,3 +1338,77 @@ html {
   background: #22301f;
   box-shadow: var(--gs-shadow);
 }
+
+/* ── VIBRANT v4 — the cards THEMSELVES are colorful (founder review of v3: white + a stripe reads
+      "clean minimal", not vibrant). .vh-soft = accent gradient-tinted card BODY (light→deeper of
+      the same accent, consistent saturation range across all six accents so it reads premium
+      multi-color, not rainbow). Ink/accent text on the tints keeps AA (tints stay light).
+      Gradient icon plates + inner sheen + stronger accent-tinted layered shadows. Old-WebView
+      fallback: flat --vh-tint (never a bare surface). Low tier flattens everything. ── */
+.vh-soft {
+  background-color: var(--gs-surface-raised);
+  background-image:
+    radial-gradient(120% 70% at 100% 0%, var(--vh-tint), transparent 55%),
+    linear-gradient(165deg, var(--vh-tint), transparent 45%);
+  border: 1px solid var(--vh-tint);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.8),
+    0 2px 6px -2px var(--vh-shadow),
+    0 20px 44px -16px var(--vh-shadow);
+}
+@supports (background: color-mix(in srgb, red 20%, white)) {
+  .vh-soft {
+    background-image: none;
+    background:
+      radial-gradient(
+          120% 70% at 100% 0%,
+          color-mix(in srgb, var(--vh) 24%, white),
+          transparent 60%
+        )
+        no-repeat,
+      linear-gradient(
+        165deg,
+        color-mix(in srgb, var(--vh) 10%, white) 0%,
+        color-mix(in srgb, var(--vh) 20%, white) 100%
+      );
+    border-color: color-mix(in srgb, var(--vh) 34%, white);
+  }
+}
+/* Gradient icon plate — a solid accent gradient with white glyph (icons are decorative;
+   the label beside them carries the text contrast). */
+.vh-plate-grad {
+  background: linear-gradient(135deg, var(--vh), var(--vh-2));
+  color: #fefefe;
+  border: 0;
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.35),
+    0 6px 14px -6px var(--vh-shadow);
+}
+.vh-soft .vh-delta {
+  background: color-mix(in srgb, var(--vh) 18%, white);
+  color: var(--vh-text);
+}
+@supports not (background: color-mix(in srgb, red 20%, white)) {
+  .vh-soft .vh-delta {
+    background: var(--vh-tint);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  a.vh-soft:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.8),
+      0 4px 10px -2px var(--vh-shadow),
+      0 28px 56px -16px var(--vh-shadow);
+  }
+}
+:root[data-device-tier="low"] .vh-soft {
+  background: var(--gs-surface-raised);
+  background-image: none;
+  box-shadow: var(--gs-shadow-sm);
+  border-color: var(--vh-tint);
+}
+:root[data-device-tier="low"] .vh-plate-grad {
+  background: var(--vh);
+  box-shadow: none;
+}

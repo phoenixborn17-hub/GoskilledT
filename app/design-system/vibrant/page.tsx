@@ -1,12 +1,12 @@
-// VIBRANT COMMAND-CENTER v3 — direction study (branch gps-vibrant-home · founder sign-off BEFORE
-// rollout). Data-rich iteration: ① a full-width PROMO BANNER SLOT (static placeholder — the
-// admin-managed image/GIF/video version is a separate feature build) · ② one consistent card
-// system with a MEANINGFUL six-accent map (learning=emerald · earn=gold/amber · network=indigo ·
-// achievement=purple · streak=orange · status=cyan; 2–3 saturated focal cards, the rest calm
-// tints) · ③ the full curated metric set in hierarchy: hero → hero chart → Learning KPI grid →
-// EARN block (ONLY for eligible affiliates — DR-040/DR-038; honest DR-043 recorded-not-payable
-// framing, payouts OFF D-01) → feed. Every number is the viewer's REAL state via existing product
-// loaders — honest zeros, no fabrication, money static (D-29). Scoped .vh-*; live Home untouched.
+// VIBRANT COMMAND-CENTER v4 — direction study (founder v3 review: cards read "white + a stripe";
+// make the CARDS THEMSELVES colorful). Every supporting card now carries its accent as a soft
+// GRADIENT-TINTED body (.vh-soft — consistent saturation range across the six meaningful accents,
+// premium multi-color not rainbow), gradient icon plates, stronger accent-tinted layered shadows,
+// tighter density with a mini-viz on every card, and size hierarchy (focal col-span-2 cards +
+// smaller supporting). Kept from v3: promo banner SLOT, green hero, glass chips, the saturated
+// focal gradient cards, hero chart. EARN block remains ONLY for eligible affiliates (DR-040/
+// DR-038; DR-043 recorded-not-payable, payouts OFF D-01). Every number is the viewer's REAL state
+// via existing loaders — honest zeros, no fabrication, money static (D-29). Scoped .vh-*.
 import Link from "next/link";
 import { format } from "date-fns";
 import {
@@ -51,11 +51,12 @@ import { AreaChart } from "../../../components/data/area-chart";
 import { Spark } from "../../../components/data/spark";
 import { DeviceTierProvider } from "../../../components/system/device-tier-provider";
 import { CountUp, AnimatedRing } from "./vibrant-bits";
+import { MiniBars } from "./vibrant-viz";
 import { getVibrantData, type EarnBlock } from "./vibrant-data";
 
 export const dynamic = "force-dynamic";
 export const metadata = {
-  title: "Vibrant Command Center v3 — direction study",
+  title: "Vibrant Command Center v4 — direction study",
 };
 
 const KYC_LABEL: Record<string, { value: string; caption: string }> = {
@@ -157,7 +158,7 @@ export default async function VibrantHomePage() {
 
         {/* ③ Hero chart — the live-command-center panel. */}
         <section aria-label="Learning activity" className="dc-enter">
-          <div className="vh-card vh-accent-learn vh-chart-glow p-5 md:p-6">
+          <div className="vh-card vh-soft vh-accent-learn vh-chart-glow p-5 md:p-6">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span
@@ -216,10 +217,11 @@ export default async function VibrantHomePage() {
         {/* ④ LEARNING KPI grid — six real KPIs, one card system, meaningful accents. */}
         <section aria-label="Your learning">
           <SectionHead title="Your learning" />
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4">
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
             <VibrantMetric
               bold
               index={0}
+              className="col-span-2"
               accent="vh-accent-learn"
               icon={GraduationCap}
               label="Progress"
@@ -266,6 +268,17 @@ export default async function VibrantHomePage() {
                   <span className="dc-unit">/{kpis.coursesEnrolled} done</span>
                 </>
               }
+              viz={
+                kpis.coursePercents.length > 0 ? (
+                  <MiniBars
+                    values={kpis.coursePercents}
+                    max={100}
+                    label={`Progress per enrolled course: ${kpis.coursePercents.join("%, ")}%`}
+                  />
+                ) : (
+                  <BookOpen className="h-7 w-7" aria-hidden />
+                )
+              }
               caption={
                 kpis.coursesEnrolled === 0
                   ? "Pick your first course to begin."
@@ -283,6 +296,12 @@ export default async function VibrantHomePage() {
                   {kpis.learningTimeLabel}
                 </span>
               }
+              viz={
+                <HeatStrip
+                  values={m.last7}
+                  label={`Active ${m.last7.filter((v) => v > 0).length} of the last 7 days`}
+                />
+              }
               caption={
                 kpis.learningTimeLabel === "0 min"
                   ? "Your watched-lessons time appears here."
@@ -291,6 +310,7 @@ export default async function VibrantHomePage() {
             />
             <VibrantMetric
               index={3}
+              className="col-span-2"
               accent="vh-accent-streak"
               icon={Flame}
               label="Streak"
@@ -356,7 +376,7 @@ export default async function VibrantHomePage() {
 
         {/* ⑤ EARN block — ELIGIBLE AFFILIATES ONLY (DR-040/DR-038). Absent = recomposed away. */}
         {earn ? (
-          <EarnSection earn={earn} />
+          <EarnSection earn={earn} earnSeries={momentum.earn?.series ?? null} />
         ) : (
           <NonEligibleSlot summary={summary} />
         )}
@@ -364,7 +384,7 @@ export default async function VibrantHomePage() {
         {/* ⑥ For-you feed — real events only. */}
         <section aria-label="For you today" className="dc-enter">
           <SectionHead title="For you today" />
-          <div className="vh-card vh-accent-cyan p-2">
+          <div className="vh-card vh-soft vh-accent-cyan p-2">
             <div className="space-y-1 pt-1.5">
               {summary.webinarToday && (
                 <FeedRow
@@ -438,8 +458,16 @@ export default async function VibrantHomePage() {
 }
 
 // ── EARN block (eligible only) ───────────────────────────────────────────────────
-function EarnSection({ earn }: { earn: EarnBlock }) {
+function EarnSection({
+  earn,
+  earnSeries,
+}: {
+  earn: EarnBlock;
+  earnSeries: number[] | null;
+}) {
   const d = earn.dash;
+  // Real recorded-commission series (last 7 of the 14-day window) for the lifetime card's bars.
+  const last7Earn = earnSeries ? earnSeries.slice(-7) : null;
   const w = d.wallet;
   const totalNetwork = d.tree.l1Count + d.tree.l2Count + d.tree.l3Count;
   const kyc = d.kycStatus
@@ -465,6 +493,7 @@ function EarnSection({ earn }: { earn: EarnBlock }) {
         <VibrantMetric
           bold
           index={0}
+          className="col-span-2"
           accent="vh-accent-earn"
           icon={Wallet}
           label="Available"
@@ -486,6 +515,14 @@ function EarnSection({ earn }: { earn: EarnBlock }) {
           label="Lifetime recorded"
           href="/dashboard/earn/wallet"
           value={<DataValue value={safeMoney(w.totalInPaise)} raiseUnit />}
+          viz={
+            last7Earn ? (
+              <MiniBars
+                values={last7Earn}
+                label="Commission recorded per day, last 7 days"
+              />
+            ) : undefined
+          }
           caption="all commissions ever recorded"
         />
         <VibrantMetric
@@ -536,6 +573,12 @@ function EarnSection({ earn }: { earn: EarnBlock }) {
               {formatCount(d.tree.l3Count)}
             </span>
           }
+          viz={
+            <MiniBars
+              values={[d.tree.l1Count, d.tree.l2Count, d.tree.l3Count]}
+              label={`Network levels: L1 ${d.tree.l1Count}, L2 ${d.tree.l2Count}, L3 ${d.tree.l3Count}`}
+            />
+          }
           caption="L1 · L2 · L3"
         />
         <VibrantMetric
@@ -545,6 +588,7 @@ function EarnSection({ earn }: { earn: EarnBlock }) {
           label="This month"
           href="/dashboard/earn/network"
           value={<CountUp value={d.tree.thisMonth} />}
+          viz={<NetworkNodes count={d.tree.thisMonth} height={36} />}
           caption={
             d.tree.thisMonth === 0
               ? "No new referrals yet this month."
@@ -623,6 +667,7 @@ function EarnSection({ earn }: { earn: EarnBlock }) {
               {kyc.value}
             </span>
           }
+          viz={<ShieldCheck className="h-7 w-7" aria-hidden />}
           caption={kyc.caption}
         />
         <VibrantMetric
@@ -760,6 +805,7 @@ function VibrantMetric({
   live = false,
   href,
   badge,
+  className = "",
 }: {
   accent: string;
   bold?: boolean;
@@ -773,6 +819,8 @@ function VibrantMetric({
   live?: boolean;
   href: string;
   badge?: string;
+  /** Grid span / sizing hooks (hierarchy — a few larger focal cards + smaller supporting). */
+  className?: string;
 }) {
   const ink = bold ? "text-white" : "text-ink";
   const muted = bold ? "text-white/80" : "text-ink-muted";
@@ -780,11 +828,11 @@ function VibrantMetric({
     <Link
       href={href}
       style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }}
-      className={`vh-card dc-enter ${accent} ${bold ? "vh-bold" : ""} flex h-full flex-col p-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2 md:p-5`}
+      className={`vh-card dc-enter ${accent} ${bold ? "vh-bold" : "vh-soft"} flex h-full flex-col p-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2 md:p-4 ${className}`}
     >
       <div className="flex items-start justify-between gap-2">
         <span
-          className="vh-plate flex h-10 w-10 shrink-0 items-center justify-center rounded-xl"
+          className={`${bold ? "vh-plate" : "vh-plate-grad"} flex h-10 w-10 shrink-0 items-center justify-center rounded-xl`}
           aria-hidden
         >
           <Icon className="h-5 w-5" />
@@ -795,7 +843,7 @@ function VibrantMetric({
           </span>
         )}
       </div>
-      <div className="mt-2 flex items-center gap-1.5">
+      <div className="mt-1.5 flex items-center gap-1.5">
         {live ? (
           <span className={bold ? "text-white" : "vh-text"}>
             <Spark size={6} />
@@ -805,7 +853,7 @@ function VibrantMetric({
           {label}
         </p>
       </div>
-      <div className="mt-2 flex flex-1 items-end justify-between gap-3">
+      <div className="mt-1.5 flex flex-1 items-end justify-between gap-3">
         <p
           className={`dc-number text-h2 font-bold leading-none md:text-h1 ${ink}`}
         >
@@ -818,11 +866,11 @@ function VibrantMetric({
         )}
       </div>
       {delta ? (
-        <p className="vh-delta mt-3 inline-flex w-fit rounded-full px-2.5 py-1 text-caption font-semibold">
+        <p className="vh-delta mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-caption font-semibold">
           {delta}
         </p>
       ) : caption ? (
-        <p className={`mt-3 text-caption leading-snug ${muted}`}>{caption}</p>
+        <p className={`mt-2 text-caption leading-snug ${muted}`}>{caption}</p>
       ) : null}
     </Link>
   );
