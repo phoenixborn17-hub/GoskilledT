@@ -258,35 +258,6 @@ export default async function VibrantHomePage() {
             />
             <VibrantMetric
               index={1}
-              accent="vh-accent-learn"
-              icon={BookOpen}
-              label="Courses"
-              href="/dashboard/courses"
-              value={
-                <>
-                  <CountUp value={kpis.coursesCompleted} />
-                  <span className="dc-unit">/{kpis.coursesEnrolled} done</span>
-                </>
-              }
-              viz={
-                kpis.coursePercents.length > 0 ? (
-                  <MiniBars
-                    values={kpis.coursePercents}
-                    max={100}
-                    label={`Progress per enrolled course: ${kpis.coursePercents.join("%, ")}%`}
-                  />
-                ) : (
-                  <BookOpen className="h-7 w-7" aria-hidden />
-                )
-              }
-              caption={
-                kpis.coursesEnrolled === 0
-                  ? "Pick your first course to begin."
-                  : "completed / enrolled"
-              }
-            />
-            <VibrantMetric
-              index={2}
               accent="vh-accent-cyan"
               icon={Clock}
               label="Learning time"
@@ -306,6 +277,20 @@ export default async function VibrantHomePage() {
                 kpis.learningTimeLabel === "0 min"
                   ? "Your watched-lessons time appears here."
                   : "across completed lessons"
+              }
+            />
+            <VibrantMetric
+              index={2}
+              accent="vh-accent-achieve"
+              icon={Award}
+              label="Certificates"
+              href="/dashboard/progress"
+              value={<CountUp value={kpis.certificates} />}
+              viz={<Award className="h-8 w-8" aria-hidden />}
+              caption={
+                kpis.certificates === 0
+                  ? "Your first seal awaits."
+                  : "Verified & shareable."
               }
             />
             <VibrantMetric
@@ -342,16 +327,31 @@ export default async function VibrantHomePage() {
             />
             <VibrantMetric
               index={4}
-              accent="vh-accent-achieve"
-              icon={Award}
-              label="Certificates"
-              href="/dashboard/progress"
-              value={<CountUp value={kpis.certificates} />}
-              viz={<Award className="h-8 w-8" aria-hidden />}
+              accent="vh-accent-learn"
+              icon={BookOpen}
+              label="Courses"
+              href="/dashboard/courses"
+              value={
+                <>
+                  <CountUp value={kpis.coursesCompleted} />
+                  <span className="dc-unit">/{kpis.coursesEnrolled} done</span>
+                </>
+              }
+              viz={
+                kpis.coursePercents.length > 0 ? (
+                  <MiniBars
+                    values={kpis.coursePercents}
+                    max={100}
+                    label={`Progress per enrolled course: ${kpis.coursePercents.join("%, ")}%`}
+                  />
+                ) : (
+                  <BookOpen className="h-7 w-7" aria-hidden />
+                )
+              }
               caption={
-                kpis.certificates === 0
-                  ? "Your first seal awaits."
-                  : "Verified & shareable."
+                kpis.coursesEnrolled === 0
+                  ? "Pick your first course to begin."
+                  : "completed / enrolled"
               }
             />
             <VibrantMetric
@@ -501,6 +501,7 @@ function EarnSection({
           badge={
             d.payoutsOpen && w.availableInPaise > 0 ? "Available" : undefined
           }
+          numClassName="vh-gold-num"
           value={<DataValue value={safeMoney(w.availableInPaise)} raiseUnit />}
           caption={
             d.payoutsOpen
@@ -509,46 +510,8 @@ function EarnSection({
           }
         />
         <VibrantMetric
+          bold
           index={1}
-          accent="vh-accent-earn"
-          icon={Coins}
-          label="Lifetime recorded"
-          href="/dashboard/earn/wallet"
-          value={<DataValue value={safeMoney(w.totalInPaise)} raiseUnit />}
-          viz={
-            last7Earn ? (
-              <MiniBars
-                values={last7Earn}
-                label="Commission recorded per day, last 7 days"
-              />
-            ) : undefined
-          }
-          caption="all commissions ever recorded"
-        />
-        <VibrantMetric
-          index={2}
-          accent="vh-accent-earn"
-          icon={Hourglass}
-          label="Pending"
-          href="/dashboard/earn/wallet"
-          value={<DataValue value={safeMoney(w.heldInPaise)} raiseUnit />}
-          caption="held — clears after the 48h refund window"
-        />
-        <VibrantMetric
-          index={3}
-          accent="vh-accent-earn"
-          icon={Banknote}
-          label={d.payoutsOpen ? "Withdrawable" : "Withdrawable at launch"}
-          href="/dashboard/earn/wallet"
-          value={<DataValue value={safeMoney(w.availableInPaise)} raiseUnit />}
-          caption={
-            d.payoutsOpen
-              ? "ready to withdraw from your wallet"
-              : "recorded, not payable yet — opens at launch"
-          }
-        />
-        <VibrantMetric
-          index={4}
           accent="vh-accent-network"
           icon={Users}
           label="Total referrals"
@@ -562,41 +525,8 @@ function EarnSection({
           }
         />
         <VibrantMetric
-          index={5}
-          accent="vh-accent-network"
-          icon={Network}
-          label="Network levels"
-          href="/dashboard/earn/network"
-          value={
-            <span className="tabular-nums">
-              {formatCount(d.tree.l1Count)}·{formatCount(d.tree.l2Count)}·
-              {formatCount(d.tree.l3Count)}
-            </span>
-          }
-          viz={
-            <MiniBars
-              values={[d.tree.l1Count, d.tree.l2Count, d.tree.l3Count]}
-              label={`Network levels: L1 ${d.tree.l1Count}, L2 ${d.tree.l2Count}, L3 ${d.tree.l3Count}`}
-            />
-          }
-          caption="L1 · L2 · L3"
-        />
-        <VibrantMetric
-          index={6}
-          accent="vh-accent-network"
-          icon={CalendarDays}
-          label="This month"
-          href="/dashboard/earn/network"
-          value={<CountUp value={d.tree.thisMonth} />}
-          viz={<NetworkNodes count={d.tree.thisMonth} height={36} />}
-          caption={
-            d.tree.thisMonth === 0
-              ? "No new referrals yet this month."
-              : "friends joined this month"
-          }
-        />
-        <VibrantMetric
-          index={7}
+          bold
+          index={2}
           accent="vh-accent-achieve"
           icon={Trophy}
           label="Leaderboard"
@@ -619,7 +549,53 @@ function EarnSection({
           }
         />
         <VibrantMetric
-          index={8}
+          index={3}
+          accent="vh-accent-earn"
+          icon={Coins}
+          label="Lifetime recorded"
+          href="/dashboard/earn/wallet"
+          value={<DataValue value={safeMoney(w.totalInPaise)} raiseUnit />}
+          viz={
+            last7Earn ? (
+              <MiniBars
+                values={last7Earn}
+                label="Commission recorded per day, last 7 days"
+              />
+            ) : undefined
+          }
+          caption="all commissions ever recorded"
+        />
+        <VibrantMetric
+          index={4}
+          accent="vh-accent-network"
+          icon={Network}
+          label="Network levels"
+          href="/dashboard/earn/network"
+          value={
+            <span className="tabular-nums">
+              {formatCount(d.tree.l1Count)}·{formatCount(d.tree.l2Count)}·
+              {formatCount(d.tree.l3Count)}
+            </span>
+          }
+          viz={
+            <MiniBars
+              values={[d.tree.l1Count, d.tree.l2Count, d.tree.l3Count]}
+              label={`Network levels: L1 ${d.tree.l1Count}, L2 ${d.tree.l2Count}, L3 ${d.tree.l3Count}`}
+            />
+          }
+          caption="L1 · L2 · L3"
+        />
+        <VibrantMetric
+          index={5}
+          accent="vh-accent-earn"
+          icon={Hourglass}
+          label="Pending"
+          href="/dashboard/earn/wallet"
+          value={<DataValue value={safeMoney(w.heldInPaise)} raiseUnit />}
+          caption="held — clears after the 48h refund window"
+        />
+        <VibrantMetric
+          index={6}
           accent="vh-accent-achieve"
           icon={Gift}
           label="Reward progress"
@@ -657,7 +633,7 @@ function EarnSection({
           }
         />
         <VibrantMetric
-          index={9}
+          index={7}
           accent="vh-accent-cyan"
           icon={ShieldCheck}
           label="KYC"
@@ -669,6 +645,33 @@ function EarnSection({
           }
           viz={<ShieldCheck className="h-7 w-7" aria-hidden />}
           caption={kyc.caption}
+        />
+        <VibrantMetric
+          index={8}
+          accent="vh-accent-network"
+          icon={CalendarDays}
+          label="This month"
+          href="/dashboard/earn/network"
+          value={<CountUp value={d.tree.thisMonth} />}
+          viz={<NetworkNodes count={d.tree.thisMonth} height={36} />}
+          caption={
+            d.tree.thisMonth === 0
+              ? "No new referrals yet this month."
+              : "friends joined this month"
+          }
+        />
+        <VibrantMetric
+          index={9}
+          accent="vh-accent-earn"
+          icon={Banknote}
+          label={d.payoutsOpen ? "Withdrawable" : "Withdrawable at launch"}
+          href="/dashboard/earn/wallet"
+          value={<DataValue value={safeMoney(w.availableInPaise)} raiseUnit />}
+          caption={
+            d.payoutsOpen
+              ? "ready to withdraw from your wallet"
+              : "recorded, not payable yet — opens at launch"
+          }
         />
         <VibrantMetric
           index={10}
@@ -806,6 +809,7 @@ function VibrantMetric({
   href,
   badge,
   className = "",
+  numClassName = "",
 }: {
   accent: string;
   bold?: boolean;
@@ -821,6 +825,8 @@ function VibrantMetric({
   badge?: string;
   /** Grid span / sizing hooks (hierarchy — a few larger focal cards + smaller supporting). */
   className?: string;
+  /** Extra classes for the big value (e.g. metallic vh-gold-num on the gold-vault focal). */
+  numClassName?: string;
 }) {
   const ink = bold ? "text-white" : "text-ink";
   const muted = bold ? "text-white/80" : "text-ink-muted";
@@ -849,13 +855,15 @@ function VibrantMetric({
             <Spark size={6} />
           </span>
         ) : null}
-        <p className={`font-heading text-small font-semibold ${ink}`}>
+        <p
+          className={`font-heading text-caption font-bold uppercase tracking-wide ${bold ? "text-white/85" : muted}`}
+        >
           {label}
         </p>
       </div>
       <div className="mt-1.5 flex flex-1 items-end justify-between gap-3">
         <p
-          className={`dc-number text-h2 font-bold leading-none md:text-h1 ${ink}`}
+          className={`dc-number text-h2 font-bold leading-none md:text-h1 ${ink} ${numClassName}`}
         >
           {value}
         </p>
