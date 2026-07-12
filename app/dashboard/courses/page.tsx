@@ -52,7 +52,7 @@ export default async function MyCoursesPage() {
             title="You don't own any courses yet"
             description="Pick a package to start learning — your first lesson is a free preview."
             action={
-              <Link href="/packages">
+              <Link href="/dashboard/learn/browse#packages">
                 <Button className="w-full">See packages</Button>
               </Link>
             }

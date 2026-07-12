@@ -51,7 +51,7 @@ export default async function ProgressPage() {
             title="Nothing to track yet"
             description="Enroll in a course to start building your progress."
             action={
-              <Link href="/packages">
+              <Link href="/dashboard/learn/browse#packages">
                 <Button className="w-full">Explore courses</Button>
               </Link>
             }

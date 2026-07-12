@@ -8,6 +8,10 @@ import { prisma } from "../prisma";
 import type { AdminIdentity } from "../auth/admin";
 import { recordAdminAction } from "./audit";
 import { canPublishCourse } from "../../modules/admin/review";
+import {
+  isReservedCourseSlug,
+  reservedSlugError,
+} from "../catalog/reserved-slugs";
 
 export async function listAdminCatalog() {
   return prisma.course.findMany({
@@ -124,11 +128,17 @@ export async function publishCourse(
   const course = await prisma.course.findUnique({
     where: { id: courseId },
     select: {
+      slug: true,
       status: true,
       modules: { select: { lessons: { select: { videoAssetId: true } } } },
     },
   });
   if (!course) return { ok: false, error: "Course not found." };
+  // Reserved-slug guard (Command_Center_Spec §4.3): /dashboard/learn/browse|webinars are app
+  // routes — a course published under those slugs would be unreachable in the player.
+  if (isReservedCourseSlug(course.slug)) {
+    return { ok: false, error: reservedSlugError(course.slug) };
+  }
   const gate = canPublishCourse(course.modules);
   if (!gate.ok) return { ok: false, error: gate.message };
 

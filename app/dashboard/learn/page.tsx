@@ -103,7 +103,7 @@ function Loaded({
           accent="green"
           size="hero"
           cta="Browse courses"
-          href="/courses"
+          href="/dashboard/learn/browse"
         >
           <div>
             <h3 className="font-heading text-h2 font-bold text-ink">
@@ -212,7 +212,7 @@ function Loaded({
           <QuickActionCard
             icon={Compass}
             label="Explore courses"
-            href="/courses"
+            href="/dashboard/learn/browse"
           />
           {/* Referral is the cross-cutting Affiliate-layer affordance — hidden when Affiliate is off. */}
           {affiliateVisible && (
@@ -296,7 +296,7 @@ function Overview({ d }: { d: LearnDashboard }) {
       {/* Upcoming webinar (opportunity, never a prerequisite) */}
       {d.webinar && (
         <Link
-          href="/webinar"
+          href="/dashboard/learn/webinars"
           className="lift flex items-center gap-3 rounded-gs border border-line bg-surface-raised p-4"
         >
           <span
@@ -331,7 +331,7 @@ function GettingStartedStrip({
       title: "Pick your first course",
       description: "Browse the catalog and choose what to learn.",
       action: (
-        <Link href="/courses">
+        <Link href="/dashboard/learn/browse">
           <Button className="w-auto">Browse courses</Button>
         </Link>
       ),

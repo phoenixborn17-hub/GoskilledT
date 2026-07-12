@@ -13,6 +13,7 @@ import {
 import { Spark } from "../data/spark";
 import { SidebarSnapshot, type WorkspaceSnapshot } from "./sidebar-snapshot";
 import { isVisibleIn, type FeatureKey } from "../../lib/feature-visibility";
+import { isPlayerFocusRoute } from "../../lib/nav/focus-mode";
 import { signOutAction } from "../../app/dashboard/actions";
 import { Topbar } from "./topbar";
 import { SidebarItem } from "./sidebar-item";
@@ -90,8 +91,9 @@ export function AppShell({
   // primacy: the contextual sidebar collapses to a slim icon rail and the topbar drops the
   // workspace label (the page owns its course-title header). Nav v1.1 structure is INTACT — the
   // switcher stays (1-tap escape), every sidebar destination stays reachable (icons + labels for
-  // AT), mobile chrome unchanged. Presentation only; matches exactly /dashboard/learn/<courseSlug>.
-  const focusMode = /^\/dashboard\/learn\/[^/]+$/.test(pathname);
+  // AT), mobile chrome unchanged. Presentation only; the tested helper excludes the in-app
+  // Browse/Webinars pages that share the /dashboard/learn/ prefix (Slice 5).
+  const focusMode = isPlayerFocusRoute(pathname);
 
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const [shareOpen, setShareOpen] = React.useState(false);

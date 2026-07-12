@@ -68,8 +68,12 @@ export const WORKSPACES: Workspace[] = [
       { label: "Dashboard", href: "/dashboard/learn", icon: LayoutDashboard },
       { label: "My Courses", href: "/dashboard/courses", icon: BookOpen },
       { label: "Certificates", href: "/dashboard/progress", icon: Award },
-      { label: "Webinars", href: "/webinar", icon: CalendarDays },
-      { label: "Browse", href: "/courses", icon: Compass },
+      {
+        label: "Webinars",
+        href: "/dashboard/learn/webinars",
+        icon: CalendarDays,
+      },
+      { label: "Browse", href: "/dashboard/learn/browse", icon: Compass },
     ],
   },
   {

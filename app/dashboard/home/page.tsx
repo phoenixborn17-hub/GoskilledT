@@ -269,7 +269,7 @@ function EarnSlot({ summary }: { summary: HomeSummary }) {
         label="Next webinar"
         accent="info"
         index={3}
-        href="/webinar"
+        href="/dashboard/learn/webinars"
         badge={
           summary.webinarToday ? { label: "Today", tone: "live" } : undefined
         }
@@ -347,7 +347,7 @@ function ContinueHero({ summary }: { summary: HomeSummary }) {
               size="hero"
               badge={{ label: "Today", tone: "live" }}
               cta="Join webinar"
-              href="/webinar"
+              href="/dashboard/learn/webinars"
             >
               <div>
                 <p className="font-heading text-h3 font-bold text-ink">
@@ -375,7 +375,7 @@ function buildNudges(summary: HomeSummary): FeedNudge[] {
       description: `Starts at ${format(summary.webinarToday.startsAt, "h:mm a")}`,
       time: "Today",
       tone: "info",
-      href: "/webinar",
+      href: "/dashboard/learn/webinars",
     });
   }
   if (summary.streak.atRisk) {
@@ -395,7 +395,7 @@ function buildNudges(summary: HomeSummary): FeedNudge[] {
 function StoreStrip() {
   return (
     <Link
-      href="/courses"
+      href="/dashboard/learn/browse"
       className="lift flex items-center gap-4 rounded-gs-lg border border-line bg-surface-raised p-5"
     >
       <span
