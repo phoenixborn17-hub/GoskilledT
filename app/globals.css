@@ -1014,3 +1014,157 @@ html {
 :root[data-device-tier="low"] .su-reveal-card {
   animation: none;
 }
+
+/* ── VIBRANT HOME MOCKUP (branch preview only — /design-system/vibrant, gps-vibrant-home) ──
+      A bold direction study for founder sign-off. Scoped under .vibrant-home so NOTHING here
+      touches the live Home. Meaningful multi-accent system extending green·gold·charcoal:
+      learn=green · earn=gold (amber for text, Rule 14) · achievement=violet (Insight-family
+      adjacent, ES §10.2) · status=info blue. All device-tiered + reduced-motion-safe. ── */
+.vibrant-home {
+  /* canvas: soft aurora light-spots (single top-left light source, ES §4) */
+  background:
+    radial-gradient(
+      52rem 30rem at -8% -12%,
+      rgb(19 126 73 / 0.09),
+      transparent 60%
+    ),
+    radial-gradient(
+      40rem 26rem at 108% 4%,
+      rgb(237 200 37 / 0.1),
+      transparent 55%
+    ),
+    radial-gradient(
+      34rem 24rem at 55% 118%,
+      rgb(124 58 237 / 0.06),
+      transparent 60%
+    );
+}
+.vh-accent-learn {
+  --vh: #137e49;
+  --vh-2: #1aa05e;
+  --vh-text: #0c5a34;
+  --vh-tint: rgb(19 126 73 / 0.12);
+  --vh-shadow: rgb(19 126 73 / 0.28);
+}
+.vh-accent-earn {
+  --vh: #edc825;
+  --vh-2: #b87a00;
+  --vh-text: #8a5a00;
+  --vh-tint: rgb(237 200 37 / 0.16);
+  --vh-shadow: rgb(237 200 37 / 0.32);
+}
+.vh-accent-achieve {
+  --vh: #7c3aed;
+  --vh-2: #a78bfa;
+  --vh-text: #6d28d9;
+  --vh-tint: rgb(124 58 237 / 0.1);
+  --vh-shadow: rgb(124 58 237 / 0.26);
+}
+.vh-accent-status {
+  --vh: #1d6fa5;
+  --vh-2: #4da3d8;
+  --vh-text: #1d6fa5;
+  --vh-tint: rgb(29 111 165 / 0.1);
+  --vh-shadow: rgb(29 111 165 / 0.26);
+}
+
+/* Hero band — deep-green aurora, white text (AA on #137e49 and darker). */
+.vh-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  color: #fefefe;
+  background:
+    radial-gradient(
+      42rem 22rem at 88% -30%,
+      rgb(237 200 37 / 0.28),
+      transparent 55%
+    ),
+    radial-gradient(
+      30rem 20rem at -10% 120%,
+      rgb(26 160 94 / 0.5),
+      transparent 60%
+    ),
+    linear-gradient(135deg, #0a4a2b 0%, #0c5a34 45%, #137e49 100%);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.18),
+    0 24px 60px -18px rgb(12 90 52 / 0.55);
+}
+.vh-hero-chip {
+  background: rgb(254 254 254 / 0.14);
+  border: 1px solid rgb(254 254 254 / 0.22);
+  backdrop-filter: blur(8px);
+}
+
+/* Vibrant info-card — gradient top bar + radial tint + colored ambient shadow + inner light. */
+.vh-card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--vh) 26%, white);
+  background-color: var(--gs-surface-raised);
+  background-image: radial-gradient(
+    120% 90% at 0% 0%,
+    var(--vh-tint),
+    transparent 58%
+  );
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.65),
+    0 18px 44px -16px var(--vh-shadow);
+}
+@supports not (border-color: color-mix(in srgb, red 20%, white)) {
+  .vh-card {
+    border-color: var(--vh-tint);
+  } /* old WebView fallback — never a bare surface */
+}
+.vh-card::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 4px;
+  background: linear-gradient(90deg, var(--vh), var(--vh-2));
+}
+.vh-plate {
+  background: linear-gradient(135deg, var(--vh-tint), transparent);
+  border: 1px solid var(--vh-tint);
+  color: var(--vh-text);
+}
+.vh-text {
+  color: var(--vh-text);
+}
+.vh-delta {
+  background: var(--vh-tint);
+  color: var(--vh-text);
+}
+
+/* Motion — entrance + hover lift only (communicates arrival/interactivity); capable tier only. */
+@media (prefers-reduced-motion: no-preference) {
+  .vh-card {
+    transition:
+      transform 200ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 200ms ease;
+  }
+  a.vh-card:hover {
+    transform: translateY(-4px);
+    box-shadow:
+      inset 0 1px 0 rgb(255 255 255 / 0.65),
+      0 26px 56px -16px var(--vh-shadow);
+  }
+}
+:root[data-device-tier="low"] .vibrant-home {
+  background: none;
+}
+:root[data-device-tier="low"] .vh-hero {
+  background: #0c5a34;
+  box-shadow: var(--gs-shadow);
+}
+:root[data-device-tier="low"] .vh-hero-chip {
+  backdrop-filter: none;
+}
+:root[data-device-tier="low"] .vh-card {
+  background-image: none;
+  box-shadow: var(--gs-shadow-sm);
+}
+:root[data-device-tier="low"] a.vh-card:hover {
+  transform: none;
+}
