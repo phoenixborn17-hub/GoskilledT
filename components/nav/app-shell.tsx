@@ -343,7 +343,10 @@ export function AppShell({
           }
         />
 
-        <main className="mx-auto w-full max-w-5xl px-4 pb-24 pt-6 md:px-8 md:pb-10">
+        {/* Content container — max-w-6xl (1152px) matches the founder-approved vibrant preview and
+            sits inside the Experience System §5 ceiling (1200–1280px). Centered; the old 5xl cap
+            read as a cramped column with a dead right gutter on wide desktops. */}
+        <main className="mx-auto w-full max-w-6xl px-4 pb-24 pt-6 md:px-8 md:pb-10">
           {children}
         </main>
       </div>
