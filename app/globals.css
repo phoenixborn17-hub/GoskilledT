@@ -1015,12 +1015,15 @@ html {
   animation: none;
 }
 
-/* ── VIBRANT HOME MOCKUP (branch preview only — /design-system/vibrant, gps-vibrant-home) ──
-      A bold direction study for founder sign-off. Scoped under .vibrant-home so NOTHING here
+/* ── GoSkilled VIBRANT CARD SYSTEM v1.0 (PROMOTED from the founder-locked v5 preview — see
+      docs/specs/Vibrant_CardSystem_Amendment_v1.0.md). Reusable across dashboards: any surface
+      opts in with the .gs-vibrant canvas class + .vh-* card classes. Cascade note: the blocks
+      below layer v1→v5 deliberately (later blocks refine earlier ones); v5 values are canonical. ──
+      A bold direction study for founder sign-off. Scoped under .gs-vibrant so NOTHING here
       touches the live Home. Meaningful multi-accent system extending green·gold·charcoal:
       learn=green · earn=gold (amber for text, Rule 14) · achievement=violet (Insight-family
       adjacent, ES §10.2) · status=info blue. All device-tiered + reduced-motion-safe. ── */
-.vibrant-home {
+.gs-vibrant {
   /* canvas: soft aurora light-spots (single top-left light source, ES §4) */
   background:
     radial-gradient(
@@ -1151,7 +1154,7 @@ html {
       0 26px 56px -16px var(--vh-shadow);
   }
 }
-:root[data-device-tier="low"] .vibrant-home {
+:root[data-device-tier="low"] .gs-vibrant {
   background: none;
 }
 :root[data-device-tier="low"] .vh-hero {
@@ -1419,19 +1422,19 @@ html {
       (emerald Progress · gold-vault Available · indigo Network · royal-purple Leaderboard).
       #3–5: larger radii, scale+glow hover, icon micro-motion, brighter borders. AA everywhere:
       ink on champagne; white / gilded #E6C875 on the deep focals. Low tier flattens all of it. ── */
-.vibrant-home .vh-card {
+.gs-vibrant .vh-card {
   border-radius: 1.75rem;
 }
 
 /* Champagne metallic accent (replaces the flat pale-yellow earn tint). */
-.vibrant-home .vh-accent-earn {
+.gs-vibrant .vh-accent-earn {
   --vh: #b8860b;
   --vh-2: #e6c875;
   --vh-text: #8a5a00;
   --vh-tint: rgb(184 134 11 / 0.14);
   --vh-shadow: rgb(166 124 0 / 0.32);
 }
-.vibrant-home .vh-soft.vh-accent-earn {
+.gs-vibrant .vh-soft.vh-accent-earn {
   background:
     linear-gradient(
       180deg,
@@ -1450,12 +1453,12 @@ html {
     0 2px 6px -2px rgb(166 124 0 / 0.35),
     0 20px 44px -16px rgb(166 124 0 / 0.4);
 }
-.vibrant-home .vh-soft.vh-accent-earn .vh-plate-grad {
+.gs-vibrant .vh-soft.vh-accent-earn .vh-plate-grad {
   background: linear-gradient(135deg, #a67c00, #e6c875);
 }
 
 /* The gold-vault focal (Available) — deep emerald-charcoal, gilded sheen, metallic numerals. */
-.vibrant-home .vh-bold.vh-accent-earn {
+.gs-vibrant .vh-bold.vh-accent-earn {
   background:
     linear-gradient(
       180deg,
@@ -1479,7 +1482,7 @@ html {
     0 2px 6px -2px rgb(22 28 22 / 0.4),
     0 26px 60px -18px rgb(166 124 0 / 0.45);
 }
-.vibrant-home .vh-bold.vh-accent-earn::before {
+.gs-vibrant .vh-bold.vh-accent-earn::before {
   background: linear-gradient(90deg, #e6c875, rgb(230 200 117 / 0.1));
 }
 /* Metallic-gold numerals — gradient-clipped text with a solid gilded fallback (AA on the vault). */
@@ -1503,7 +1506,7 @@ html {
 }
 
 /* Distinct focal identities #3 + #4: indigo Network · royal-purple Leaderboard (white AA). */
-.vibrant-home .vh-bold.vh-accent-network {
+.gs-vibrant .vh-bold.vh-accent-network {
   background:
     linear-gradient(
       180deg,
@@ -1522,7 +1525,7 @@ html {
     0 2px 6px -2px rgb(49 46 129 / 0.4),
     0 26px 60px -18px rgb(79 70 229 / 0.55);
 }
-.vibrant-home .vh-bold.vh-accent-achieve {
+.gs-vibrant .vh-bold.vh-accent-achieve {
   background:
     linear-gradient(
       180deg,
@@ -1547,7 +1550,7 @@ html {
   a.vh-card:hover {
     transform: translateY(-4px) scale(1.02);
   }
-  .vibrant-home a.vh-soft:hover {
+  .gs-vibrant a.vh-soft:hover {
     border-color: var(--vh);
     box-shadow:
       inset 0 1px 0 rgb(255 255 255 / 0.85),
@@ -1566,19 +1569,19 @@ html {
 }
 
 /* Low tier — flatten every v5 richness (solid fills, plain shadows, no clip-text sheen). */
-:root[data-device-tier="low"] .vibrant-home .vh-soft.vh-accent-earn {
+:root[data-device-tier="low"] .gs-vibrant .vh-soft.vh-accent-earn {
   background: #f6e6bb;
   box-shadow: var(--gs-shadow-sm);
 }
-:root[data-device-tier="low"] .vibrant-home .vh-bold.vh-accent-earn {
+:root[data-device-tier="low"] .gs-vibrant .vh-bold.vh-accent-earn {
   background: #22301f;
   box-shadow: var(--gs-shadow);
 }
-:root[data-device-tier="low"] .vibrant-home .vh-bold.vh-accent-network {
+:root[data-device-tier="low"] .gs-vibrant .vh-bold.vh-accent-network {
   background: #3730a3;
   box-shadow: var(--gs-shadow);
 }
-:root[data-device-tier="low"] .vibrant-home .vh-bold.vh-accent-achieve {
+:root[data-device-tier="low"] .gs-vibrant .vh-bold.vh-accent-achieve {
   background: #5b21b6;
   box-shadow: var(--gs-shadow);
 }

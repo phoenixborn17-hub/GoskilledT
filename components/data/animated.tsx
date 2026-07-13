@@ -1,9 +1,10 @@
 "use client";
-// Vibrant v2 micro-interactions (mockup-local). Both honor prefers-reduced-motion AND the low
-// device tier (instant/static). Count-up is for learning/progress/streak/cert numbers ONLY —
-// NEVER money (DecisionCard §7 lock: money is static; the mockup keeps ₹ via <DataValue>).
+// Vibrant micro-interactions (Vibrant Card System v1.0 — promoted from the v5 preview). Both
+// honor prefers-reduced-motion AND the low device tier (instant/static fallback). Count-up is for
+// learning/progress/streak/network/cert numbers ONLY — NEVER money (DecisionCard §7 lock: money is
+// static; currency always renders through <DataValue>/safeMoney).
 import { useEffect, useRef, useState } from "react";
-import { ProgressRing } from "../../../components/data/progress-ring";
+import { ProgressRing } from "./progress-ring";
 
 function motionOk(): boolean {
   if (typeof window === "undefined") return false;

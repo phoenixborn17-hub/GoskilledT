@@ -50,8 +50,9 @@ import { NetworkNodes } from "../../../components/data/network-nodes";
 import { AreaChart } from "../../../components/data/area-chart";
 import { Spark } from "../../../components/data/spark";
 import { DeviceTierProvider } from "../../../components/system/device-tier-provider";
-import { CountUp, AnimatedRing } from "./vibrant-bits";
-import { MiniBars } from "./vibrant-viz";
+import { CountUp, AnimatedRing } from "../../../components/data/animated";
+import { MiniBars } from "../../../components/data/mini-bars";
+import { VibrantMetricCard } from "../../../components/cards/decision/vibrant-metric-card";
 import { getVibrantData, type EarnBlock } from "./vibrant-data";
 
 export const dynamic = "force-dynamic";
@@ -78,7 +79,7 @@ export default async function VibrantHomePage() {
   const learnedToday = m.last7[m.last7.length - 1] > 0;
 
   return (
-    <div className="vibrant-home min-h-dvh">
+    <div className="gs-vibrant min-h-dvh">
       <DeviceTierProvider />
       <main className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 md:px-8">
         {/* Preview banner — this is a direction study, never the live surface. */}
@@ -795,94 +796,8 @@ function HeroChip({
   );
 }
 
-function VibrantMetric({
-  accent,
-  bold = false,
-  index = 0,
-  icon: Icon,
-  label,
-  value,
-  viz,
-  delta,
-  caption,
-  live = false,
-  href,
-  badge,
-  className = "",
-  numClassName = "",
-}: {
-  accent: string;
-  bold?: boolean;
-  index?: number;
-  icon: LucideIcon;
-  label: string;
-  value: React.ReactNode;
-  viz?: React.ReactNode;
-  delta?: string | null;
-  caption?: string | null;
-  live?: boolean;
-  href: string;
-  badge?: string;
-  /** Grid span / sizing hooks (hierarchy — a few larger focal cards + smaller supporting). */
-  className?: string;
-  /** Extra classes for the big value (e.g. metallic vh-gold-num on the gold-vault focal). */
-  numClassName?: string;
-}) {
-  const ink = bold ? "text-white" : "text-ink";
-  const muted = bold ? "text-white/80" : "text-ink-muted";
-  return (
-    <Link
-      href={href}
-      style={{ animationDelay: `${Math.min(index, 8) * 60}ms` }}
-      className={`vh-card dc-enter ${accent} ${bold ? "vh-bold" : "vh-soft"} flex h-full flex-col p-3.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2 md:p-4 ${className}`}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <span
-          className={`${bold ? "vh-plate" : "vh-plate-grad"} flex h-10 w-10 shrink-0 items-center justify-center rounded-xl`}
-          aria-hidden
-        >
-          <Icon className="h-5 w-5" />
-        </span>
-        {badge && (
-          <span className="vh-delta rounded-full px-2 py-0.5 text-caption font-bold uppercase tracking-wide">
-            {badge}
-          </span>
-        )}
-      </div>
-      <div className="mt-1.5 flex items-center gap-1.5">
-        {live ? (
-          <span className={bold ? "text-white" : "vh-text"}>
-            <Spark size={6} />
-          </span>
-        ) : null}
-        <p
-          className={`font-heading text-caption font-bold uppercase tracking-wide ${bold ? "text-white/85" : muted}`}
-        >
-          {label}
-        </p>
-      </div>
-      <div className="mt-1.5 flex flex-1 items-end justify-between gap-3">
-        <p
-          className={`dc-number text-h2 font-bold leading-none md:text-h1 ${ink} ${numClassName}`}
-        >
-          {value}
-        </p>
-        {viz && (
-          <div className={`shrink-0 pb-0.5 ${bold ? "text-white" : "vh-text"}`}>
-            {viz}
-          </div>
-        )}
-      </div>
-      {delta ? (
-        <p className="vh-delta mt-2 inline-flex w-fit rounded-full px-2.5 py-1 text-caption font-semibold">
-          {delta}
-        </p>
-      ) : caption ? (
-        <p className={`mt-2 text-caption leading-snug ${muted}`}>{caption}</p>
-      ) : null}
-    </Link>
-  );
-}
+// The card is now the CANONICAL design-system component (promoted in this rollout).
+const VibrantMetric = VibrantMetricCard;
 
 function UnlockShell({
   line,
