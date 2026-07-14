@@ -27,6 +27,11 @@ export interface LearnDashboard {
     certificates: number;
     streak: number;
   };
+  /** Streak detail (Vibrant rollout Slice B) — same gamification source as `stats.streak`. */
+  streakDetail: { current: number; atRisk: boolean; longest: number };
+  /** Lessons per IST day, last 7 days (oldest → newest) — feeds the streak heat-strip. */
+  last7: number[];
+  weekLessons: number;
   /** Lessons completed per IST day for the last 14 days (real; all-zero → honest empty chart). */
   weeklyActivity: number[];
   activityTotal: number;
@@ -99,6 +104,9 @@ export async function getLearnDashboard(
     );
   }
   const activityTotal = weeklyActivity.reduce((s, n) => s + n, 0);
+  const last7 = weeklyActivity.slice(7);
+  const weekLessons = last7.reduce((s, n) => s + n, 0);
+  const atRisk = game.streak.current > 0 && game.streak.state === "resting";
 
   const enrolledSlugs = new Set(courses.map((c) => c.slug));
   const recommendations = catalog
@@ -117,6 +125,13 @@ export async function getLearnDashboard(
       certificates,
       streak: game.streak.current,
     },
+    streakDetail: {
+      current: game.streak.current,
+      atRisk,
+      longest: game.streak.longest,
+    },
+    last7,
+    weekLessons,
     weeklyActivity,
     activityTotal,
     webinar: webinar?.startsAt

@@ -1,7 +1,9 @@
-// Learn workspace dashboard (Redesign U4 · Dashboard §3) — re-skinned onto the Decision Card
-// system + Home-hub patterns. COMPOSITE over existing LMS data (no route/business-logic change).
-// Action-first: Continue hero + ≤4 stat cards, then depth (Activity tab, recommendations, Guru).
-// Zero-data → 3-step getting-started (never empty widgets, D-29).
+// Learn workspace dashboard (Redesign U4 · Dashboard §3; Vibrant rollout Slice B — see
+// docs/specs/Vibrant_CardSystem_Amendment_v1.0.md §5). Header + key-metric row promoted onto the
+// Vibrant Card System (same components Home Slice A consumes); Continue hero, tabs, courses,
+// recommendations, quick actions stay on the calm dc-recipe by design (Command Center Spec §1.3:
+// Learn is a focused-depth workspace, not a second command center). COMPOSITE over existing LMS
+// data (no route/business-logic change). Zero-data → 3-step getting-started (never empty, D-29).
 import Link from "next/link";
 import {
   BookOpen,
@@ -20,18 +22,20 @@ import {
   getLearnDashboard,
   type LearnDashboard,
 } from "../../../lib/learn/dashboard";
-import { safeCount } from "../../../lib/format";
 
 import { Button } from "../../../components/ui/button";
 import { Tabs } from "../../../components/ui/tabs";
-import { StatCard } from "../../../components/cards/stat-card";
 import { ChartCard } from "../../../components/cards/chart-card";
 import { CourseCard } from "../../../components/cards/course-card";
 import { QuickActionCard } from "../../../components/cards/quick-action-card";
 import { GettingStartedCard } from "../../../components/cards/getting-started-card";
 import { ContinueLearningCard } from "../../../components/cards/decision/continue-learning-card";
 import { DecisionCard } from "../../../components/cards/decision/decision-card";
+import { VibrantMetricCard } from "../../../components/cards/decision/vibrant-metric-card";
 import { AreaChart } from "../../../components/data/area-chart";
+import { CountUp, AnimatedRing } from "../../../components/data/animated";
+import { HeatStrip } from "../../../components/data/heat-strip";
+import { Spark } from "../../../components/data/spark";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Learn" };
@@ -50,14 +54,41 @@ export default async function LearnPage() {
   ]);
 
   return (
-    <div className="space-y-8">
-      <header>
-        <h1 className="font-heading text-h1 font-extrabold text-ink">
-          Your learning{d.name ? `, ${d.name}` : ""}
-        </h1>
-        <p className="mt-1 text-body text-ink-muted">
-          {(d.goal && GOAL_SUBLINE[d.goal]) ?? "Continue where you left off."}
-        </p>
+    <div className="gs-vibrant space-y-8">
+      {/* Header — Vibrant hero band (Slice B; same recipe as Home's command header, R2 grammar:
+          title + one context line, here on the deep-green learn band). Glance chips carry real
+          values only (streak/progress) — no fabricated stats. */}
+      <header className="vh-hero dc-enter p-6 md:p-8">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h1 className="font-heading text-display font-extrabold leading-tight">
+              Your learning{d.name ? `, ${d.name}` : ""}
+            </h1>
+            <p className="mt-2 flex items-center gap-2 text-body text-white/85">
+              <span style={{ color: "#EDC825" }}>
+                <Spark size={6} />
+              </span>
+              {(d.goal && GOAL_SUBLINE[d.goal]) ??
+                "Continue where you left off."}
+            </p>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-2xl px-3.5 py-2">
+              <Flame className="h-4 w-4" aria-hidden />
+              <span className="dc-number text-h4 font-bold leading-none">
+                {d.stats.streak}d
+              </span>
+              <span className="text-caption text-white/75">streak</span>
+            </span>
+            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-2xl px-3.5 py-2">
+              <Target className="h-4 w-4" aria-hidden />
+              <span className="dc-number text-h4 font-bold leading-none">
+                {d.stats.overallPercent}%
+              </span>
+              <span className="text-caption text-white/75">progress</span>
+            </span>
+          </div>
+        </div>
       </header>
 
       {/* Rich-Honest-Zero (ThreeState law): the FULL Learn dashboard renders even for a brand-new
@@ -116,54 +147,113 @@ function Loaded({
         </DecisionCard>
       )}
 
-      {/* ≤4 stat cards */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {/* Unlock micro-states (ThreeState law): at honest 0 each card motivates the next step. */}
-        <StatCard
-          label="Courses"
-          value={safeCount(d.stats.courses)}
-          icon={BookOpen}
-          family="learning"
-          hint={
-            d.stats.courses === 0 ? "Enroll to begin your journey" : undefined
-          }
-        />
-        <StatCard
-          label="Overall progress"
-          value={safeCount(d.stats.overallPercent)}
-          icon={Target}
-          family="learning"
-          hint={
-            d.stats.overallPercent === 0
-              ? "Complete a lesson to grow this"
-              : "% across your courses"
-          }
-        />
-        <StatCard
-          label="Certificates"
-          value={safeCount(d.stats.certificates)}
-          icon={Award}
-          family="learning"
-          hint={
-            d.stats.certificates === 0
-              ? "Finish a course to earn one"
-              : undefined
-          }
-        />
-        <StatCard
-          label="Streak"
-          value={safeCount(d.stats.streak)}
-          icon={Flame}
-          family="learning"
-          hint={
-            d.stats.streak === 0
-              ? "Start today"
-              : d.stats.streak === 1
-                ? "day"
-                : "days"
-          }
-        />
-      </div>
+      {/* ≤4 key-metric cards — Vibrant Card System v1.0 (Slice B), de-clustered accents (no two
+          same-accent neighbours): cyan Courses · bold-emerald Progress (focal) · purple
+          Certificates · orange Streak. Unlock micro-states (ThreeState law): honest 0 always
+          motivates the next step; nothing fabricated. */}
+      <section aria-label="Your key metrics">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+          <VibrantMetricCard
+            icon={BookOpen}
+            label="Courses"
+            accent="vh-accent-cyan"
+            index={0}
+            href="/dashboard/courses"
+            value={<CountUp value={d.stats.courses} />}
+            viz={<BookOpen className="h-8 w-8" aria-hidden />}
+            caption={
+              d.stats.courses === 0
+                ? "Enroll to begin your journey."
+                : "Enrolled courses."
+            }
+          />
+
+          <VibrantMetricCard
+            bold
+            icon={Target}
+            label="Progress"
+            accent="vh-accent-learn"
+            index={1}
+            live={d.last7[d.last7.length - 1] > 0}
+            href={d.active?.resumeHref ?? "/dashboard/learn/browse"}
+            value={
+              <>
+                <CountUp value={d.stats.overallPercent} />
+                <span className="dc-unit">%</span>
+              </>
+            }
+            viz={
+              <AnimatedRing
+                value={d.stats.overallPercent}
+                size={44}
+                strokeWidth={5}
+                label={`Overall progress ${d.stats.overallPercent}%`}
+              >
+                <span aria-hidden />
+              </AnimatedRing>
+            }
+            delta={
+              d.weekLessons > 0
+                ? `▲ ${d.weekLessons} ${d.weekLessons === 1 ? "lesson" : "lessons"} this week`
+                : null
+            }
+            caption={
+              d.weekLessons > 0
+                ? null
+                : d.stats.overallPercent === 0
+                  ? "Complete a lesson to grow this."
+                  : "Pick up where you left off."
+            }
+          />
+
+          <VibrantMetricCard
+            icon={Award}
+            label="Certificates"
+            accent="vh-accent-achieve"
+            index={2}
+            href="/dashboard/progress"
+            value={<CountUp value={d.stats.certificates} />}
+            viz={<Award className="h-8 w-8" aria-hidden />}
+            caption={
+              d.stats.certificates === 0
+                ? "Finish a course to earn one."
+                : "Verified & shareable."
+            }
+          />
+
+          <VibrantMetricCard
+            icon={Flame}
+            label="Streak"
+            accent="vh-accent-streak"
+            index={3}
+            live={d.last7[d.last7.length - 1] > 0 && d.streakDetail.current > 0}
+            href={d.active?.resumeHref ?? "/dashboard/learn/browse"}
+            value={
+              <>
+                <CountUp value={d.streakDetail.current} />
+                <span className="dc-unit">
+                  {d.streakDetail.current === 1 ? "day" : "days"}
+                </span>
+              </>
+            }
+            viz={
+              <HeatStrip
+                values={d.last7}
+                label={`Active ${d.last7.filter((v) => v > 0).length} of the last 7 days`}
+              />
+            }
+            caption={
+              d.streakDetail.current === 0
+                ? "Start today."
+                : d.streakDetail.atRisk
+                  ? "A lesson today keeps it going."
+                  : d.streakDetail.longest > d.streakDetail.current
+                    ? `Best: ${d.streakDetail.longest} days`
+                    : "Your best streak yet."
+            }
+          />
+        </div>
+      </section>
 
       {/* Overview / Activity tabs (analytics renders on-demand in the Activity tab) */}
       <Tabs
