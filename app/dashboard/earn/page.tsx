@@ -1,8 +1,12 @@
-// Earn hub (GPS-M3 §2.0 · Redesign U5 · Dashboard §4) — re-skinned onto the Decision Card system.
+// Earn hub (GPS-M3 §2.0 · Redesign U5 · Dashboard §4; Vibrant rollout Slice C — see
+// docs/specs/Vibrant_CardSystem_Amendment_v1.0.md §5 + Command_Center_Dashboard_Spec §4.2/Slice 4).
+// Header + key-metric row promoted onto the Vibrant Card System (gold-vault Available · cyan Held
+// (a status, not a family) · gold Total-earned · indigo Active-friends network, de-clustered).
+// Referral object, entry cards, tabs stay on the calm dc-recipe (same restraint as Home/Learn).
 // DISPLAY-ONLY over the ledger: no money recompute, no re-gate; payouts OFF (D-01). Money honesty
 // locks: eligibility-forked zero-state (Amendments §D), Available anchors only when >0, held = 48h
 // buyer-protection framing, an always-visible honest payout-status line, honest commission RANGE,
-// NO count-up on money, safeMoney (never ₹0). Gold "earn" theme; Register-2 calm lives on Wallet/KYC.
+// money NEVER animates — safeMoney/DataValue, STATIC (never CountUp on ₹).
 import Link from "next/link";
 import {
   Wallet as WalletIcon,
@@ -16,7 +20,7 @@ import {
 } from "lucide-react";
 import { getCurrentUserRecord } from "../../../lib/auth/session";
 import { formatINR } from "../../../lib/money";
-import { safeMoney, safeCount } from "../../../lib/format";
+import { safeMoney } from "../../../lib/format";
 import { greetingTitle } from "../../../lib/greeting";
 import {
   getEarnDashboard,
@@ -24,12 +28,15 @@ import {
   type EarnDashboard,
 } from "../../../lib/earn/dashboard";
 import { Tabs } from "../../../components/ui/tabs";
-import { StatCard } from "../../../components/cards/stat-card";
 import { ChartCard } from "../../../components/cards/chart-card";
 import { ShareWidget } from "../../../components/cards/share-widget";
 import { QRCode } from "../../../components/cards/qr-code";
 import { DecisionCard } from "../../../components/cards/decision/decision-card";
+import { VibrantMetricCard } from "../../../components/cards/decision/vibrant-metric-card";
 import { GettingStartedCard } from "../../../components/cards/getting-started-card";
+import { DataValue } from "../../../components/data/data-value";
+import { CountUp } from "../../../components/data/animated";
+import { NetworkNodes } from "../../../components/data/network-nodes";
 import { MiniChart } from "../../../components/affiliate/mini-chart";
 import { PayoutStatusLine } from "../../../components/affiliate/payout-status-line";
 
@@ -41,10 +48,12 @@ export default async function EarnPage() {
   const d = await getEarnDashboard(user!.id, user!.referralCode);
 
   return (
-    <div className="space-y-8">
-      <header>
-        <h1 className="font-heading text-h1 font-extrabold text-ink">Earn</h1>
-        <p className="mt-1 text-body text-ink-muted">
+    <div className="gs-vibrant space-y-8">
+      <header className="vh-hero dc-enter p-6 md:p-8">
+        <h1 className="font-heading text-display font-extrabold leading-tight">
+          Earn
+        </h1>
+        <p className="mt-2 text-body text-white/85">
           {greetingTitle(user?.name)} — share GoSkilled with friends who want to
           learn.
         </p>
@@ -134,50 +143,85 @@ function FullDashboard({ d }: { d: EarnDashboard }) {
       )}
       <ReferralObject d={d} />
 
-      {/* Stat cards — Financial family (gold accent, charcoal tabular numbers, no count-up). */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {showAvailable && (
-          <StatCard
-            label="Available"
-            value={safeMoney(d.wallet.availableInPaise)}
-            icon={WalletIcon}
-            family="financial"
+      {/* Key-metric row — Vibrant Card System v1.0 (Slice C), de-clustered accents: gold-vault
+          Available (focal, when >0) · cyan Held (a clearing STATUS, not the earn family — keeps
+          no-two-same-accent-adjacent even with 3 money cards) · gold Total-earned · indigo Active
+          friends. Money is STATIC (<DataValue>/safeMoney, never <CountUp>) — DR-043 throughout. */}
+      <section aria-label="Your earnings">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 md:gap-4">
+          {showAvailable && (
+            <VibrantMetricCard
+              bold
+              icon={WalletIcon}
+              label="Available"
+              accent="vh-accent-earn"
+              index={0}
+              href="/dashboard/earn/wallet"
+              badge="Available"
+              numClassName="vh-gold-num"
+              value={
+                <DataValue
+                  value={safeMoney(d.wallet.availableInPaise)}
+                  raiseUnit
+                />
+              }
+              caption={
+                d.payoutsOpen
+                  ? "Ready to withdraw."
+                  : "Recorded to your wallet — payouts open at launch."
+              }
+            />
+          )}
+          <VibrantMetricCard
+            icon={CalendarClock}
+            label="Held"
+            accent="vh-accent-cyan"
+            index={1}
+            href="/dashboard/earn/wallet"
+            value={
+              <DataValue value={safeMoney(d.wallet.heldInPaise)} raiseUnit />
+            }
+            caption={
+              d.wallet.heldInPaise > 0
+                ? "Buyer-protected for 48h."
+                : "Ready to receive commissions."
+            }
           />
-        )}
-        <StatCard
-          label="Held"
-          value={safeMoney(d.wallet.heldInPaise)}
-          icon={CalendarClock}
-          family="financial"
-          hint={
-            d.wallet.heldInPaise > 0
-              ? "Buyer-protected for 48h"
-              : "Ready to receive commissions"
-          }
-        />
-        <StatCard
-          label="Total earned"
-          value={safeMoney(d.wallet.totalInPaise)}
-          icon={WalletIcon}
-          family="financial"
-          hint={
-            d.wallet.totalInPaise === 0
-              ? "Earn when a friend joins & buys"
-              : undefined
-          }
-        />
-        <StatCard
-          label="Active friends"
-          value={safeCount(d.tree.l1Count)}
-          icon={Users}
-          family="financial"
-          hint={
-            d.tree.l1Count === 0
-              ? "Invite your first friend"
-              : `+${d.tree.thisMonth} this month`
-          }
-        />
-      </div>
+          <VibrantMetricCard
+            icon={WalletIcon}
+            label="Total earned"
+            accent="vh-accent-earn"
+            index={2}
+            href="/dashboard/earn/commissions"
+            value={
+              <DataValue value={safeMoney(d.wallet.totalInPaise)} raiseUnit />
+            }
+            caption={
+              d.wallet.totalInPaise === 0
+                ? "Earn when a friend joins & buys."
+                : d.payoutsOpen
+                  ? d.wallet.heldInPaise > 0
+                    ? "Includes held commissions clearing their 48h window."
+                    : "Recorded to your wallet."
+                  : "Recorded to your wallet — payouts open at launch."
+            }
+          />
+          <VibrantMetricCard
+            icon={Users}
+            label="Active friends"
+            accent="vh-accent-network"
+            index={3}
+            href="/dashboard/earn/network"
+            value={<CountUp value={d.tree.l1Count} />}
+            viz={<NetworkNodes count={d.tree.l1Count} height={40} />}
+            caption={
+              d.tree.l1Count === 0
+                ? "Invite your first friend."
+                : `+${d.tree.thisMonth} this month`
+            }
+          />
+        </div>
+      </section>
 
       {/* Rewards + Leaderboard entry cards (built; reachable here, not in the sidebar). */}
       <div className="grid gap-4 md:grid-cols-2">

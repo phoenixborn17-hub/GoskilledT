@@ -1,7 +1,8 @@
-// My Network (Phase B / B2 + B3). Server component. The 3-level referral tables with date + package
-// filters, plus a network-growth graph (date + level filter). Privacy is enforced in the read
-// (lib/affiliate/network.ts): L1 shows first name + masked mobile + packages and is exportable;
-// L2/L3 show joined date only and are never exportable. Safe in BOTH flag states (no ₹ here).
+// My Network (Phase B / B2 + B3; Vibrant rollout Slice C — indigo network accent). Server component.
+// The 3-level referral tables with date + package filters, plus a network-growth graph (date +
+// level filter). Privacy is enforced in the read (lib/affiliate/network.ts) — DR-038 masking is
+// BYTE-IDENTICAL: L1 shows first name + masked mobile + packages and is exportable; L2/L3 show
+// joined date only and are never exportable. Safe in BOTH flag states (no ₹ here).
 import Link from "next/link";
 import { Download } from "lucide-react";
 import { getCurrentUser } from "../../../../lib/auth/session";
@@ -13,7 +14,6 @@ import {
 } from "../../../../lib/affiliate/analytics";
 import { AFFILIATE_LABELS, levelLabel } from "../../../../lib/affiliate/labels";
 import { MiniChart } from "../../../../components/affiliate/mini-chart";
-import { Card, CardTitle } from "../../../../components/ui/card";
 
 export const dynamic = "force-dynamic";
 
@@ -80,7 +80,7 @@ export default async function NetworkPage({
   const base = { range, pkg: pkg ?? "all", level };
 
   return (
-    <section aria-labelledby="network-heading" className="space-y-6">
+    <section aria-labelledby="network-heading" className="gs-vibrant space-y-6">
       <h1
         id="network-heading"
         className="font-heading text-h1 font-bold text-ink"
@@ -134,28 +134,28 @@ export default async function NetworkPage({
       </div>
 
       {/* Network-growth graph */}
-      <Card className="space-y-2">
-        <CardTitle className="text-base">
+      <div className="vh-card vh-soft vh-accent-network dc-enter space-y-2 p-6">
+        <h2 className="font-heading text-h4 font-bold text-ink">
           {AFFILIATE_LABELS.networkGraph}
-        </CardTitle>
+        </h2>
         <MiniChart
           points={series}
           kind="line"
           format={(n) => `${n} member${n === 1 ? "" : "s"}`}
           empty="No one has joined your network in this period yet."
         />
-      </Card>
+      </div>
 
       {/* Level 1 — full rows + export */}
-      <Card className="space-y-3">
+      <div className="vh-card vh-soft vh-accent-network dc-enter space-y-3 p-6">
         <div className="flex items-center justify-between gap-3">
-          <CardTitle className="text-base">
+          <h2 className="font-heading text-h4 font-bold text-ink">
             {levelLabel(1)} · {net.counts.l1}
-          </CardTitle>
+          </h2>
           {net.counts.l1 > 0 && (
             <Link
               href={`/dashboard/earn/network/export${qs({ ...base, level: "1" })}`}
-              className="press inline-flex items-center gap-1.5 rounded-full bg-gold px-3 py-1.5 text-sm font-semibold text-charcoal"
+              className="vh-delta press inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-small font-semibold"
               prefetch={false}
             >
               <Download className="h-4 w-4" aria-hidden /> Export CSV
@@ -168,26 +168,26 @@ export default async function NetworkPage({
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs uppercase tracking-wide text-muted">
+                <tr className="text-left text-caption uppercase tracking-wide text-ink-muted">
                   <th className="py-2 pr-3 font-medium">Name</th>
                   <th className="py-2 pr-3 font-medium">Mobile</th>
                   <th className="py-2 pr-3 font-medium">Joined</th>
                   <th className="py-2 font-medium">Packages</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-charcoal/5">
+              <tbody className="divide-y divide-line/60">
                 {net.l1.map((r, i) => (
                   <tr key={i}>
-                    <td className="py-2 pr-3 font-medium text-charcoal">
+                    <td className="py-2 pr-3 font-medium text-ink">
                       {r.firstName || "GoSkilled learner"}
                     </td>
-                    <td className="py-2 pr-3 text-muted">
+                    <td className="py-2 pr-3 text-ink-muted">
                       {r.mobileMasked ?? "—"}
                     </td>
-                    <td className="py-2 pr-3 text-muted">
+                    <td className="py-2 pr-3 text-ink-muted">
                       {formatDate(r.joinedAt)}
                     </td>
-                    <td className="py-2 text-muted">
+                    <td className="py-2 text-ink-muted">
                       {r.packages.length ? r.packages.join(", ") : "—"}
                     </td>
                   </tr>
@@ -196,39 +196,42 @@ export default async function NetworkPage({
             </table>
           </div>
         )}
-      </Card>
+      </div>
 
-      {/* Level 2 & 3 — joined date only, never exportable (privacy) */}
+      {/* Level 2 & 3 — joined date only, never exportable (privacy — DR-038 masking untouched) */}
       {([2, 3] as const).map((lvl) => {
         const rows = lvl === 2 ? net.l2 : net.l3;
         const count = lvl === 2 ? net.counts.l2 : net.counts.l3;
         return (
-          <Card key={lvl} className="space-y-3">
-            <CardTitle className="text-base">
+          <div
+            key={lvl}
+            className="vh-card vh-soft vh-accent-network dc-enter space-y-3 p-6"
+          >
+            <h2 className="font-heading text-h4 font-bold text-ink">
               {levelLabel(lvl)} · {count}
-            </CardTitle>
+            </h2>
             {rows.length === 0 ? (
               <EmptyRow>
                 No {levelLabel(lvl)} members in this period yet.
               </EmptyRow>
             ) : (
-              <ul className="divide-y divide-charcoal/5 text-sm">
+              <ul className="divide-y divide-line/60 text-sm">
                 {rows.map((r, i) => (
                   <li key={i} className="flex justify-between gap-3 py-2">
-                    <span className="text-charcoal">GoSkilled learner</span>
-                    <span className="text-muted">
+                    <span className="text-ink">GoSkilled learner</span>
+                    <span className="text-ink-muted">
                       joined {formatDate(r.joinedAt)}
                     </span>
                   </li>
                 ))}
               </ul>
             )}
-            <p className="text-xs text-muted">
+            <p className="text-caption text-ink-muted">
               To protect people you didn&apos;t invite directly,{" "}
               {levelLabel(lvl)} shows join dates only — no names, no mobile
               numbers — and can&apos;t be exported.
             </p>
-          </Card>
+          </div>
         );
       })}
     </section>
@@ -244,7 +247,7 @@ function ChipRow({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="text-xs font-medium uppercase tracking-wide text-muted">
+      <span className="text-caption font-medium uppercase tracking-wide text-ink-muted">
         {label}
       </span>
       {children}
@@ -266,10 +269,10 @@ function Chip({
       href={href}
       aria-current={active ? "true" : undefined}
       className={
-        "press shrink-0 rounded-full px-3 py-1 text-sm font-medium transition-colors " +
+        "press shrink-0 rounded-full px-3 py-1 text-small font-medium transition-colors " +
         (active
-          ? "bg-charcoal text-white"
-          : "bg-charcoal/5 text-charcoal/70 hover:bg-charcoal/10")
+          ? "bg-ink text-white"
+          : "bg-surface-raised text-ink-muted hover:bg-line")
       }
     >
       {children}
@@ -279,7 +282,7 @@ function Chip({
 
 function EmptyRow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="rounded-xl bg-charcoal/5 p-4 text-sm text-muted">
+    <p className="rounded-xl bg-surface-raised p-4 text-small text-ink-muted">
       {children}
     </p>
   );

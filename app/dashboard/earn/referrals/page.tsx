@@ -1,12 +1,11 @@
-// Referrals (GPS-M3 §2.1). Transparent 3-level network. Works in BOTH flag states (no ₹ columns
-// until the flag is ON — this page shows counts/names only, which are safe in both states).
+// Referrals (GPS-M3 §2.1; Vibrant rollout Slice C). Transparent 3-level network. Works in BOTH
+// flag states (no ₹ columns until the flag is ON — this page shows counts/names only, safe in both).
 import { getCurrentUser } from "../../../../lib/auth/session";
 import { siteUrl } from "../../../../lib/seo";
 import { getReferralTree } from "../../../../lib/affiliate/referrals";
 import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
 import { ShareBlock } from "../../../../components/affiliate/share-block";
 import { ReferralTree } from "../../../../components/affiliate/referral-tree";
-import { Card, CardTitle } from "../../../../components/ui/card";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +15,10 @@ export default async function ReferralsPage() {
   const tree = await getReferralTree(user!.id);
 
   return (
-    <section aria-labelledby="referrals-heading" className="space-y-6">
+    <section
+      aria-labelledby="referrals-heading"
+      className="gs-vibrant space-y-6"
+    >
       <h1
         id="referrals-heading"
         className="font-heading text-h1 font-bold text-ink"
@@ -24,13 +26,15 @@ export default async function ReferralsPage() {
         Referrals
       </h1>
 
-      <Card className="space-y-3 bg-gold/10">
-        <CardTitle className="text-base">Your referral link</CardTitle>
+      <div className="vh-card vh-soft vh-accent-network dc-enter space-y-3 p-6">
+        <h2 className="font-heading text-h4 font-bold text-ink">
+          Your referral link
+        </h2>
         <ShareBlock
           shareUrl={shareUrl}
           shareMessage={AFFILIATE_COPY.shareMessage}
         />
-      </Card>
+      </div>
 
       <ReferralTree tree={tree} />
     </section>
