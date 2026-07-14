@@ -161,7 +161,7 @@ export function SkillUniverse({ nodes }: { nodes: SkillNode[] }) {
         ) : (
           <p className="su-reveal-rest">
             You, at the centre.{" "}
-            <span className="text-charcoal/60">
+            <span className="text-ink/60">
               Hover or tap a skill to explore what you can learn.
             </span>
           </p>

@@ -28,7 +28,7 @@ export default function ContactPage() {
             <MessagesSquare className="h-4 w-4" aria-hidden /> We&apos;re here
             to help
           </span>
-          <h1 className="enter enter-2 mx-auto mt-4 max-w-2xl font-heading text-4xl font-extrabold leading-[1.1] text-charcoal sm:text-5xl">
+          <h1 className="enter enter-2 mx-auto mt-4 max-w-2xl font-heading text-4xl font-extrabold leading-[1.1] text-ink sm:text-5xl">
             We&apos;d love to hear from you
           </h1>
           <p className="enter enter-3 mx-auto mt-4 max-w-xl text-lg text-muted">
@@ -42,7 +42,7 @@ export default function ContactPage() {
         <section aria-labelledby="channels">
           <h2
             id="channels"
-            className="font-heading text-xl font-bold text-charcoal"
+            className="font-heading text-xl font-bold text-ink"
           >
             Reach us directly
           </h2>
@@ -51,13 +51,13 @@ export default function ContactPage() {
             href="https://wa.me/918572887888"
             target="_blank"
             rel="noopener noreferrer"
-            className="press mt-4 flex items-center gap-3 rounded-2xl border border-brand/20 bg-brand/[0.04] p-4 hover:border-brand/40"
+            className="press mt-4 flex items-center gap-3 rounded-gs-lg border border-brand/20 bg-brand/[0.04] p-4 hover:border-brand/40"
           >
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand">
               <MessageCircle className="h-5 w-5" aria-hidden />
             </span>
             <span>
-              <span className="block font-semibold text-charcoal">
+              <span className="block font-semibold text-ink">
                 Chat on WhatsApp
               </span>
               {/* // REPLACE: temp */}
@@ -77,7 +77,7 @@ export default function ContactPage() {
             </ChannelRow>
             <ChannelRow Icon={Clock} label="Business hours">
               {/* // REPLACE: confirm */}
-              <span className="text-charcoal/80">Mon–Sat, 10:00–18:00 IST</span>
+              <span className="text-ink/80">Mon–Sat, 10:00–18:00 IST</span>
             </ChannelRow>
           </Card>
           <p className="mt-3 text-xs text-muted">
@@ -86,7 +86,7 @@ export default function ContactPage() {
         </section>
 
         <section aria-label="Send us a message">
-          <h2 className="mb-4 font-heading text-xl font-bold text-charcoal">
+          <h2 className="mb-4 font-heading text-xl font-bold text-ink">
             Send us a message
           </h2>
           <Suspense>

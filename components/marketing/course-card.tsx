@@ -23,11 +23,11 @@ export function CourseCard({ course }: { course: CourseCardData }) {
   return (
     <Link
       href={`/courses/${course.slug}`}
-      className="group block h-full rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
+      className="group block h-full rounded-gs-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
     >
       <article
         className={cn(
-          "lift flex h-full flex-col overflow-hidden rounded-2xl border border-charcoal/10 bg-white shadow-gs-sm transition-colors hover:border-brand/30",
+          "lift flex h-full flex-col overflow-hidden rounded-gs-lg border border-line/10 bg-surface-raised shadow-gs-sm transition-colors hover:border-brand/30",
         )}
       >
         {/* Cover band — brand gradient wash + category glyph (no stock photos, DESIGN §9). */}
@@ -47,7 +47,7 @@ export function CourseCard({ course }: { course: CourseCardData }) {
         </div>
 
         <div className="flex flex-1 flex-col gap-3 p-5">
-          <h3 className="font-heading text-lg font-bold leading-snug text-charcoal">
+          <h3 className="font-heading text-lg font-bold leading-snug text-ink">
             {course.title}
           </h3>
           {course.summary && (

@@ -83,7 +83,7 @@ export default async function WebinarPage() {
           <div className="grid gap-10 md:grid-cols-2 md:items-center">
             <div>
               <Badge variant="gold">Free · Every Sunday</Badge>
-              <h1 className="mt-3 font-heading text-3xl font-extrabold leading-tight text-charcoal sm:text-4xl">
+              <h1 className="mt-3 font-heading text-3xl font-extrabold leading-tight text-ink sm:text-4xl">
                 {webinar ? webinar.title : "Free Introduction Webinar"}
               </h1>
               {webinar ? (
@@ -100,7 +100,7 @@ export default async function WebinarPage() {
                     href={gcalLink(webinar.title, webinar.startsAt)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="press mt-5 inline-flex items-center gap-2 rounded-xl border border-brand/25 px-4 py-2 text-sm font-semibold text-charcoal hover:bg-brand/5"
+                    className="press mt-5 inline-flex items-center gap-2 rounded-xl border border-brand/25 px-4 py-2 text-sm font-semibold text-ink hover:bg-brand/5"
                   >
                     <CalendarPlus className="h-4 w-4 text-brand" aria-hidden />
                     Add to Google Calendar
@@ -138,7 +138,7 @@ export default async function WebinarPage() {
         <section aria-labelledby="agenda">
           <h2
             id="agenda"
-            className="font-heading text-xl font-bold text-charcoal"
+            className="font-heading text-xl font-bold text-ink"
           >
             What you&apos;ll learn
           </h2>
@@ -146,7 +146,7 @@ export default async function WebinarPage() {
             {LEARN.map((l) => (
               <li
                 key={l}
-                className="flex items-start gap-2.5 text-sm text-charcoal/80"
+                className="flex items-start gap-2.5 text-sm text-ink/80"
               >
                 <CheckCircle2
                   className="mt-0.5 h-5 w-5 shrink-0 text-brand"
@@ -166,14 +166,14 @@ export default async function WebinarPage() {
         <section aria-labelledby="speaker">
           <h2
             id="speaker"
-            className="font-heading text-xl font-bold text-charcoal"
+            className="font-heading text-xl font-bold text-ink"
           >
             Your host
           </h2>
           <Card className="mt-4 flex items-center gap-4">
             <Monogram name="Ashish Sangwal" className="h-14 w-14 text-lg" />
             <div>
-              <p className="font-semibold text-charcoal">
+              <p className="font-semibold text-ink">
                 Ashish Sangwal · Founder, GoSkilled
               </p>
               <p className="text-sm text-muted">
@@ -195,7 +195,7 @@ export default async function WebinarPage() {
               <GraduationCap className="h-5 w-5" />
             </div>
             <div>
-              <h2 className="font-heading text-lg font-bold text-charcoal">
+              <h2 className="font-heading text-lg font-bold text-ink">
                 Live Skill Training · Every Friday
               </h2>
               <p className="mt-1 flex items-center gap-1.5 text-sm text-muted">

@@ -79,14 +79,14 @@ export default async function PackagesPage() {
               <BadgeIndianRupee className="h-3.5 w-3.5" /> One price · no hidden
               charges
             </span>
-            <h1 className="enter enter-2 mx-auto mt-4 max-w-2xl font-heading text-4xl font-extrabold leading-[1.08] text-charcoal sm:text-5xl">
+            <h1 className="enter enter-2 mx-auto mt-4 max-w-2xl font-heading text-4xl font-extrabold leading-[1.08] text-ink sm:text-5xl">
               Simple, honest pricing
             </h1>
-            <p className="enter enter-2 mx-auto mt-4 max-w-xl text-lg text-charcoal/70">
+            <p className="enter enter-2 mx-auto mt-4 max-w-xl text-lg text-ink/70">
               One price, no hidden charges. Koi hidden charge nahi — and a
               48-hour refund if it&apos;s not for you.
             </p>
-            <p className="enter enter-3 mx-auto mt-5 inline-flex items-center gap-2 rounded-full bg-gold/15 px-4 py-1.5 text-sm font-semibold text-charcoal">
+            <p className="enter enter-3 mx-auto mt-5 inline-flex items-center gap-2 rounded-full bg-gold/15 px-4 py-1.5 text-sm font-semibold text-ink">
               <Star className="h-4 w-4" aria-hidden />
               Exclusive Founding Batch pricing — limited founding seats
             </p>
@@ -98,20 +98,20 @@ export default async function PackagesPage() {
           <div className="grid gap-5 md:grid-cols-2">
             {/* Skill Builder */}
             <Card className="lift flex flex-col">
-              <h2 className="font-heading text-xl font-bold text-charcoal">
+              <h2 className="font-heading text-xl font-bold text-ink">
                 {sb.name}
               </h2>
-              <p className="mt-3 text-4xl font-extrabold text-charcoal">
+              <p className="mt-3 text-4xl font-extrabold text-ink">
                 {priceLabel(sb.priceInPaise)}
               </p>
               <p className="text-xs text-muted">
                 One-time payment · no hidden charges
               </p>
-              <p className="mt-4 text-sm text-charcoal/70">
+              <p className="mt-4 text-sm text-ink/70">
                 One launch course of your choice. Perfect if you want to master
                 a single skill first.
               </p>
-              <ul className="mt-4 space-y-2.5 text-sm text-charcoal/80">
+              <ul className="mt-4 space-y-2.5 text-sm text-ink/80">
                 <Feature>1 launch course (your choice)</Feature>
                 <Feature>Verifiable certificate on completion</Feature>
                 <Feature>Learn on your phone, at your own pace</Feature>
@@ -133,30 +133,30 @@ export default async function PackagesPage() {
                 <Zap className="h-3 w-3" aria-hidden /> Recommended
               </span>
               <div className="flex items-center justify-between">
-                <h2 className="font-heading text-xl font-bold text-charcoal">
+                <h2 className="font-heading text-xl font-bold text-ink">
                   {cb.name}
                 </h2>
                 <Badge variant="gold">Best value</Badge>
               </div>
-              <p className="mt-3 text-4xl font-extrabold text-charcoal">
+              <p className="mt-3 text-4xl font-extrabold text-ink">
                 {priceLabel(cb.priceInPaise)}
               </p>
               <p className="text-xs text-muted">
                 One-time payment · no hidden charges
               </p>
-              <p className="mt-4 text-sm text-charcoal/70">
+              <p className="mt-4 text-sm text-ink/70">
                 Both launch courses{" "}
                 <strong>plus every future course as it&apos;s released</strong>{" "}
                 — the second course and all future releases for just{" "}
                 {priceLabel(extraForCb)} more.
               </p>
-              <ul className="mt-4 space-y-2.5 text-sm text-charcoal/80">
+              <ul className="mt-4 space-y-2.5 text-sm text-ink/80">
                 <Feature>Both launch courses</Feature>
                 <Feature strong>Future courses included as released</Feature>
                 <Feature>Verifiable certificates</Feature>
                 <Feature>48-hour refund</Feature>
               </ul>
-              <p className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gold/10 px-3 py-2 text-xs font-medium text-charcoal">
+              <p className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-gold/10 px-3 py-2 text-xs font-medium text-ink">
                 <Tag className="h-3.5 w-3.5" aria-hidden />
                 Every future course for {priceLabel(extraForCb)} more than Skill
                 Builder
@@ -190,18 +190,18 @@ export default async function PackagesPage() {
         <Section aria-labelledby="compare" innerClassName="max-w-4xl">
           <h2
             id="compare"
-            className="mb-4 font-heading text-2xl font-bold text-charcoal"
+            className="mb-4 font-heading text-2xl font-bold text-ink"
           >
             Compare plans
           </h2>
-          <div className="overflow-x-auto rounded-2xl border border-charcoal/10 bg-white">
+          <div className="overflow-x-auto rounded-gs-lg border border-line/10 bg-surface-raised">
             <table className="w-full min-w-[34rem] border-collapse text-sm">
               <thead>
-                <tr className="border-b border-charcoal/10 text-left">
+                <tr className="border-b border-line/10 text-left">
                   <th scope="col" className="p-4 font-medium text-muted">
                     Feature
                   </th>
-                  <th scope="col" className="p-4 font-semibold text-charcoal">
+                  <th scope="col" className="p-4 font-semibold text-ink">
                     {sb.name}
                   </th>
                   <th
@@ -214,14 +214,14 @@ export default async function PackagesPage() {
               </thead>
               <tbody>
                 {rows.map((r) => (
-                  <tr key={r.feature} className="border-b border-charcoal/5">
+                  <tr key={r.feature} className="border-b border-line/5">
                     <th
                       scope="row"
                       className="p-4 text-left font-normal text-muted"
                     >
                       {r.feature}
                     </th>
-                    <td className="p-4 text-charcoal/80">
+                    <td className="p-4 text-ink/80">
                       {cellValue(r.skillBuilder)}
                     </td>
                     <td
@@ -229,7 +229,7 @@ export default async function PackagesPage() {
                         "bg-brand/[0.04] p-4",
                         r.highlight
                           ? "font-semibold text-brand-deep"
-                          : "text-charcoal/80",
+                          : "text-ink/80",
                       )}
                     >
                       {cellValue(r.careerBooster)}
@@ -245,7 +245,7 @@ export default async function PackagesPage() {
         <Section aria-labelledby="faq" bg="raised" innerClassName="max-w-3xl">
           <h2
             id="faq"
-            className="mb-4 font-heading text-2xl font-bold text-charcoal"
+            className="mb-4 font-heading text-2xl font-bold text-ink"
           >
             Frequently asked
           </h2>
@@ -253,9 +253,9 @@ export default async function PackagesPage() {
             {FAQS.map((f) => (
               <details
                 key={f.q}
-                className="group rounded-xl border border-charcoal/10 bg-white p-4"
+                className="group rounded-xl border border-line/10 bg-surface-raised p-4"
               >
-                <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-charcoal">
+                <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-ink">
                   {f.q}
                   <span
                     className="ml-2 text-brand transition-transform group-open:rotate-45"
@@ -272,11 +272,11 @@ export default async function PackagesPage() {
       </main>
 
       {/* Sticky mobile CTA bar */}
-      <div className="glass fixed inset-x-0 bottom-0 z-40 border-t border-charcoal/10 px-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 md:hidden">
+      <div className="glass fixed inset-x-0 bottom-0 z-40 border-t border-line/10 px-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 md:hidden">
         <div className="mx-auto flex max-w-md gap-2">
           <Link
             href="/checkout?package=skill-builder"
-            className="press inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-brand/30 text-sm font-semibold text-charcoal"
+            className="press inline-flex h-11 flex-1 items-center justify-center rounded-xl border border-brand/30 text-sm font-semibold text-ink"
           >
             {priceLabel(sb.priceInPaise)}
           </Link>
@@ -302,7 +302,7 @@ function Feature({
   return (
     <li className="flex items-start gap-2.5">
       <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand" aria-hidden />
-      <span className={cn(strong && "font-semibold text-charcoal")}>
+      <span className={cn(strong && "font-semibold text-ink")}>
         {children}
       </span>
     </li>
@@ -312,7 +312,7 @@ function Feature({
 function cellValue(v: string) {
   if (v === "Not included")
     return (
-      <Minus className="h-4 w-4 text-charcoal/30" aria-label="Not included" />
+      <Minus className="h-4 w-4 text-ink/30" aria-label="Not included" />
     );
   if (
     v === "Included as released" ||

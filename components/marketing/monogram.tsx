@@ -26,7 +26,7 @@ export function Monogram({
     <div
       aria-hidden
       className={cn(
-        "flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl font-heading text-xl font-bold text-white ring-2 ring-gold/70",
+        "flex h-16 w-16 shrink-0 items-center justify-center rounded-gs-lg font-heading text-xl font-bold text-white ring-2 ring-gold/70",
         className,
       )}
       style={{

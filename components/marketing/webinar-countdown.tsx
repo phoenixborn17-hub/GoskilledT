@@ -55,9 +55,9 @@ export function WebinarCountdown({ targetIso }: { targetIso: string }) {
       {units.map(([v, label]) => (
         <div
           key={label}
-          className="flex min-w-[3.75rem] flex-col items-center rounded-xl border border-brand/15 bg-white px-3 py-2 shadow-gs-sm"
+          className="flex min-w-[3.75rem] flex-col items-center rounded-xl border border-brand/15 bg-surface-raised px-3 py-2 shadow-gs-sm"
         >
-          <span className="font-heading text-2xl font-extrabold tabular-nums text-charcoal">
+          <span className="font-heading text-2xl font-extrabold tabular-nums text-ink">
             {String(v).padStart(2, "0")}
           </span>
           <span className="text-[0.625rem] font-semibold uppercase tracking-wide text-muted">

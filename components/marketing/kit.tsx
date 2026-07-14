@@ -26,7 +26,7 @@ export function Container({
 type SectionBg = "default" | "raised" | "tint";
 const sectionBg: Record<SectionBg, string> = {
   default: "",
-  raised: "bg-white",
+  raised: "bg-surface-raised",
   tint: "bg-brand/[0.03]",
 };
 
@@ -130,7 +130,7 @@ export function SectionHeading({
       ) : null}
       <h2
         id={id}
-        className="font-heading text-2xl font-bold text-charcoal sm:text-3xl"
+        className="font-heading text-2xl font-bold text-ink sm:text-3xl"
       >
         {title}
       </h2>
@@ -161,7 +161,7 @@ export function BentoCard({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-charcoal/10 bg-white p-6 shadow-gs-sm",
+        "rounded-gs-lg border border-line/10 bg-surface-raised p-6 shadow-gs-sm",
         interactive && "lift hover:border-brand/30",
         className,
       )}
@@ -225,13 +225,13 @@ export function PageHero({
               {eyebrow}
             </Eyebrow>
           ) : null}
-          <h1 className="enter enter-2 font-heading text-4xl font-extrabold leading-[1.08] text-charcoal sm:text-5xl">
+          <h1 className="enter enter-2 font-heading text-4xl font-extrabold leading-[1.08] text-ink sm:text-5xl">
             {title}
           </h1>
           {subtitle ? (
             <p
               className={cn(
-                "enter enter-2 mt-4 text-lg text-charcoal/70",
+                "enter enter-2 mt-4 text-lg text-ink/70",
                 align === "center" && "mx-auto max-w-xl",
               )}
             >
@@ -266,7 +266,7 @@ export function CtaBand({
   return (
     <Section aria-label="Get started" bg="raised">
       <div className="mx-auto max-w-3xl rounded-3xl border border-brand/15 bg-gradient-to-br from-brand/[0.06] to-gold/[0.05] px-6 py-12 text-center sm:px-10">
-        <h2 className="font-heading text-2xl font-extrabold text-charcoal sm:text-3xl">
+        <h2 className="font-heading text-2xl font-extrabold text-ink sm:text-3xl">
           {title}
         </h2>
         {subtitle ? (

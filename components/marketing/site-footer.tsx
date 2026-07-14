@@ -37,9 +37,9 @@ const YEAR = "2026";
 
 export function SiteFooter() {
   return (
-    <footer className="border-t border-charcoal/10 bg-white">
+    <footer className="border-t border-line/10 bg-surface-raised">
       {/* Trust ribbon — only true claims. */}
-      <div className="border-b border-charcoal/5 bg-brand/[0.03]">
+      <div className="border-b border-line/5 bg-brand/[0.03]">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 py-4 text-xs font-medium text-muted">
           <span className="inline-flex items-center gap-1.5">
             <ShieldCheck className="h-4 w-4 text-brand" aria-hidden />
@@ -76,7 +76,7 @@ export function SiteFooter() {
                   <Link
                     key={s.href}
                     href={s.href}
-                    className="text-sm text-charcoal/70 hover:text-brand"
+                    className="text-sm text-ink/70 hover:text-brand"
                   >
                     {s.label}
                   </Link>
@@ -91,8 +91,8 @@ export function SiteFooter() {
         </div>
 
         {/* Honest company identity (confirmed marks only). */}
-        <div className="mt-10 rounded-2xl border border-charcoal/10 bg-brand/[0.02] px-5 py-4 text-xs text-muted">
-          <p className="font-semibold text-charcoal/80">
+        <div className="mt-10 rounded-gs-lg border border-line/10 bg-brand/[0.02] px-5 py-4 text-xs text-muted">
+          <p className="font-semibold text-ink/80">
             EDZERA INSPIRING EXCELLENCE LLP
           </p>
           <p className="mt-1">
@@ -101,7 +101,7 @@ export function SiteFooter() {
           </p>
         </div>
 
-        <div className="mt-8 flex flex-col gap-3 border-t border-charcoal/5 pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-8 flex flex-col gap-3 border-t border-line/5 pt-6 text-xs text-muted sm:flex-row sm:items-center sm:justify-between">
           <p>© {YEAR} GoSkilled. All rights reserved.</p>
           <p className="inline-flex items-center gap-1.5">
             Made in India <span aria-hidden>🇮🇳</span> for India
@@ -128,7 +128,7 @@ function FooterNav({
         <Link
           key={l.href}
           href={l.href}
-          className="text-sm text-charcoal/70 transition-colors hover:text-brand"
+          className="text-sm text-ink/70 transition-colors hover:text-brand"
         >
           {l.label}
         </Link>
