@@ -5,6 +5,7 @@ import { getCurrentUser } from "../../../../lib/auth/session";
 import { getRewardProgress } from "../../../../lib/affiliate/rewards";
 import { completedReferralCount } from "../../../../lib/affiliate/completion";
 import { tierProgress } from "../../../../modules/affiliate/tiers";
+import { BackLink } from "../../../../components/nav/back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ export default async function RewardsPage() {
 
   return (
     <section aria-labelledby="rw-heading" className="gs-vibrant space-y-6">
+      <BackLink href="/dashboard/earn" label="Back to Earn" />
       <h1 id="rw-heading" className="font-heading text-h1 font-bold text-ink">
         Rewards
       </h1>

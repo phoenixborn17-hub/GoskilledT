@@ -10,6 +10,7 @@ import { getKycView } from "../../../../lib/kyc/queries";
 import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
 import { KycForm } from "../../../../components/affiliate/kyc-form";
 import { Badge } from "../../../../components/ui/badge";
+import { BackLink } from "../../../../components/nav/back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function KycPage() {
 
   return (
     <section aria-labelledby="kyc-heading" className="gs-vibrant space-y-6">
+      <BackLink href="/dashboard/profile" label="Back to Account" />
       <h1 id="kyc-heading" className="font-heading text-h1 font-bold text-ink">
         KYC verification
       </h1>

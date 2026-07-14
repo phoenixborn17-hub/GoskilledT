@@ -12,6 +12,7 @@ import {
   type CommissionState,
 } from "../../../../lib/wallet/queries";
 import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
+import { BackLink } from "../../../../components/nav/back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,7 @@ export default async function CommissionsPage() {
       aria-labelledby="commissions-heading"
       className="gs-vibrant space-y-6"
     >
+      <BackLink href="/dashboard/earn" label="Back to Earn" />
       <h1
         id="commissions-heading"
         className="font-heading text-h1 font-bold text-ink"

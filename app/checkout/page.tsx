@@ -6,6 +6,7 @@ import { formatINR } from "../../lib/money";
 import { contactChannels } from "../../lib/config/contact";
 import { TrustTriad } from "../../components/marketing/trust-triad";
 import { CheckoutForm } from "./checkout-form";
+import { BackLink } from "../../components/nav/back-link";
 
 // Transactional page — keep out of search indexes (defence-in-depth beyond robots.txt).
 export const metadata: Metadata = {
@@ -58,7 +59,8 @@ export default async function CheckoutPage({
 
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
-      <div className="mb-4">
+      <BackLink href="/packages" label="Back to packages" />
+      <div className="mb-4 mt-4">
         <p className="font-heading text-h2 font-bold text-ink">{pkg.name}</p>
         <p className="text-h4 font-semibold text-theme-strong">
           {formatINR(pkg.priceInPaise)}

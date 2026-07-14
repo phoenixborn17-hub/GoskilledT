@@ -5,6 +5,7 @@ import { getCurrentUser } from "../../../../lib/auth/session";
 import { getLeaderboard } from "../../../../lib/affiliate/leaderboard";
 import { completedReferralCount } from "../../../../lib/affiliate/completion";
 import { tierProgress } from "../../../../modules/affiliate/tiers";
+import { BackLink } from "../../../../components/nav/back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function LeaderboardPage() {
 
   return (
     <section aria-labelledby="lb-heading" className="gs-vibrant space-y-6">
+      <BackLink href="/dashboard/earn" label="Back to Earn" />
       <h1 id="lb-heading" className="font-heading text-h1 font-bold text-ink">
         Leaderboard
       </h1>
