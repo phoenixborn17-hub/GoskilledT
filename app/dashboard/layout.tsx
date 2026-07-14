@@ -3,20 +3,31 @@
 // bottom bar · persistent Share · Guru entry) wraps the existing pages — presentation only, no
 // route or business-logic change.
 import { redirect } from "next/navigation";
-import { getCurrentUser } from "../../lib/auth/session";
+import { getCurrentUser, AuthUnavailableError } from "../../lib/auth/session";
 import { prisma } from "../../lib/prisma";
 import { siteUrl } from "../../lib/seo";
 import { getVisibleFeatures } from "../../lib/feature-visibility/context";
 import { getShellState } from "../../lib/nav/shell-state";
 import { AppShell } from "../../components/nav/app-shell";
 import { InstallPrompt } from "../../components/pwa/install-prompt";
+import { AuthUnavailableScreen } from "../../components/auth/auth-unavailable-screen";
 
 export default async function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
+  // Next.js error.tsx boundaries do NOT catch errors thrown in a layout of the same segment, so
+  // the transient-vs-signed-out distinction (2026-07-15 login-bounce fix) is handled inline here
+  // rather than relying on app/dashboard/error.tsx (which still exists for errors from pages/
+  // actions further down this tree).
+  let user;
+  try {
+    user = await getCurrentUser();
+  } catch (e) {
+    if (e instanceof AuthUnavailableError) return <AuthUnavailableScreen />;
+    throw e;
+  }
   if (!user) redirect("/login?next=/dashboard");
 
   const [record, completed, visibleFeatures] = await Promise.all([

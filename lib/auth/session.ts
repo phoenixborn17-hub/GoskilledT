@@ -6,15 +6,21 @@ import { createSupabaseServerClient } from "../supabase/server";
 import { isSupabaseConfigured } from "../supabase/config";
 import { prisma } from "../prisma";
 import { syncUser, type SyncResult } from "./user-sync";
+import { resolveGetUserResult } from "./verify-user";
 import type { User } from "@supabase/supabase-js";
 
+export { AuthUnavailableError } from "./verify-user";
+
+/** Throws AuthUnavailableError (not a plain null) when Supabase couldn't verify the token for a
+ * reason other than "no session" — callers must not treat that as signed-out (2026-07-15). */
 export const getSupabaseUser = cache(async (): Promise<User | null> => {
   if (!isSupabaseConfigured()) return null;
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser();
-  return user;
+  return resolveGetUserResult(user, error);
 });
 
 /** The authenticated user's synced internal record, or null if not signed in. */

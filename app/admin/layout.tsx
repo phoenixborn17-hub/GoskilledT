@@ -2,8 +2,10 @@
 // (defence in depth) and shows the admin identity + logout. Charcoal-neutral theme.
 import { redirect } from "next/navigation";
 import { getAdminUser } from "../../lib/auth/admin";
+import { AuthUnavailableError } from "../../lib/auth/session";
 import { AdminNav } from "../../components/admin/admin-nav";
 import { signOutAction } from "../dashboard/actions";
+import { AuthUnavailableScreen } from "../../components/auth/auth-unavailable-screen";
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +14,15 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const admin = await getAdminUser();
+  // See app/dashboard/layout.tsx — error.tsx can't catch same-segment layout errors, so the
+  // transient-vs-signed-out distinction (2026-07-15 login-bounce fix) is handled inline.
+  let admin;
+  try {
+    admin = await getAdminUser();
+  } catch (e) {
+    if (e instanceof AuthUnavailableError) return <AuthUnavailableScreen />;
+    throw e;
+  }
   if (!admin) redirect("/login?next=/admin");
 
   return (
