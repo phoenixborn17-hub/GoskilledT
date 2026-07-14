@@ -37,7 +37,10 @@ export default async function MyCoursesPage() {
   );
 
   return (
-    <section aria-labelledby="courses-heading" className="space-y-8">
+    <section
+      aria-labelledby="courses-heading"
+      className="gs-vibrant space-y-8"
+    >
       <h1
         id="courses-heading"
         className="font-heading text-h1 font-bold text-ink"
@@ -111,7 +114,7 @@ export default async function MyCoursesPage() {
           <ul className="grid gap-3 md:grid-cols-2">
             {roadmap.map((c) => (
               <li key={c.slug}>
-                <Card className="flex items-start gap-3 bg-theme/5">
+                <Card className="dc-enter flex items-start gap-3 bg-theme/5">
                   <span
                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-theme/10 text-theme-strong"
                     aria-hidden

@@ -27,7 +27,10 @@ export default async function ProgressPage() {
   ]);
 
   return (
-    <section aria-labelledby="progress-heading" className="space-y-6">
+    <section
+      aria-labelledby="progress-heading"
+      className="gs-vibrant space-y-6"
+    >
       <h1
         id="progress-heading"
         className="font-heading text-h1 font-bold text-ink"
@@ -60,7 +63,7 @@ export default async function ProgressPage() {
       ) : (
         <div className="space-y-6">
           {courses.map((c) => (
-            <Card key={c.slug}>
+            <Card key={c.slug} className="dc-enter">
               <div className="flex items-center gap-5">
                 <SemicircleGauge value={c.progress.percent} size={104} />
                 <div className="min-w-0 flex-1">

@@ -34,7 +34,7 @@ export default async function BrowsePage() {
   const owned = new Map(enrolled.map((c) => [c.slug, c]));
 
   return (
-    <div className="space-y-10">
+    <div className="gs-vibrant space-y-10">
       <header>
         <h1 className="font-heading text-h1 font-extrabold text-ink">Browse</h1>
         <p className="mt-1 text-body text-ink-muted">

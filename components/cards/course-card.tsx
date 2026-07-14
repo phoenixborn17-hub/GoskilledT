@@ -34,7 +34,7 @@ export function CourseCard({
   return (
     <Card
       elevation="interactive"
-      className={cn("flex flex-col overflow-hidden p-0", className)}
+      className={cn("dc-enter flex flex-col overflow-hidden p-0", className)}
     >
       <div className="relative aspect-video w-full overflow-hidden bg-gradient-to-br from-green-600/15 to-green-500/5">
         {media ?? (

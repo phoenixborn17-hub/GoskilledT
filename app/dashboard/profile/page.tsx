@@ -19,7 +19,10 @@ export default async function ProfilePage() {
   ]);
 
   return (
-    <section aria-labelledby="profile-heading" className="space-y-6">
+    <section
+      aria-labelledby="profile-heading"
+      className="gs-vibrant space-y-6"
+    >
       <header className="flex items-center justify-between gap-3">
         <div>
           <h1
@@ -39,7 +42,7 @@ export default async function ProfilePage() {
           Visibility (DR-040 §E leak channel): the referral code is an Affiliate surface — hidden
           entirely (not just nav) when the Affiliate layer is off, so a reviewer sees no referral trace. */}
       {affiliateVisible && (
-        <Card className="flex items-center justify-between gap-3">
+        <Card className="dc-enter flex items-center justify-between gap-3">
           <div>
             <p className="text-small font-medium text-ink">
               Your referral code
@@ -54,7 +57,7 @@ export default async function ProfilePage() {
         </Card>
       )}
 
-      <Card>
+      <Card className="dc-enter">
         <CardTitle className="mb-4 text-lg">Your details</CardTitle>
         <ProfileForm
           initialName={user?.name ?? ""}
@@ -63,7 +66,7 @@ export default async function ProfilePage() {
         />
       </Card>
 
-      <Card>
+      <Card className="dc-enter">
         <div className="flex items-center justify-between">
           <div>
             <p className="text-small font-medium text-ink">Mobile number</p>
