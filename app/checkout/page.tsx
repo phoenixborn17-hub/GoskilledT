@@ -43,7 +43,7 @@ export default async function CheckoutPage({
   ) {
     return (
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-10">
-        <p className="text-center text-sm text-charcoal/70">
+        <p className="text-center text-sm text-ink-muted">
           Choose a package to continue. Add <code>?package=skill-builder</code>{" "}
           or <code>?package=career-booster</code>.
         </p>

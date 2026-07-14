@@ -140,7 +140,7 @@ export function KycForm({ initial }: { initial: KycInitial }) {
             name="docType"
             required
             defaultValue=""
-            className="h-11 w-full rounded-xl border border-charcoal/15 bg-white px-4 text-base text-charcoal"
+            className="h-11 w-full rounded-xl border border-line/15 bg-surface-raised px-4 text-base text-ink"
           >
             <option value="" disabled>
               Choose…
@@ -171,7 +171,7 @@ export function KycForm({ initial }: { initial: KycInitial }) {
         </p>
       ) : null}
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}
@@ -249,7 +249,7 @@ function ContactVerify({
             type="button"
             onClick={send}
             disabled={busy || value.trim().length < 3}
-            className="shrink-0 rounded-xl border border-charcoal/20 px-3 text-small font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
+            className="shrink-0 rounded-xl border border-line/20 px-3 text-small font-semibold text-ink hover:bg-charcoal/5 disabled:opacity-40"
           >
             {sent ? "Resend" : "Send code"}
           </button>
@@ -325,7 +325,7 @@ function FileField({
         name={name}
         type="file"
         accept="image/jpeg,image/png,image/webp,application/pdf"
-        className="block w-full text-sm text-charcoal file:mr-3 file:rounded-lg file:border-0 file:bg-charcoal/5 file:px-3 file:py-2 file:text-sm file:font-semibold"
+        className="block w-full text-sm text-ink file:mr-3 file:rounded-lg file:border-0 file:bg-charcoal/5 file:px-3 file:py-2 file:text-sm file:font-semibold"
       />
     </div>
   );

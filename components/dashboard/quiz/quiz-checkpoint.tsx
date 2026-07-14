@@ -135,7 +135,7 @@ export function QuizCheckpoint({
                               ? "border-danger/40 bg-danger/5 text-ink"
                               : selected
                                 ? "border-theme bg-theme/5 text-ink"
-                                : "border-charcoal/15 text-ink hover:bg-charcoal/5",
+                                : "border-line/15 text-ink hover:bg-charcoal/5",
                         )}
                       >
                         <span
@@ -143,7 +143,7 @@ export function QuizCheckpoint({
                             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border",
                             selected || isAnswer
                               ? "border-theme"
-                              : "border-charcoal/30",
+                              : "border-line/30",
                           )}
                           aria-hidden
                         >

@@ -33,13 +33,13 @@ export function EmptyState({
     >
       {Icon && (
         <div
-          className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand"
+          className="mb-5 flex h-16 w-16 items-center justify-center rounded-gs-lg bg-brand/10 text-brand"
           aria-hidden
         >
           <Icon className="h-8 w-8" />
         </div>
       )}
-      <h2 className="font-heading text-lg font-bold text-charcoal">{title}</h2>
+      <h2 className="font-heading text-lg font-bold text-ink">{title}</h2>
       {description && (
         <p className="mt-2 max-w-sm text-sm text-muted">{description}</p>
       )}

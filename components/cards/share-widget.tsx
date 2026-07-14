@@ -108,7 +108,7 @@ export function ShareWidget({
           href={waHref}
           target="_blank"
           rel="noopener noreferrer"
-          className="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gold px-4 text-base font-semibold text-charcoal transition-colors hover:bg-gold/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2"
+          className="press inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-gold px-4 text-base font-semibold text-ink transition-colors hover:bg-gold/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2"
         >
           <MessageCircle className="h-4 w-4" aria-hidden />
           Share on WhatsApp

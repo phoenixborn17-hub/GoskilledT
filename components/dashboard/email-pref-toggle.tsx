@@ -24,7 +24,7 @@ export function EmailPrefToggle({
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="min-w-0">
-        <p className="text-sm font-medium text-charcoal">Email updates</p>
+        <p className="text-sm font-medium text-ink">Email updates</p>
         <p className="text-sm text-muted">
           Welcome + certificate emails. Aap kabhi bhi band kar sakte ho.
         </p>
@@ -43,7 +43,7 @@ export function EmailPrefToggle({
       >
         <span
           className={
-            "inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform " +
+            "inline-block h-5 w-5 transform rounded-full bg-surface-raised shadow transition-transform " +
             (subscribed ? "translate-x-5" : "translate-x-0.5")
           }
         />

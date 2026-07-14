@@ -48,7 +48,7 @@ export default function EarnPage() {
             Share what you learn
           </h1>
           {/* COPY: draft — no earnings promise, no numbers */}
-          <p className="mt-2 text-charcoal/70">
+          <p className="mt-2 text-ink-muted">
             We&apos;re building a way for learners to share GoSkilled courses
             with others. It opens once our review is complete — no dates or
             numbers yet. Join the waitlist and you&apos;ll be first to hear.
@@ -63,7 +63,7 @@ export default function EarnPage() {
                   <Icon className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-charcoal">{title}</p>
+                  <p className="text-sm font-semibold text-ink">{title}</p>
                   <p className="text-sm text-muted">{body}</p>
                 </div>
               </Card>

@@ -32,7 +32,7 @@ export function QRCode({ value, size = 160, matrix, className }: QRCodeProps) {
         viewBox={`0 0 ${size} ${size}`}
         role="img"
         aria-label={`QR code for ${value}`}
-        className={cn("rounded bg-white", className)}
+        className={cn("rounded bg-surface-raised", className)}
         shapeRendering="crispEdges"
       >
         {matrix.flatMap((row, r) =>
@@ -44,7 +44,7 @@ export function QRCode({ value, size = 160, matrix, className }: QRCodeProps) {
                 y={r * cell}
                 width={cell}
                 height={cell}
-                className="fill-charcoal"
+                className="fill-ink"
               />
             ) : null,
           ),

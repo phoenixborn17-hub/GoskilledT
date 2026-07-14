@@ -228,8 +228,8 @@ export function RegisterForm({
 /** The invite-only "no referral code" help panel (§4.4). Channels are LAUNCH_CONFIG (Layer-2). */
 function NoCodeContact({ contact }: { contact: ContactChannels }) {
   return (
-    <div className="mt-6 rounded-xl border border-charcoal/10 bg-brand/5 p-4">
-      <p className="text-sm font-semibold text-charcoal">
+    <div className="mt-6 rounded-xl border border-line/10 bg-brand/5 p-4">
+      <p className="text-sm font-semibold text-ink">
         Don&apos;t have a code?
       </p>
       <p className="mt-1 text-sm text-muted">

@@ -86,9 +86,9 @@ async function KycBody({ userId }: { userId: string }) {
   return (
     <>
       {kyc.uiStatus === "REJECTED" && (
-        <div className="flex items-start gap-3 rounded-gs-lg border border-red-200 bg-red-50 p-6">
+        <div className="flex items-start gap-3 rounded-gs-lg border border-danger/30 bg-danger/10 p-6">
           <ShieldX
-            className="mt-0.5 h-5 w-5 shrink-0 text-red-600"
+            className="mt-0.5 h-5 w-5 shrink-0 text-danger"
             aria-hidden
           />
           <div>

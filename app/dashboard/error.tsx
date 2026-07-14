@@ -22,7 +22,7 @@ export default function DashboardError({
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-4 py-20 text-center">
       <div
-        className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand"
+        className="mb-5 flex h-16 w-16 items-center justify-center rounded-gs-lg bg-brand/10 text-brand"
         aria-hidden
       >
         <RefreshCw className="h-8 w-8" />

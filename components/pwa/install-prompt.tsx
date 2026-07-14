@@ -53,7 +53,7 @@ export function InstallPrompt({ eligible }: { eligible: boolean }) {
     <div
       role="dialog"
       aria-label="Install GoSkilled"
-      className="enter fixed inset-x-3 bottom-24 z-40 mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-brand/20 bg-white p-4 shadow-lg md:bottom-6 md:left-64 md:right-6 md:mx-0"
+      className="enter fixed inset-x-3 bottom-24 z-40 mx-auto flex max-w-md items-center gap-3 rounded-gs-lg border border-brand/20 bg-surface-raised p-4 shadow-lg md:bottom-6 md:left-64 md:right-6 md:mx-0"
     >
       <span
         className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand/10 text-brand"
@@ -62,7 +62,7 @@ export function InstallPrompt({ eligible }: { eligible: boolean }) {
         <Download className="h-5 w-5" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-bold text-charcoal">Install GoSkilled</p>
+        <p className="text-sm font-bold text-ink">Install GoSkilled</p>
         <p className="text-xs text-muted">
           Home screen par add karo — ek tap me wapas seekhna shuru.
         </p>

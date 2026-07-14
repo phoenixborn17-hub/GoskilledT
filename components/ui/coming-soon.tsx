@@ -29,7 +29,7 @@ export function ComingSoon({
       )}
     >
       <div
-        className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-theme/10 text-theme-strong"
+        className="mb-4 flex h-14 w-14 items-center justify-center rounded-gs-lg bg-theme/10 text-theme-strong"
         aria-hidden
       >
         <Icon className="h-7 w-7" />

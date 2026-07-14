@@ -73,14 +73,14 @@ export default async function LearnPage() {
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-2xl px-3.5 py-2">
+            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-gs-lg px-3.5 py-2">
               <Flame className="h-4 w-4" aria-hidden />
               <span className="dc-number text-h4 font-bold leading-none">
                 {d.stats.streak}d
               </span>
               <span className="text-caption text-white/75">streak</span>
             </span>
-            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-2xl px-3.5 py-2">
+            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-gs-lg px-3.5 py-2">
               <Target className="h-4 w-4" aria-hidden />
               <span className="dc-number text-h4 font-bold leading-none">
                 {d.stats.overallPercent}%

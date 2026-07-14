@@ -43,7 +43,7 @@ export function SuccessState({
       </div>
       {/* Scoped keyframe — self-contained so the primitive needs no globals.css change. */}
       <style>{`@keyframes gs-pop{from{opacity:0;transform:scale(0.6)}to{opacity:1;transform:none}}`}</style>
-      <h2 className="font-heading text-xl font-bold text-charcoal">{title}</h2>
+      <h2 className="font-heading text-xl font-bold text-ink">{title}</h2>
       {description && (
         <p className="mt-2 max-w-sm text-sm text-muted">{description}</p>
       )}

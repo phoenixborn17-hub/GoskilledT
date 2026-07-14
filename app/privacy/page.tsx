@@ -26,7 +26,7 @@ export default function PrivacyPage() {
         (&ldquo;the Platform&rdquo;).
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         1. What we collect
       </h2>
       <ul className="list-disc space-y-1 pl-5">
@@ -52,7 +52,7 @@ export default function PrivacyPage() {
         </li>
       </ul>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         2. How we use it
       </h2>
       <p>
@@ -61,7 +61,7 @@ export default function PrivacyPage() {
         obligations. We do not sell your personal data.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         3. Processors we rely on
       </h2>
       <p>
@@ -71,7 +71,7 @@ export default function PrivacyPage() {
         our behalf under their own security commitments.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         4. How we protect it
       </h2>
       <p>
@@ -80,7 +80,7 @@ export default function PrivacyPage() {
         Platform, and we never include these details in our logs.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         5. Your choices
       </h2>
       <p>
@@ -93,7 +93,7 @@ export default function PrivacyPage() {
         page.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         6. Changes
       </h2>
       <p>

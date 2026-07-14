@@ -84,7 +84,7 @@ export default async function HomePage() {
                 Hinglish, with a verifiable certificate.
               </p>
             </div>
-            <span className="vh-hero-chip inline-flex shrink-0 items-center gap-2 rounded-2xl px-5 py-3 text-small font-bold">
+            <span className="vh-hero-chip inline-flex shrink-0 items-center gap-2 rounded-gs-lg px-5 py-3 text-small font-bold">
               Browse courses
               <ArrowRight className="h-4 w-4" aria-hidden />
             </span>
@@ -112,14 +112,14 @@ export default async function HomePage() {
             </p>
           </div>
           <div className="flex shrink-0 flex-wrap gap-2">
-            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-2xl px-3.5 py-2">
+            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-gs-lg px-3.5 py-2">
               <Flame className="h-4 w-4" aria-hidden />
               <span className="dc-number text-h4 font-bold leading-none">
                 {summary.metrics.streak.current}d
               </span>
               <span className="text-caption text-white/75">streak</span>
             </span>
-            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-2xl px-3.5 py-2">
+            <span className="vh-hero-chip inline-flex items-center gap-2 rounded-gs-lg px-3.5 py-2">
               <GraduationCap className="h-4 w-4" aria-hidden />
               <span className="dc-number text-h4 font-bold leading-none">
                 {summary.metrics.overallPercent}%

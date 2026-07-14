@@ -61,7 +61,7 @@ export default function RootLayout({
       // attributes only (one level deep): child mismatches still warn, so real bugs are never masked.
       suppressHydrationWarning
     >
-      <body className="min-h-dvh bg-offwhite font-body text-charcoal antialiased">
+      <body className="min-h-dvh bg-offwhite font-body text-ink antialiased">
         {/* Skip link (WCAG 2.4.1 Bypass Blocks) — first focusable element, hidden until focused.
             Targets a single layout-level landmark so every route is covered without page edits. */}
         <a

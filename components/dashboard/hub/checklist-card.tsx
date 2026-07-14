@@ -54,7 +54,7 @@ export function ChecklistCard({
       </button>
 
       <div className="mb-4 pr-8">
-        <p className="font-heading text-lg font-bold text-charcoal">
+        <p className="font-heading text-lg font-bold text-ink">
           {complete ? "You're all set 🎉" : "Get started"}
         </p>
         <p className="text-sm text-muted">
@@ -89,7 +89,7 @@ export function ChecklistCard({
                 />
               ) : (
                 <Circle
-                  className="h-5 w-5 shrink-0 text-charcoal/25"
+                  className="h-5 w-5 shrink-0 text-ink-muted"
                   aria-hidden
                 />
               )}
@@ -97,7 +97,7 @@ export function ChecklistCard({
                 className={
                   item.done
                     ? "flex-1 text-sm text-muted line-through"
-                    : "flex-1 text-sm font-medium text-charcoal"
+                    : "flex-1 text-sm font-medium text-ink"
                 }
               >
                 {item.label}
