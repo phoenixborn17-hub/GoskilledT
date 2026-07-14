@@ -42,7 +42,7 @@ export function KycForm({ initial }: { initial: KycInitial }) {
 
   if (done) {
     return (
-      <p role="status" className="text-sm font-medium text-brand">
+      <p role="status" className="text-small font-medium text-success">
         Submitted for review ✓ — we&apos;ll verify your details shortly.
       </p>
     );
@@ -140,7 +140,7 @@ export function KycForm({ initial }: { initial: KycInitial }) {
             name="docType"
             required
             defaultValue=""
-            className="h-11 w-full rounded-xl border border-charcoal/15 bg-white px-4 text-base"
+            className="h-11 w-full rounded-xl border border-charcoal/15 bg-white px-4 text-base text-charcoal"
           >
             <option value="" disabled>
               Choose…
@@ -230,7 +230,9 @@ function ContactVerify({
       <Label htmlFor={`kyc-${channel}`}>
         {label}{" "}
         {verified && (
-          <span className="text-xs font-semibold text-brand">✓ verified</span>
+          <span className="text-caption font-semibold text-success">
+            ✓ verified
+          </span>
         )}
       </Label>
       <div className="flex gap-2">
@@ -247,7 +249,7 @@ function ContactVerify({
             type="button"
             onClick={send}
             disabled={busy || value.trim().length < 3}
-            className="shrink-0 rounded-xl border border-charcoal/20 px-3 text-sm font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
+            className="shrink-0 rounded-xl border border-charcoal/20 px-3 text-small font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
           >
             {sent ? "Resend" : "Send code"}
           </button>
@@ -266,13 +268,13 @@ function ContactVerify({
             type="button"
             onClick={confirm}
             disabled={busy || code.length < 4}
-            className="shrink-0 rounded-xl bg-gold px-3 text-sm font-semibold text-charcoal disabled:opacity-40"
+            className="vh-delta shrink-0 rounded-xl px-3 text-small font-semibold disabled:opacity-40"
           >
             Verify
           </button>
         </div>
       )}
-      {msg && <p className="mt-1 text-xs text-muted">{msg}</p>}
+      {msg && <p className="mt-1 text-caption text-ink-muted">{msg}</p>}
     </div>
   );
 }

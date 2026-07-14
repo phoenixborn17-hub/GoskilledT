@@ -8,7 +8,10 @@ import { ShieldCheck } from "lucide-react";
  */
 export function PayoutStatusLine({ open }: { open: boolean }) {
   return (
-    <p className="flex items-start gap-2 rounded-gs bg-gold-400/10 px-3 py-2.5 text-small font-medium text-warning-strong">
+    <p
+      className="vh-accent-earn vh-text flex items-start gap-2 rounded-gs px-3 py-2.5 text-small font-medium"
+      style={{ background: "var(--vh-tint)" }}
+    >
       <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
       {open
         ? "Payouts are open — your available balance can be withdrawn."

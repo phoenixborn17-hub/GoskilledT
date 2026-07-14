@@ -31,7 +31,7 @@ export function WithdrawForm({
 
   if (done) {
     return (
-      <p role="status" className="text-sm font-medium text-brand">
+      <p role="status" className="text-small font-medium text-success">
         Withdrawal requested ✓ — we&apos;ll review it and pay out on the next
         Tuesday.
       </p>

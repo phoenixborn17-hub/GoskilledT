@@ -1,7 +1,7 @@
-// Commission-structure page (Phase B / B5). Shows the fixed DR-007 3-level reward structure for both
-// packages. Compliance-safe (learning-first, no income guarantees — D-29). Gated behind the payouts
-// flag (D-01): until the programme is legally live we don't publish reward amounts — the same pending
-// state the other money surfaces use.
+// Commission-structure page (Phase B / B5; Vibrant rollout Slice C). Shows the fixed DR-007
+// 3-level reward structure for both packages. Compliance-safe (learning-first, no income
+// guarantees — D-29). Gated behind the payouts flag (D-01): until the programme is legally live we
+// don't publish reward amounts — the same pending state the other money surfaces use.
 import { payoutsEnabled } from "../../../../lib/env";
 import { formatINR } from "../../../../lib/money";
 import {
@@ -10,11 +10,6 @@ import {
 } from "../../../../lib/affiliate/commission-structure";
 import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
 import { levelLabel } from "../../../../lib/affiliate/labels";
-import {
-  Card,
-  CardTitle,
-  CardDescription,
-} from "../../../../components/ui/card";
 
 export const dynamic = "force-dynamic";
 
@@ -22,48 +17,58 @@ export default function CommissionStructurePage() {
   const rows = commissionStructure();
 
   return (
-    <section aria-labelledby="cs-heading" className="space-y-6">
+    <section aria-labelledby="cs-heading" className="gs-vibrant space-y-6">
       <h1 id="cs-heading" className="font-heading text-h1 font-bold text-ink">
         {COMMISSION_STRUCTURE_COPY.heading}
       </h1>
 
       {!payoutsEnabled() ? (
-        <Card className="bg-gold/10">
-          <CardTitle>{AFFILIATE_COPY.moneyPendingHeading}</CardTitle>
-          <CardDescription>{AFFILIATE_COPY.moneyPendingBody}</CardDescription>
-        </Card>
+        <div className="vh-card vh-soft vh-accent-earn dc-enter p-6">
+          <h2 className="font-heading text-h4 font-bold text-ink">
+            {AFFILIATE_COPY.moneyPendingHeading}
+          </h2>
+          <p className="mt-1 text-body text-ink-muted">
+            {AFFILIATE_COPY.moneyPendingBody}
+          </p>
+        </div>
       ) : (
         <>
-          <p className="max-w-prose text-sm text-muted">
+          <p className="max-w-prose text-small text-ink-muted">
             {COMMISSION_STRUCTURE_COPY.intro}
           </p>
 
           <div className="space-y-4">
-            {rows.map((row) => (
-              <Card key={row.slug} className="space-y-3">
+            {rows.map((row, i) => (
+              <div
+                key={row.slug}
+                className="vh-card vh-soft vh-accent-earn dc-enter space-y-3 p-6"
+                style={{ animationDelay: `${Math.min(i, 8) * 60}ms` }}
+              >
                 <div className="flex items-baseline justify-between gap-3">
-                  <CardTitle className="text-base">{row.name}</CardTitle>
-                  <span className="text-sm text-muted">
+                  <h3 className="font-heading text-h4 font-bold text-ink">
+                    {row.name}
+                  </h3>
+                  <span className="text-small text-ink-muted">
                     up to {formatINR(row.totalInPaise)} / purchase
                   </span>
                 </div>
                 <dl className="grid grid-cols-3 gap-2 text-center">
                   {row.levels.map((l) => (
-                    <div key={l.level} className="rounded-xl bg-gold/10 p-3">
-                      <dt className="text-xs font-medium text-charcoal/60">
+                    <div key={l.level} className="vh-plate-grad rounded-xl p-3">
+                      <dt className="text-caption font-medium text-ink-muted">
                         {levelLabel(l.level)}
                       </dt>
-                      <dd className="font-heading text-lg font-bold text-charcoal">
+                      <dd className="dc-number vh-text font-heading text-h4 font-bold">
                         {formatINR(l.amountInPaise)}
                       </dd>
                     </div>
                   ))}
                 </dl>
-              </Card>
+              </div>
             ))}
           </div>
 
-          <p className="max-w-prose text-xs text-muted">
+          <p className="max-w-prose text-caption text-ink-muted">
             {COMMISSION_STRUCTURE_COPY.disclaimer}
           </p>
         </>

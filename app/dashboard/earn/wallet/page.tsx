@@ -1,9 +1,10 @@
-// Wallet (GPS-M3 §2.2, Tier A · Redesign U5). The money-truth screen — Register-2 CALM (neutral +
-// thin gold accents + charcoal tabular numbers). DISPLAY-ONLY re-skin: the ledger reads, the
-// withdraw gating (canWithdraw), held-credit countdowns and history are BYTE-IDENTICAL — money math
-// untouched. FLAG OFF → honest recorded-&-safe status + notify-me (no ₹ promise). FLAG ON → held/
-// available from the ledger + the Withdraw truth-surface (form only when every rule is met; never a
-// fake "Paid"; inline KYC gate).
+// Wallet (GPS-M3 §2.2, Tier A · Redesign U5; Vibrant rollout Slice C — Command Center Spec §4.2
+// Anchor B). The money-truth screen — now on the Vibrant Card System's gold-vault focal for
+// Available + cyan-status for Held. DISPLAY-ONLY re-skin: the ledger reads, the withdraw gating
+// (canWithdraw), held-credit countdowns and history are BYTE-IDENTICAL — money math untouched.
+// FLAG OFF → honest recorded-&-safe status + notify-me (no ₹ promise). FLAG ON → held/available
+// from the ledger + the Withdraw truth-surface (form only when every rule is met; never a fake
+// "Paid"; inline KYC gate). Money is STATIC (<DataValue>/safeMoney, never <CountUp> on ₹).
 import Link from "next/link";
 import { getCurrentUser } from "../../../../lib/auth/session";
 import { payoutsEnabled } from "../../../../lib/env";
@@ -24,7 +25,6 @@ import { HeldCreditRow } from "../../../../components/affiliate/held-credit-row"
 import { WithdrawForm } from "../../../../components/affiliate/withdraw-form";
 import { PayoutStatusLine } from "../../../../components/affiliate/payout-status-line";
 import { NotifyMeToggle } from "../../../../components/affiliate/notify-me-toggle";
-import { Card } from "../../../../components/ui/card";
 import { Button } from "../../../../components/ui/button";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,7 @@ export default async function WalletPage() {
   const flagOn = payoutsEnabled();
 
   return (
-    <section aria-labelledby="wallet-heading" className="space-y-6">
+    <section aria-labelledby="wallet-heading" className="gs-vibrant space-y-6">
       <h1
         id="wallet-heading"
         className="font-heading text-h1 font-bold text-ink"
@@ -52,13 +52,13 @@ export default async function WalletPage() {
 function WalletPending() {
   return (
     <div className="space-y-4">
-      <Card>
+      <div className="vh-card vh-soft vh-accent-earn dc-enter p-6">
         <p className="text-body text-ink">
           Your commissions are being recorded safely against your account. When
           withdrawals open, your available balance and payout options will
           appear right here — with full history.
         </p>
-      </Card>
+      </div>
       <NotifyMeToggle />
     </div>
   );
@@ -86,7 +86,7 @@ async function WalletMoney({ userId }: { userId: string }) {
       <WalletSummary summary={summary} />
 
       {/* Balance over time (running total from the ledger). */}
-      <Card className="space-y-2">
+      <div className="vh-card vh-soft vh-accent-earn dc-enter space-y-2 p-6">
         <h2 className="font-heading text-h4 font-semibold text-ink">
           {AFFILIATE_LABELS.walletGraph}
         </h2>
@@ -96,10 +96,10 @@ async function WalletMoney({ userId }: { userId: string }) {
           format={(n) => formatINR(n)}
           empty="No wallet activity yet."
         />
-      </Card>
+      </div>
 
       {/* Withdraw — truth surface: the form renders ONLY when every rule is met; else the honest reason. */}
-      <Card className="space-y-3">
+      <div className="vh-card vh-soft vh-accent-earn dc-enter space-y-3 p-6">
         <h2 className="font-heading text-h4 font-semibold text-ink">
           Withdraw
         </h2>
@@ -127,11 +127,12 @@ async function WalletMoney({ userId }: { userId: string }) {
             48-hour window.
           </p>
         )}
-      </Card>
+      </div>
 
-      {/* Held credits with per-credit countdown */}
+      {/* Held credits with per-credit countdown — the "clearing" stack (Command Center Spec §4.2),
+          each layer on the cyan clearing-status accent (not gold — Held is a temporal state). */}
       {held.length > 0 && (
-        <Card>
+        <div className="vh-card vh-soft vh-accent-cyan dc-enter p-6">
           <h2 className="mb-1 font-heading text-h4 font-semibold text-ink">
             Clearing soon
           </h2>
@@ -145,11 +146,12 @@ async function WalletMoney({ userId }: { userId: string }) {
               />
             ))}
           </ul>
-        </Card>
+        </div>
       )}
 
-      {/* History */}
-      <Card>
+      {/* History — money-row treatment (Command Center Spec §5.4): tabular right-aligned ₹, sign
+          via icon+label+color (never colour-only — the +/− glyph and label both carry the signal). */}
+      <div className="vh-card vh-soft vh-accent-earn dc-enter p-6">
         <h2 className="mb-1 font-heading text-h4 font-semibold text-ink">
           History
         </h2>
@@ -166,8 +168,8 @@ async function WalletMoney({ userId }: { userId: string }) {
                 <span
                   className={
                     h.amountInPaise < 0
-                      ? "tabular-nums text-ink-muted"
-                      : "font-medium tabular-nums text-ink"
+                      ? "dc-number tabular-nums text-ink-muted"
+                      : "dc-number font-medium tabular-nums text-success"
                   }
                 >
                   {h.amountInPaise < 0 ? "−" : "+"}
@@ -177,7 +179,7 @@ async function WalletMoney({ userId }: { userId: string }) {
             ))}
           </ul>
         )}
-      </Card>
+      </div>
 
       {/* Lifecycle explainer — plain language (DR-025) */}
       <p className="text-caption text-ink-muted">

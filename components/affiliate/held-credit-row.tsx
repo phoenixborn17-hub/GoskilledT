@@ -30,10 +30,10 @@ export function HeldCreditRow({
 }) {
   return (
     <li className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-      <span className="font-medium text-charcoal">
+      <span className="dc-number font-medium tabular-nums text-ink">
         {formatINR(amountInPaise)}
       </span>
-      <span className="text-muted">
+      <span className="text-ink-muted">
         {clearsInLabel(holdUntil, now)} · {formatDateTime(holdUntil)}
       </span>
     </li>

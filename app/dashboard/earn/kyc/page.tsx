@@ -1,17 +1,14 @@
-// KYC (GPS-M3 §2.4, Tier A · PII). Verify identity before money leaves. FLAG OFF → pending state.
-// FLAG ON → status-aware: NOT SUBMITTED (form) / UNDER REVIEW / VERIFIED / REJECTED (resubmit).
-// PII is encrypted at rest and only ever shown masked (last-4).
+// KYC (GPS-M3 §2.4, Tier A · PII; Vibrant rollout Slice C — cyan status accent, Command Center
+// Spec §4.2 4b). Verify identity before money leaves. FLAG OFF → pending state. FLAG ON →
+// status-aware: NOT SUBMITTED (form) / UNDER REVIEW / VERIFIED / REJECTED (resubmit). PII is
+// encrypted at rest and only ever shown masked (last-4) — display re-skin only, no PII/encryption
+// logic touched.
 import { ShieldCheck, Clock, ShieldX } from "lucide-react";
 import { getCurrentUser } from "../../../../lib/auth/session";
 import { payoutsEnabled } from "../../../../lib/env";
 import { getKycView } from "../../../../lib/kyc/queries";
 import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
 import { KycForm } from "../../../../components/affiliate/kyc-form";
-import {
-  Card,
-  CardTitle,
-  CardDescription,
-} from "../../../../components/ui/card";
 import { Badge } from "../../../../components/ui/badge";
 
 export const dynamic = "force-dynamic";
@@ -20,20 +17,22 @@ export default async function KycPage() {
   const user = await getCurrentUser();
 
   return (
-    <section aria-labelledby="kyc-heading" className="space-y-6">
+    <section aria-labelledby="kyc-heading" className="gs-vibrant space-y-6">
       <h1 id="kyc-heading" className="font-heading text-h1 font-bold text-ink">
         KYC verification
       </h1>
       {payoutsEnabled() ? (
         <KycBody userId={user!.id} />
       ) : (
-        <Card className="bg-gold/10">
-          <CardTitle>{AFFILIATE_COPY.moneyPendingHeading}</CardTitle>
-          <CardDescription>
+        <div className="vh-card vh-soft vh-accent-cyan dc-enter p-6">
+          <h2 className="font-heading text-h4 font-bold text-ink">
+            {AFFILIATE_COPY.moneyPendingHeading}
+          </h2>
+          <p className="mt-1 text-body text-ink-muted">
             KYC verification opens with the programme. Nothing to do yet —
             we&apos;ll ask for your details when withdrawals go live.
-          </CardDescription>
-        </Card>
+          </p>
+        </div>
       )}
     </section>
   );
@@ -45,19 +44,19 @@ async function KycBody({ userId }: { userId: string }) {
   if (kyc.uiStatus === "VERIFIED") {
     return (
       <>
-        <Card className="flex items-start gap-3 bg-brand/5">
+        <div className="flex items-start gap-3 rounded-gs-lg border border-line bg-success/5 p-6">
           <ShieldCheck
-            className="mt-0.5 h-5 w-5 shrink-0 text-brand"
+            className="mt-0.5 h-5 w-5 shrink-0 text-success"
             aria-hidden
           />
           <div>
-            <p className="text-sm font-semibold text-charcoal">Verified</p>
-            <p className="text-sm text-muted">
+            <p className="text-small font-semibold text-ink">Verified</p>
+            <p className="text-small text-ink-muted">
               {kyc.holderName} · PAN {kyc.panMasked} · A/C {kyc.accountMasked} ·
               IFSC {kyc.ifsc}
             </p>
           </div>
-        </Card>
+        </div>
         <StoreNote />
       </>
     );
@@ -66,16 +65,16 @@ async function KycBody({ userId }: { userId: string }) {
   if (kyc.uiStatus === "UNDER_REVIEW") {
     return (
       <>
-        <Card className="flex items-start gap-3">
-          <Clock className="mt-0.5 h-5 w-5 shrink-0 text-muted" aria-hidden />
+        <div className="vh-card vh-soft vh-accent-cyan dc-enter flex items-start gap-3 p-6">
+          <Clock className="vh-text mt-0.5 h-5 w-5 shrink-0" aria-hidden />
           <div>
-            <p className="text-sm font-semibold text-charcoal">Under review</p>
-            <p className="text-sm text-muted">
+            <p className="text-small font-semibold text-ink">Under review</p>
+            <p className="text-small text-ink-muted">
               We&apos;re verifying your details ({kyc.holderName} · A/C{" "}
               {kyc.accountMasked}). We&apos;ll update you here.
             </p>
           </div>
-        </Card>
+        </div>
         <StoreNote />
       </>
     );
@@ -85,24 +84,26 @@ async function KycBody({ userId }: { userId: string }) {
   return (
     <>
       {kyc.uiStatus === "REJECTED" && (
-        <Card className="flex items-start gap-3 border-red-200 bg-red-50">
+        <div className="flex items-start gap-3 rounded-gs-lg border border-red-200 bg-red-50 p-6">
           <ShieldX
             className="mt-0.5 h-5 w-5 shrink-0 text-red-600"
             aria-hidden
           />
           <div>
-            <p className="text-sm font-semibold text-charcoal">
+            <p className="text-small font-semibold text-ink">
               Verification was rejected
             </p>
-            <p className="text-sm text-muted">
+            <p className="text-small text-ink-muted">
               Please check your details and submit again.
             </p>
           </div>
-        </Card>
+        </div>
       )}
-      <Card>
+      <div className="vh-card vh-soft vh-accent-cyan dc-enter p-6">
         <div className="mb-4 flex items-center justify-between">
-          <CardTitle className="text-base">Your KYC details</CardTitle>
+          <h2 className="font-heading text-h4 font-bold text-ink">
+            Your KYC details
+          </h2>
           <Badge variant="muted">Encrypted</Badge>
         </div>
         <KycForm
@@ -113,7 +114,7 @@ async function KycBody({ userId }: { userId: string }) {
             whatsappVerified: kyc.whatsappVerified,
           }}
         />
-      </Card>
+      </div>
       <StoreNote />
     </>
   );
@@ -121,7 +122,7 @@ async function KycBody({ userId }: { userId: string }) {
 
 function StoreNote() {
   return (
-    <p className="text-xs text-muted">
+    <p className="text-caption text-ink-muted">
       We store your PAN and bank details <strong>encrypted</strong> and use them
       only to verify you and send your withdrawals. They&apos;re never shown in
       full, never shared, and never used for anything else.
