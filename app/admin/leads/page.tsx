@@ -53,9 +53,9 @@ export default async function AdminLeadsPage({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-charcoal/10 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface-raised">
         <table className="w-full min-w-[52rem] text-sm">
-          <thead className="border-b border-charcoal/10 text-left text-muted">
+          <thead className="border-b border-line text-left text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Phone</th>
@@ -76,7 +76,7 @@ export default async function AdminLeadsPage({
               leads.map((l) => (
                 <tr
                   key={l.id}
-                  className="border-b border-charcoal/5 last:border-0"
+                  className="border-b border-line/60 last:border-0"
                 >
                   <td className="px-4 py-3">{l.name ?? "—"}</td>
                   <td className="px-4 py-3 font-medium">{l.phone ?? "—"}</td>
@@ -123,7 +123,7 @@ function FilterChip({
         "rounded-full border px-3 py-1.5 text-sm font-medium",
         active
           ? "border-charcoal bg-charcoal text-white"
-          : "border-charcoal/15 text-charcoal/70 hover:bg-charcoal/5",
+          : "border-line text-ink/70 hover:bg-charcoal/5",
       )}
     >
       {children}

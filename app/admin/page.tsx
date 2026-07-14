@@ -53,7 +53,7 @@ export default async function AdminDashboardPage() {
 
       {/* KPI graphs (E1) — real aggregates, inline-SVG, honest empty states. */}
       <div>
-        <h2 className="mb-3 font-heading text-lg font-bold text-charcoal">
+        <h2 className="mb-3 font-heading text-lg font-bold text-ink">
           Trends
         </h2>
         <div className="grid gap-3 lg:grid-cols-2">
@@ -113,7 +113,7 @@ export default async function AdminDashboardPage() {
 
       {/* Pending work — deep-linked queue cards, urgency-highlighted. */}
       <div>
-        <h2 className="mb-3 font-heading text-lg font-bold text-charcoal">
+        <h2 className="mb-3 font-heading text-lg font-bold text-ink">
           Pending work
         </h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -142,12 +142,12 @@ export default async function AdminDashboardPage() {
       {/* Recent audit trail — last 10 admin/money mutations. */}
       <Card>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-heading text-lg font-bold text-charcoal">
+          <h2 className="font-heading text-lg font-bold text-ink">
             Recent activity
           </h2>
           <a
             href="/admin/audit"
-            className="text-sm font-semibold text-muted hover:text-charcoal"
+            className="text-sm font-semibold text-muted hover:text-ink"
           >
             Full audit log →
           </a>
@@ -157,13 +157,13 @@ export default async function AdminDashboardPage() {
             No admin activity yet.
           </p>
         ) : (
-          <ul className="divide-y divide-charcoal/5 text-sm">
+          <ul className="divide-y divide-line/60 text-sm">
             {d.recentAudit.map((a) => (
               <li
                 key={a.id}
                 className="flex flex-wrap items-center justify-between gap-2 py-2"
               >
-                <span className="font-medium text-charcoal">{a.action}</span>
+                <span className="font-medium text-ink">{a.action}</span>
                 <span className="text-muted">
                   {a.entity}
                   {a.entityId ? ` · ${a.entityId.slice(0, 10)}…` : ""}

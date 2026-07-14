@@ -36,16 +36,16 @@ export default async function AdminWalletPage() {
                 <th className="py-2 font-medium"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-charcoal/5">
+            <tbody className="divide-y divide-line/60">
               {wallets.map((w) => (
                 <tr key={w.userId}>
                   <td className="py-2 pr-3">
-                    <span className="font-medium text-charcoal">
+                    <span className="font-medium text-ink">
                       {w.name || "—"}
                     </span>
                     <span className="block text-xs text-muted">{w.phone}</span>
                   </td>
-                  <td className="py-2 pr-3 font-semibold text-charcoal">
+                  <td className="py-2 pr-3 font-semibold text-ink">
                     {formatINR(w.availableInPaise)}
                   </td>
                   <td className="py-2 pr-3 text-muted">

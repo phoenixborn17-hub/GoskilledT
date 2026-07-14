@@ -34,7 +34,7 @@ export default async function CatalogCoursePage({
     <section className="space-y-5">
       <Link
         href="/admin/catalog"
-        className="text-sm text-muted hover:text-charcoal"
+        className="text-sm text-muted hover:text-ink"
       >
         ← Back to catalog
       </Link>

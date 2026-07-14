@@ -19,12 +19,12 @@ export default function AdminError({
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col items-center px-4 py-20 text-center">
       <div
-        className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-charcoal/10 text-charcoal"
+        className="dc-enter mb-5 flex h-16 w-16 items-center justify-center rounded-gs-lg bg-charcoal/10 text-ink"
         aria-hidden
       >
         <RefreshCw className="h-8 w-8" />
       </div>
-      <h1 className="font-heading text-xl font-bold text-charcoal">
+      <h1 className="font-heading text-xl font-bold text-ink">
         Something went wrong
       </h1>
       <p className="mt-2 max-w-md text-muted">

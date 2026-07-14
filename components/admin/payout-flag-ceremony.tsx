@@ -51,7 +51,7 @@ export function PayoutFlagCeremony({
       <div className="flex items-center gap-2">
         <span
           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold ${
-            enabled ? "bg-brand text-brand-fg" : "bg-charcoal/10 text-charcoal"
+            enabled ? "bg-brand text-brand-fg" : "bg-charcoal/10 text-ink"
           }`}
         >
           {enabled ? "ON" : "OFF"}
@@ -81,14 +81,14 @@ export function PayoutFlagCeremony({
           onClick={() => setOpen(true)}
           className={`rounded-lg px-4 py-2 text-sm font-semibold ${
             enabled
-              ? "border border-red-300 text-red-700 hover:bg-red-50"
+              ? "border border-danger/30 text-danger hover:bg-danger/10"
               : "bg-brand text-brand-fg hover:bg-brand/90"
           }`}
         >
           {enabled ? "Disable payouts (emergency)…" : "Enable payouts…"}
         </button>
       ) : (
-        <div className="space-y-2 rounded-lg border border-charcoal/15 bg-charcoal/5 p-3">
+        <div className="space-y-2 rounded-lg border border-line bg-charcoal/5 p-3">
           <label htmlFor="flag-confirm" className="text-sm font-medium">
             Type <code className="font-bold">{phrase}</code> to confirm
           </label>
@@ -96,7 +96,7 @@ export function PayoutFlagCeremony({
             id="flag-confirm"
             value={typed}
             onChange={(e) => setTyped(e.target.value)}
-            className="w-full rounded-lg border border-charcoal/20 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="w-full rounded-lg border border-line px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
             autoComplete="off"
           />
           <div className="flex gap-2">
@@ -112,7 +112,7 @@ export function PayoutFlagCeremony({
                 setOpen(false);
                 setTyped("");
               }}
-              className="rounded-lg px-4 py-2 text-sm font-medium text-muted hover:text-charcoal"
+              className="rounded-lg px-4 py-2 text-sm font-medium text-muted hover:text-ink"
             >
               Cancel
             </button>
@@ -121,7 +121,7 @@ export function PayoutFlagCeremony({
       )}
 
       {msg && (
-        <p className={`text-sm ${msg.ok ? "text-brand-deep" : "text-red-600"}`}>
+        <p className={`text-sm ${msg.ok ? "text-brand-deep" : "text-danger"}`}>
           {msg.text}
         </p>
       )}

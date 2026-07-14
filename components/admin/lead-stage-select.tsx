@@ -33,8 +33,8 @@ export function LeadStageSelect({
       disabled={busy}
       aria-label="Lead stage"
       className={cn(
-        "h-8 rounded-lg border bg-white px-2 text-xs font-medium",
-        error ? "border-red-400" : "border-charcoal/15",
+        "h-8 rounded-lg border bg-surface-raised px-2 text-xs font-medium",
+        error ? "border-danger" : "border-line",
       )}
     >
       {STAGES.map((s) => (

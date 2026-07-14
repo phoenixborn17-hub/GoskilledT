@@ -75,7 +75,7 @@ export default async function AuditPage({
         action={
           <Link
             href={`/admin/audit/export${qs({ action, entity })}`}
-            className="rounded-lg border border-charcoal/20 px-3 py-1.5 text-sm font-semibold text-charcoal hover:bg-charcoal/5"
+            className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold text-ink hover:bg-charcoal/5"
           >
             Export CSV
           </Link>
@@ -86,7 +86,7 @@ export default async function AuditPage({
         <select
           name="action"
           defaultValue={action ?? ""}
-          className="rounded-lg border border-charcoal/20 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-line px-3 py-1.5 text-sm"
         >
           <option value="">All actions</option>
           {facets.actions.map((a) => (
@@ -98,7 +98,7 @@ export default async function AuditPage({
         <select
           name="entity"
           defaultValue={entity ?? ""}
-          className="rounded-lg border border-charcoal/20 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-line px-3 py-1.5 text-sm"
         >
           <option value="">All entities</option>
           {facets.entities.map((e) => (
@@ -162,7 +162,7 @@ function PageLink({
   return (
     <Link
       href={href}
-      className={cn("font-semibold text-charcoal hover:text-brand-deep")}
+      className={cn("font-semibold text-ink hover:text-brand-deep")}
     >
       {children}
     </Link>

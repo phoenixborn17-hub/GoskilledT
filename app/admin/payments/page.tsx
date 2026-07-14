@@ -12,7 +12,7 @@ const STATUSES: OrderStatus[] = ["CREATED", "PAID", "FAILED", "REFUNDED"];
 const statusStyle: Record<OrderStatus, string> = {
   PAID: "bg-brand/10 text-brand",
   CREATED: "bg-charcoal/5 text-muted",
-  FAILED: "bg-red-100 text-red-700",
+  FAILED: "bg-danger/10 text-danger",
   REFUNDED: "bg-gold/20 text-charcoal",
 };
 
@@ -59,9 +59,9 @@ export default async function AdminPaymentsPage({
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-charcoal/10 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface-raised">
         <table className="w-full min-w-[48rem] text-sm">
-          <thead className="border-b border-charcoal/10 text-left text-muted">
+          <thead className="border-b border-line text-left text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Phone</th>
               <th className="px-4 py-3 font-medium">Package</th>
@@ -82,7 +82,7 @@ export default async function AdminPaymentsPage({
               orders.map((o) => (
                 <tr
                   key={o.id}
-                  className="border-b border-charcoal/5 last:border-0"
+                  className="border-b border-line/60 last:border-0"
                 >
                   <td className="px-4 py-3 font-medium">
                     {o.user.phone ?? "—"}
@@ -135,7 +135,7 @@ function FilterChip({
         "rounded-full border px-3 py-1.5 text-sm font-medium",
         active
           ? "border-charcoal bg-charcoal text-white"
-          : "border-charcoal/15 text-charcoal/70 hover:bg-charcoal/5",
+          : "border-line text-ink/70 hover:bg-charcoal/5",
       )}
     >
       {children}

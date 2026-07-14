@@ -46,14 +46,14 @@ function Field({
 }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block font-medium text-charcoal">{label}</span>
+      <span className="mb-1 block font-medium text-ink">{label}</span>
       {children}
     </label>
   );
 }
 
 const inputCls =
-  "w-full rounded-lg border border-charcoal/20 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+  "w-full rounded-lg border border-line px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 export function CatalogCourseEditor({ course }: { course: CourseData }) {
   const router = useRouter();
@@ -157,7 +157,7 @@ export function CatalogCourseEditor({ course }: { course: CourseData }) {
           )}
           {msg && (
             <span
-              className={`text-sm ${msg.ok ? "text-brand-deep" : "text-red-600"}`}
+              className={`text-sm ${msg.ok ? "text-brand-deep" : "text-danger"}`}
             >
               {msg.text}
             </span>
@@ -184,7 +184,7 @@ function ModuleBlock({
   return (
     <Card className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-heading text-base font-bold text-charcoal">
+        <h3 className="font-heading text-base font-bold text-ink">
           {module.title}
         </h3>
         <span className="text-xs text-muted">module #{module.order}</span>
@@ -254,7 +254,7 @@ function LessonForm({
   }
 
   return (
-    <div className="rounded-lg border border-charcoal/10 p-3">
+    <div className="rounded-lg border border-line p-3">
       <div className="grid gap-2 md:grid-cols-[1fr_1fr_5rem_4rem_auto] md:items-end">
         <label className="text-xs">
           <span className="mb-1 block text-muted">
@@ -309,7 +309,7 @@ function LessonForm({
         />
         Free preview
       </label>
-      {err && <p className="mt-1 text-xs text-red-600">{err}</p>}
+      {err && <p className="mt-1 text-xs text-danger">{err}</p>}
     </div>
   );
 }
@@ -340,7 +340,7 @@ function AddModule({
   return (
     <Card className="flex flex-wrap items-end gap-2">
       <label className="flex-1 text-sm">
-        <span className="mb-1 block font-medium text-charcoal">Add module</span>
+        <span className="mb-1 block font-medium text-ink">Add module</span>
         <input
           className={inputCls}
           value={title}
@@ -355,7 +355,7 @@ function AddModule({
       >
         Add
       </button>
-      {err && <p className="w-full text-xs text-red-600">{err}</p>}
+      {err && <p className="w-full text-xs text-danger">{err}</p>}
     </Card>
   );
 }

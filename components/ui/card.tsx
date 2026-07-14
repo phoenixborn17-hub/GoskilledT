@@ -10,10 +10,10 @@ import { cn } from "../../lib/utils";
 type Elevation = "flat" | "raised" | "interactive";
 
 const elevations: Record<Elevation, string> = {
-  flat: "border-charcoal/10",
-  raised: "border-charcoal/10 shadow-sm",
+  flat: "border-line",
+  raised: "border-line shadow-sm",
   interactive:
-    "border-charcoal/10 shadow-sm lift hover:border-brand/30 focus-within:border-brand/30",
+    "border-line shadow-sm lift hover:border-brand/30 focus-within:border-brand/30",
 };
 
 export function Card({
@@ -24,7 +24,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-white p-6",
+        "rounded-gs-lg border bg-surface-raised p-6",
         elevations[elevation],
         className,
       )}
@@ -39,7 +39,7 @@ export function CardTitle({
 }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h1
-      className={cn("font-heading text-xl font-bold text-charcoal", className)}
+      className={cn("font-heading text-xl font-bold text-ink", className)}
       {...props}
     />
   );

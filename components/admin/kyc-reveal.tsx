@@ -46,11 +46,11 @@ export function KycReveal({ userId }: { userId: string }) {
       <button
         onClick={onReveal}
         disabled={busy}
-        className="rounded-lg border border-charcoal/20 px-3 py-1.5 text-sm font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-50"
+        className="rounded-lg border border-line px-3 py-1.5 text-sm font-semibold text-ink hover:bg-charcoal/5 disabled:opacity-50"
       >
         {busy ? "Revealing…" : "Reveal full details (logged)"}
       </button>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      {error && <p className="mt-2 text-sm text-danger">{error}</p>}
     </div>
   );
 }

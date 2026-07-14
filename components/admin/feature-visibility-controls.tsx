@@ -54,9 +54,9 @@ export function FeatureVisibilityControls({ flag }: { flag: FeatureFlagView }) {
       "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors disabled:opacity-40",
       active
         ? danger
-          ? "bg-red-600 text-white"
+          ? "bg-danger text-brand-fg"
           : "bg-brand text-brand-fg"
-        : "border border-charcoal/20 text-charcoal hover:bg-charcoal/5",
+        : "border border-line text-ink hover:bg-charcoal/5",
     ].join(" ");
 
   return (
@@ -79,7 +79,7 @@ export function FeatureVisibilityControls({ flag }: { flag: FeatureFlagView }) {
       </div>
 
       {/* GLOBAL scope */}
-      <div className="rounded-lg border border-charcoal/10 p-3">
+      <div className="rounded-lg border border-line p-3">
         <p className="mb-2 text-sm font-semibold">Global (platform-wide)</p>
         <div className="flex flex-wrap gap-2">
           <button
@@ -167,7 +167,7 @@ export function FeatureVisibilityControls({ flag }: { flag: FeatureFlagView }) {
         />
       </div>
 
-      {err && <p className="text-sm text-red-600">{err}</p>}
+      {err && <p className="text-sm text-danger">{err}</p>}
     </div>
   );
 }
@@ -192,21 +192,21 @@ function ScopePanel({
   onClear: (scopeValue: string) => void;
 }) {
   return (
-    <div className="rounded-lg border border-charcoal/10 p-3">
+    <div className="rounded-lg border border-line p-3">
       <p className="mb-2 text-sm font-semibold">{title}</p>
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={value}
           onChange={(e) => setValue(e.target.value)}
           placeholder={placeholder}
-          className="min-w-0 flex-1 rounded-lg border border-charcoal/20 px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+          className="min-w-0 flex-1 rounded-lg border border-line px-2.5 py-1.5 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           autoComplete="off"
         />
         <button
           type="button"
           disabled={pending || !value.trim()}
           onClick={() => onSet(false)}
-          className="rounded-lg border border-red-300 px-2.5 py-1.5 text-sm font-semibold text-red-700 hover:bg-red-50 disabled:opacity-40"
+          className="rounded-lg border border-danger/30 px-2.5 py-1.5 text-sm font-semibold text-danger hover:bg-danger/10 disabled:opacity-40"
         >
           Hide
         </button>
@@ -214,7 +214,7 @@ function ScopePanel({
           type="button"
           disabled={pending || !value.trim()}
           onClick={() => onSet(true)}
-          className="rounded-lg border border-charcoal/20 px-2.5 py-1.5 text-sm font-semibold hover:bg-charcoal/5 disabled:opacity-40"
+          className="rounded-lg border border-line px-2.5 py-1.5 text-sm font-semibold hover:bg-charcoal/5 disabled:opacity-40"
         >
           Show
         </button>
@@ -229,7 +229,7 @@ function ScopePanel({
               <span className="truncate font-mono">{o.scopeValue}</span>
               <span className="flex items-center gap-2">
                 <span
-                  className={`font-semibold ${o.visible ? "text-brand-deep" : "text-red-700"}`}
+                  className={`font-semibold ${o.visible ? "text-brand-deep" : "text-danger"}`}
                 >
                   {o.visible ? "show" : "hide"}
                 </span>
@@ -238,7 +238,7 @@ function ScopePanel({
                   aria-label={`Clear override for ${o.scopeValue}`}
                   disabled={pending}
                   onClick={() => onClear(o.scopeValue)}
-                  className="text-muted hover:text-charcoal disabled:opacity-40"
+                  className="text-muted hover:text-ink disabled:opacity-40"
                 >
                   <X className="h-3.5 w-3.5" aria-hidden />
                 </button>

@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 
 function Check({ ok, label }: { ok: boolean; label: string }) {
   return (
-    <span className={ok ? "text-brand-deep" : "text-red-600"} title={label}>
+    <span className={ok ? "text-brand-deep" : "text-danger"} title={label}>
       {ok ? "✓" : "✗"} {label}
     </span>
   );
@@ -67,7 +67,7 @@ export default async function WithdrawalsPage() {
               >
                 <div className="min-w-0 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-heading text-lg font-bold text-charcoal">
+                    <span className="font-heading text-lg font-bold text-ink">
                       {formatINR(w.amountInPaise)}
                     </span>
                     <KycBadge status={w.kycStatus} />

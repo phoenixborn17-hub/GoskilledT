@@ -39,17 +39,17 @@ export function CreateRewardForm() {
   return (
     <form onSubmit={onSubmit} className="grid gap-3 sm:grid-cols-2">
       <label className="text-sm">
-        <span className="mb-1 block font-medium text-charcoal">Title</span>
+        <span className="mb-1 block font-medium text-ink">Title</span>
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           maxLength={120}
           required
-          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
+          className="h-10 w-full rounded-lg border border-line px-3"
         />
       </label>
       <label className="text-sm">
-        <span className="mb-1 block font-medium text-charcoal">
+        <span className="mb-1 block font-medium text-ink">
           Target (completed referrals)
         </span>
         <input
@@ -58,33 +58,33 @@ export function CreateRewardForm() {
           value={target}
           onChange={(e) => setTarget(e.target.value)}
           required
-          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
+          className="h-10 w-full rounded-lg border border-line px-3"
         />
       </label>
       <label className="text-sm">
-        <span className="mb-1 block font-medium text-charcoal">
+        <span className="mb-1 block font-medium text-ink">
           Description (optional)
         </span>
         <input
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={300}
-          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
+          className="h-10 w-full rounded-lg border border-line px-3"
         />
       </label>
       <label className="text-sm">
-        <span className="mb-1 block font-medium text-charcoal">
+        <span className="mb-1 block font-medium text-ink">
           Last date (optional)
         </span>
         <input
           type="date"
           value={lastDate}
           onChange={(e) => setLastDate(e.target.value)}
-          className="h-10 w-full rounded-lg border border-charcoal/20 px-3"
+          className="h-10 w-full rounded-lg border border-line px-3"
         />
       </label>
       {error && (
-        <p role="alert" className="text-sm text-red-600 sm:col-span-2">
+        <p role="alert" className="text-sm text-danger sm:col-span-2">
           {error}
         </p>
       )}
@@ -120,7 +120,7 @@ export function ToggleRewardActive({
     <button
       onClick={toggle}
       disabled={busy}
-      className="rounded-lg border border-charcoal/20 px-3 py-1 text-xs font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
+      className="rounded-lg border border-line px-3 py-1 text-xs font-semibold text-ink hover:bg-charcoal/5 disabled:opacity-40"
     >
       {isActive ? "Deactivate" : "Activate"}
     </button>

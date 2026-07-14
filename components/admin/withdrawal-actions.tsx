@@ -70,7 +70,7 @@ export function WithdrawalActions({
           <button
             onClick={onStart}
             disabled={busy}
-            className="rounded-lg border border-charcoal/20 px-3 py-1.5 text-xs font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-40"
+            className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-charcoal/5 disabled:opacity-40"
           >
             {busy ? "…" : "Start processing"}
           </button>
@@ -92,7 +92,7 @@ export function WithdrawalActions({
         <button
           onClick={() => setMode(mode === "rejecting" ? "idle" : "rejecting")}
           disabled={busy}
-          className="rounded-lg border border-red-300 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-50"
+          className="rounded-lg border border-danger/30 px-3 py-1.5 text-xs font-semibold text-danger hover:bg-danger/10 disabled:opacity-50"
         >
           Reject
         </button>
@@ -104,18 +104,18 @@ export function WithdrawalActions({
             onChange={(e) => setReason(e.target.value)}
             maxLength={300}
             placeholder="Reason (required)"
-            className="w-full rounded-lg border border-charcoal/20 px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+            className="w-full rounded-lg border border-line px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
           />
           <button
             onClick={onReject}
             disabled={busy || !reason.trim()}
-            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            className="rounded-lg bg-danger px-3 py-1.5 text-xs font-semibold text-brand-fg hover:bg-danger/90 disabled:opacity-50"
           >
             Confirm reject
           </button>
         </div>
       )}
-      {error && <p className="text-right text-xs text-red-600">{error}</p>}
+      {error && <p className="text-right text-xs text-danger">{error}</p>}
     </div>
   );
 }
