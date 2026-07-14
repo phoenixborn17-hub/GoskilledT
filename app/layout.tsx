@@ -5,6 +5,7 @@ import { siteUrl, SITE_NAME } from "../lib/seo";
 import { PwaRegister } from "../components/pwa/pwa-register";
 import { StagingBanner } from "../components/system/staging-banner";
 import { DeviceTierProvider } from "../components/system/device-tier-provider";
+import { ThemeProvider } from "../components/system/theme-provider";
 
 // Brand fonts (DR-012), self-hosted via next/font: zero layout-shift setup, `swap` so text
 // is never invisible, and subset to latin + devanagari only (data-light for Tier-2/3 users).
@@ -61,7 +62,7 @@ export default function RootLayout({
       // attributes only (one level deep): child mismatches still warn, so real bugs are never masked.
       suppressHydrationWarning
     >
-      <body className="min-h-dvh bg-offwhite font-body text-ink antialiased">
+      <body className="min-h-dvh bg-surface font-body text-ink antialiased">
         {/* Skip link (WCAG 2.4.1 Bypass Blocks) — first focusable element, hidden until focused.
             Targets a single layout-level landmark so every route is covered without page edits. */}
         <a
@@ -74,6 +75,7 @@ export default function RootLayout({
         {/* Stamps data-device-tier on <html> so device-tiered effects (Skill Universe, cards,
             glass) degrade from the single §C heuristic — not just prefers-reduced-motion. Null UI. */}
         <DeviceTierProvider />
+        <ThemeProvider />
         <div id="main-content" tabIndex={-1}>
           {children}
         </div>
