@@ -636,3 +636,34 @@ model Notification {
   @@index([userId, readAt])
   @@index([userId, createdAt])
 }
+
+// ─────────────── Admin Promo Banner (Feature Batch v1.0 §2) ───────────────
+// Learner Home slot. IMAGE/GIF = real upload to Supabase Storage (lib/storage/banner-media.ts,
+// server-side type + byte-size + dimension validation). VIDEO = a hosted Cloudflare Stream id/url
+// — NEVER a raw video upload — rendered click-to-play with a required poster, never autoplay; a
+// low-tier device renders the poster only. linkUrl is validated via safeBannerLink
+// (lib/auth/post-auth.ts) — internal paths + an explicit external allowlist only.
+enum BannerMediaType {
+  IMAGE
+  GIF
+  VIDEO
+}
+
+model PromoBanner {
+  id        String          @id @default(cuid())
+  mediaType BannerMediaType
+  mediaKey  String? // Supabase Storage key — IMAGE/GIF
+  streamId  String? // Cloudflare Stream id/url — VIDEO (hosted)
+  posterKey String? // required when mediaType == VIDEO
+  headline  String?
+  linkUrl   String? // internal path OR allowlisted external — validated (see above)
+  startAt   DateTime?
+  endAt     DateTime?
+  active    Boolean         @default(true)
+  order     Int             @default(0) // rotation order within the active window
+  createdBy String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([active, startAt, endAt])
+}

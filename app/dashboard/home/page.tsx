@@ -52,6 +52,7 @@ import {
   ForYouFeedSkeleton,
   type FeedNudge,
 } from "../../../components/home/for-you-feed";
+import { PromoBannerSlot } from "../../../components/home/promo-banner-slot";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Home" };
@@ -159,6 +160,12 @@ export default async function HomePage() {
 
       {/* ⑦ Store — still first-class (Nav v1.1: Explore folded into Home), demoted below momentum. */}
       <StoreStrip />
+
+      {/* Admin promo banner (Feature Batch v1.0 §2) — scheduled queue, renders nothing when there's
+          no live banner (honest-empty, D-29). Same low-priority placement as Store/Announcements. */}
+      <Suspense fallback={null}>
+        <PromoBannerSlot />
+      </Suspense>
 
       {/* ⑧ Announcements + Share. */}
       <Announcements />

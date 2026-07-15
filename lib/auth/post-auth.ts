@@ -20,6 +20,26 @@ export function safeNext(next: string | null | undefined): string | null {
   return next;
 }
 
+// Feature Batch v1.0 §2 — admin promo banner linkUrl (Tier-A, open-redirect/phishing surface: the
+// blast radius is every learner's Home). No external domain is allowlisted yet — that's a founder/
+// business decision (which partners, if any, an admin should be able to link out to), not something
+// to guess at. Until that's decided, ONLY internal paths validate; every external URL is rejected.
+const BANNER_EXTERNAL_ALLOWLIST: readonly string[] = [];
+
+/** Internal paths (via safeNext) + an explicit external-host allowlist only — everything else is rejected. */
+export function safeBannerLink(raw: string | null | undefined): string | null {
+  const internal = safeNext(raw);
+  if (internal) return internal;
+  if (!raw) return null;
+  try {
+    const url = new URL(raw);
+    if (url.protocol !== "https:") return null;
+    return BANNER_EXTERNAL_ALLOWLIST.includes(url.hostname) ? raw : null;
+  } catch {
+    return null; // not a valid absolute URL either — reject
+  }
+}
+
 /** The canonical post-auth destination for a synced internal user id. */
 export async function postAuthRedirect(
   userId: string,

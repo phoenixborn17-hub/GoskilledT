@@ -16,6 +16,7 @@ import {
   ScrollText,
   ToggleLeft,
   Settings,
+  Image as ImageIcon,
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -27,6 +28,7 @@ const TABS = [
   { href: "/admin/wallet", label: "Wallets", Icon: Wallet },
   { href: "/admin/payments", label: "Payments", Icon: CreditCard },
   { href: "/admin/rewards", label: "Rewards", Icon: Trophy },
+  { href: "/admin/banner", label: "Home Banner", Icon: ImageIcon },
   { href: "/admin/users", label: "Users", Icon: Users },
   { href: "/admin/leads", label: "Leads", Icon: Contact },
   { href: "/admin/review-queue", label: "Review", Icon: Flag },
