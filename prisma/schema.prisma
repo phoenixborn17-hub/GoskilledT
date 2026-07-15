@@ -245,6 +245,19 @@ model Referral {
   @@index([downlineUserId])
 }
 
+// Referral click tracking (Feature Batch v1.0 §3). Unique click = cookie visitorId + 24h dedup —
+// deliberately NO IP, NO user-agent (privacy-friendly). Conversion (paid-vs-signup) is computed
+// read-only by joining this + the existing User.referredById graph + Order — no new money path.
+model ReferralClick {
+  id        String   @id @default(cuid())
+  code      String // referral code that was hit
+  visitorId String // random UUID from a first-party cookie — NO PII, NO IP, NO UA
+  createdAt DateTime @default(now())
+
+  @@index([code, createdAt])
+  @@index([visitorId, code, createdAt]) // supports the 24h dedup lookup
+}
+
 // ─────────────── Double-entry Ledger ───────────────
 enum AccountType {
   USER_WALLET

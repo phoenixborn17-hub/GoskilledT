@@ -3,9 +3,11 @@
 import { getCurrentUser } from "../../../../lib/auth/session";
 import { siteUrl } from "../../../../lib/seo";
 import { getReferralTree } from "../../../../lib/affiliate/referrals";
+import { getReferralConversionStats } from "../../../../lib/affiliate/referral-click";
 import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
 import { ShareBlock } from "../../../../components/affiliate/share-block";
 import { ReferralTree } from "../../../../components/affiliate/referral-tree";
+import { ConversionStats } from "../../../../components/affiliate/conversion-stats";
 import { BackLink } from "../../../../components/nav/back-link";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +15,10 @@ export const dynamic = "force-dynamic";
 export default async function ReferralsPage() {
   const user = await getCurrentUser();
   const shareUrl = `${siteUrl()}/?ref=${user!.referralCode}`;
-  const tree = await getReferralTree(user!.id);
+  const [tree, stats] = await Promise.all([
+    getReferralTree(user!.id),
+    getReferralConversionStats(user!.id, user!.referralCode),
+  ]);
 
   return (
     <section
@@ -37,6 +42,8 @@ export default async function ReferralsPage() {
           shareMessage={AFFILIATE_COPY.shareMessage}
         />
       </div>
+
+      <ConversionStats stats={stats} />
 
       <ReferralTree tree={tree} />
     </section>

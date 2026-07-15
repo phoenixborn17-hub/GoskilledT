@@ -2,9 +2,10 @@
 //   /dashboard/*  → any authenticated user
 //   /admin/*      → app_metadata.role === "admin" (set via SQL, see SETUP.md)
 // Importing the providers config runs the production safety guard at startup.
-import { type NextRequest, NextResponse } from "next/server";
+import { type NextRequest, type NextFetchEvent, NextResponse } from "next/server";
 import { updateSession } from "./lib/supabase/middleware";
-import { captureRefFromRequest } from "./lib/auth/ref-cookie";
+import { captureRefFromRequest, sanitizeRefCode } from "./lib/auth/ref-cookie";
+import { ensureVisitorId } from "./lib/auth/visitor-cookie";
 import "./lib/config/providers";
 
 function redirectTo(
@@ -22,7 +23,7 @@ function redirectTo(
   return redirect;
 }
 
-export async function middleware(request: NextRequest) {
+export async function middleware(request: NextRequest, event: NextFetchEvent) {
   const { response, user, authUnavailable } = await updateSession(request);
   const path = request.nextUrl.pathname;
 
@@ -30,6 +31,25 @@ export async function middleware(request: NextRequest) {
   // page (marketing, /register, /login) is attributed once. Set on `response` so redirects below
   // (which return their own response) don't drop it — capture BEFORE any early return.
   captureRefFromRequest(request, response);
+
+  // Referral CLICK tracking (Feature Batch v1.0 §3) — separate from the first-touch attribution
+  // above: fires on EVERY ?ref= hit (not gated by whether gs_ref is already set), deduped server-
+  // side by (code, visitorId) within 24h. Edge middleware can't reach Postgres directly, so this
+  // hands off to a Node.js route handler via a non-blocking fetch kept alive by event.waitUntil()
+  // — never awaited inline, never blocks or slows the response.
+  const clickCode = sanitizeRefCode(request.nextUrl.searchParams.get("ref"));
+  if (clickCode) {
+    const visitorId = ensureVisitorId(request, response);
+    event.waitUntil(
+      fetch(new URL("/api/referral/click", request.nextUrl.origin), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: clickCode, visitorId }),
+      }).catch(() => {
+        /* best-effort analytics — a failed click log never affects the request */
+      }),
+    );
+  }
 
   // Supabase couldn't be reached to verify the token — this is NOT the same as "no session"
   // (2026-07-15 login-bounce fix). Let the request through rather than bounce a real session to
