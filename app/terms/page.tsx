@@ -26,7 +26,7 @@ export default function TermsPage() {
         purchase, you agree to these Terms.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         1. Who can use GoSkilled
       </h2>
       <p>
@@ -36,7 +36,7 @@ export default function TermsPage() {
         activity on your account.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         2. What we provide
       </h2>
       <p>
@@ -48,7 +48,7 @@ export default function TermsPage() {
         kind.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         3. Payments
       </h2>
       <p>
@@ -58,7 +58,7 @@ export default function TermsPage() {
         access is unlocked only after your payment is confirmed.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         4. Refunds
       </h2>
       <p>
@@ -69,7 +69,7 @@ export default function TermsPage() {
         for the full details.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         5. Acceptable use
       </h2>
       <p>
@@ -79,7 +79,7 @@ export default function TermsPage() {
         Terms.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         6. Intellectual property
       </h2>
       <p>
@@ -88,7 +88,7 @@ export default function TermsPage() {
         your personal, non-transferable use.
       </p>
 
-      <h2 className="pt-2 font-heading text-lg font-bold text-charcoal">
+      <h2 className="pt-2 font-heading text-lg font-bold text-ink">
         7. Changes and contact
       </h2>
       <p>

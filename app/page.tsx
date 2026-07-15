@@ -145,14 +145,14 @@ export default async function HomePage() {
               {/* "Seekho. Badho. Kamao." is an APPROVED D-29 exception (founder decision): brand
                   tagline only — no income number, promise, or guarantee. The Guru income-language
                   guardrail (modules/ai/guru/guardrail.ts) stays strict for dynamic content. */}
-              <h1 className="enter enter-2 mt-4 font-heading text-5xl font-extrabold leading-[1.05] text-charcoal sm:text-6xl">
+              <h1 className="enter enter-2 mt-4 font-heading text-5xl font-extrabold leading-[1.05] text-ink sm:text-6xl">
                 Seekho.
                 <br />
                 Badho.
                 <br />
                 <span className="text-brand-gradient">Kamao.</span>
               </h1>
-              <p className="enter enter-2 mt-5 max-w-lg text-lg text-charcoal/70">
+              <p className="enter enter-2 mt-5 max-w-lg text-lg text-ink/70">
                 Learn a real skill, build real capability, and grow — all in
                 simple Hinglish, right from your phone.
               </p>
@@ -195,7 +195,7 @@ export default async function HomePage() {
         {/* 2. Trust strip */}
         <section
           aria-label="Why trust us"
-          className="border-y border-charcoal/10 bg-white"
+          className="border-y border-line/10 bg-surface-raised"
         >
           <div className="mx-auto grid w-full max-w-5xl gap-4 px-4 py-8 sm:grid-cols-2 lg:grid-cols-4">
             <Trust
@@ -257,7 +257,7 @@ export default async function HomePage() {
 
         {/* 4. The journey — Learn → Grow scroll-story (charter). A connected path the visitor FEELS:
                vertical timeline on mobile, horizontal on desktop. Learning-first, no earn mechanics. */}
-        <section aria-labelledby="journey" className="bg-white">
+        <section aria-labelledby="journey" className="bg-surface-raised">
           <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:py-20">
             <div className="mb-10 max-w-2xl">
               <h2
@@ -281,7 +281,7 @@ export default async function HomePage() {
               {JOURNEY.map(({ Icon, step, body }, i) => (
                 <li key={step} className="reveal relative flex gap-4 lg:block">
                   <div className="relative z-10 flex flex-col items-center lg:items-start">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-brand/20 bg-white text-brand shadow-gs-sm">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-gs-lg border border-brand/20 bg-surface-raised text-brand shadow-gs-sm">
                       <Icon className="h-5 w-5" aria-hidden />
                     </span>
                   </div>
@@ -289,7 +289,7 @@ export default async function HomePage() {
                     <p className="text-xs font-bold uppercase tracking-wide text-brand-deep">
                       Step {i + 1}
                     </p>
-                    <p className="mt-0.5 font-heading text-lg font-bold text-charcoal">
+                    <p className="mt-0.5 font-heading text-lg font-bold text-ink">
                       {step}
                     </p>
                     <p className="mt-1 text-sm leading-relaxed text-muted">
@@ -362,11 +362,11 @@ export default async function HomePage() {
         </section>
 
         {/* 7. Founding Batch (new) — honest social-proof stand-in (D-29: no fake testimonials) */}
-        <section aria-labelledby="founding" className="reveal bg-white">
+        <section aria-labelledby="founding" className="reveal bg-surface-raised">
           <div className="mx-auto w-full max-w-5xl px-4 py-16">
             <div className="grid items-center gap-8 md:grid-cols-2">
               <div>
-                <span className="inline-flex items-center rounded-full bg-gold px-3 py-1 text-xs font-bold text-charcoal">
+                <span className="inline-flex items-center rounded-full bg-gold px-3 py-1 text-xs font-bold text-ink">
                   Founding Batch
                 </span>
                 <h2
@@ -385,7 +385,7 @@ export default async function HomePage() {
                 </p>
               </div>
               <Card className="bg-brand/5">
-                <ul className="space-y-3 text-sm text-charcoal/80">
+                <ul className="space-y-3 text-sm text-ink/80">
                   <li className="flex items-start gap-2">
                     <Sparkles
                       className="mt-0.5 h-4 w-4 shrink-0 text-brand"
@@ -409,7 +409,7 @@ export default async function HomePage() {
                   </li>
                 </ul>
                 {/* Phase 1B — verbatim. NO percentages, NO commission mentions (D-30 pending). */}
-                <p className="mt-4 rounded-xl bg-gold/15 px-4 py-3 text-sm font-semibold text-charcoal">
+                <p className="mt-4 rounded-xl bg-gold/15 px-4 py-3 text-sm font-semibold text-ink">
                   Exclusive Founding Batch pricing — available to a limited
                   number of founding learners.
                 </p>
@@ -440,7 +440,7 @@ export default async function HomePage() {
         </section>
 
         {/* 9. Final CTA band (new) — one primary action */}
-        <section aria-label="Get started" className="reveal bg-white">
+        <section aria-label="Get started" className="reveal bg-surface-raised">
           <div className="mx-auto w-full max-w-4xl px-4 py-16 text-center">
             <h2 className="font-heading text-3xl font-extrabold sm:text-4xl">
               Start learning a real skill today
@@ -483,7 +483,7 @@ function Trust({
         <Icon className="h-5 w-5" />
       </div>
       <div>
-        <p className="text-sm font-semibold text-charcoal">{title}</p>
+        <p className="text-sm font-semibold text-ink">{title}</p>
         <p className="text-xs text-muted">{body}</p>
       </div>
     </div>

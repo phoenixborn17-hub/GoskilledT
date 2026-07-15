@@ -75,7 +75,7 @@ export function ProfileForm({
       </div>
 
       <fieldset>
-        <legend className="mb-1 block text-sm font-medium text-charcoal">
+        <legend className="mb-1 block text-sm font-medium text-ink">
           Your goal
         </legend>
         <div
@@ -99,7 +99,7 @@ export function ProfileForm({
                   "rounded-xl border px-4 py-2 text-sm font-medium transition-colors " +
                   (selected
                     ? "border-brand bg-brand text-brand-fg"
-                    : "border-charcoal/15 text-charcoal/70 hover:bg-brand/5")
+                    : "border-line/15 text-ink-muted hover:bg-brand/5")
                 }
               >
                 {g.label}
@@ -110,7 +110,7 @@ export function ProfileForm({
       </fieldset>
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}

@@ -17,7 +17,7 @@ export default function PackagesLoading() {
             {Array.from({ length: 2 }).map((_, i) => (
               <div
                 key={i}
-                className="h-80 animate-pulse rounded-2xl border border-charcoal/10 bg-white motion-reduce:animate-none"
+                className="h-80 animate-pulse rounded-gs-lg border border-line/10 bg-surface-raised motion-reduce:animate-none"
               />
             ))}
           </div>

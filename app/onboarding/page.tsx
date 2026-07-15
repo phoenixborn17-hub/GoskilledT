@@ -50,7 +50,7 @@ export default function OnboardingPage() {
         <Confetti fire />
         <Card className="enter text-center">
           <span
-            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand"
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-gs-lg bg-brand/10 text-brand"
             aria-hidden
           >
             <PartyPopper className="h-8 w-8" />
@@ -132,7 +132,7 @@ export default function OnboardingPage() {
                     "rounded-xl border px-2 py-2.5 text-sm font-medium transition-colors " +
                     (goal === g.value
                       ? "border-brand bg-brand text-brand-fg"
-                      : "border-charcoal/15 text-charcoal/80 hover:bg-brand/5")
+                      : "border-line/15 text-ink-muted hover:bg-brand/5")
                   }
                 >
                   {g.label}
@@ -141,7 +141,7 @@ export default function OnboardingPage() {
             </div>
           </div>
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-danger">
               {error}
             </p>
           )}

@@ -95,7 +95,7 @@ export default function AboutPage() {
             <span className="enter inline-flex items-center gap-2 rounded-full bg-brand/10 px-4 py-1.5 text-sm font-semibold text-brand-deep">
               <Eye className="h-4 w-4" aria-hidden /> Our mission
             </span>
-            <h1 className="enter enter-2 mx-auto mt-4 max-w-3xl font-heading text-4xl font-extrabold leading-[1.1] text-charcoal sm:text-5xl">
+            <h1 className="enter enter-2 mx-auto mt-4 max-w-3xl font-heading text-4xl font-extrabold leading-[1.1] text-ink sm:text-5xl">
               Making{" "}
               <span className="text-brand-gradient">Potential Visible</span>
             </h1>
@@ -112,11 +112,11 @@ export default function AboutPage() {
         <Section aria-labelledby="what" innerClassName="max-w-3xl">
           <h2
             id="what"
-            className="font-heading text-2xl font-bold text-charcoal"
+            className="font-heading text-2xl font-bold text-ink"
           >
             What GoSkilled is
           </h2>
-          <div className="mt-4 space-y-4 text-charcoal/80">
+          <div className="mt-4 space-y-4 text-ink/80">
             <p>
               GoSkilled is a practical skill-learning platform built for
               mobile-first India. Short, focused lessons in simple Hinglish,
@@ -136,11 +136,11 @@ export default function AboutPage() {
         <Section aria-labelledby="gap" bg="raised" innerClassName="max-w-3xl">
           <h2
             id="gap"
-            className="font-heading text-2xl font-bold text-charcoal"
+            className="font-heading text-2xl font-bold text-ink"
           >
             The gap we exist to close
           </h2>
-          <p className="mt-4 text-charcoal/80">{GAP_COPY}</p>
+          <p className="mt-4 text-ink/80">{GAP_COPY}</p>
         </Section>
 
         {/* Company timeline — signature moment (honest milestones only) */}
@@ -154,14 +154,14 @@ export default function AboutPage() {
             {TIMELINE.map(({ Icon, year, title, body }, i) => (
               <li key={title} className="reveal relative">
                 <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-brand/20 bg-white text-brand shadow-gs-sm">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-gs-lg border border-brand/20 bg-surface-raised text-brand shadow-gs-sm">
                     <Icon className="h-5 w-5" aria-hidden />
                   </span>
                   <span className="font-heading text-sm font-bold uppercase tracking-wide text-brand-deep">
                     {year}
                   </span>
                 </div>
-                <p className="mt-3 font-heading text-lg font-bold text-charcoal">
+                <p className="mt-3 font-heading text-lg font-bold text-ink">
                   {title}
                 </p>
                 <p className="mt-1 text-sm text-muted">{body}</p>
@@ -188,7 +188,7 @@ export default function AboutPage() {
                 >
                   <Icon className="h-5 w-5" />
                 </div>
-                <p className="font-heading text-lg font-bold text-charcoal">
+                <p className="font-heading text-lg font-bold text-ink">
                   {title}
                 </p>
                 <p className="mt-1 text-sm text-muted">{body}</p>
@@ -206,13 +206,13 @@ export default function AboutPage() {
           <Card className="mt-6 bg-brand/5">
             <figure className="flex flex-col gap-4">
               <Quote className="h-8 w-8 text-brand" aria-hidden />
-              <blockquote className="text-lg leading-relaxed text-charcoal/90">
+              <blockquote className="text-lg leading-relaxed text-ink/90">
                 {FOUNDER_QUOTE}
               </blockquote>
               <figcaption className="flex items-center gap-3">
                 <Monogram name="Ashish Sangwal" className="h-12 w-12" />
                 <span>
-                  <span className="block font-heading font-bold text-charcoal">
+                  <span className="block font-heading font-bold text-ink">
                     Ashish Sangwal
                   </span>
                   <span className="block text-sm text-brand">
@@ -232,7 +232,7 @@ export default function AboutPage() {
               <Card key={m.name} className="flex items-center gap-4">
                 <Monogram name={m.name} />
                 <div>
-                  <p className="font-heading text-lg font-bold text-charcoal">
+                  <p className="font-heading text-lg font-bold text-ink">
                     {m.name}
                   </p>
                   <p className="text-sm text-brand">{m.role}</p>
@@ -249,7 +249,7 @@ export default function AboutPage() {
 
         {/* Brand statement (verbatim) */}
         <Section aria-label="Our promise" innerClassName="max-w-3xl">
-          <p className="text-center font-heading text-2xl font-bold leading-snug text-charcoal sm:text-3xl">
+          <p className="text-center font-heading text-2xl font-bold leading-snug text-ink sm:text-3xl">
             {BRAND_STATEMENT}
           </p>
         </Section>

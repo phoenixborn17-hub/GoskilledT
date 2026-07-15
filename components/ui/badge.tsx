@@ -7,8 +7,8 @@ type Variant = "brand" | "muted" | "gold" | "outline";
 const variants: Record<Variant, string> = {
   brand: "bg-brand/10 text-brand-deep",
   muted: "bg-charcoal/5 text-muted",
-  gold: "bg-gold text-charcoal",
-  outline: "border border-charcoal/15 text-charcoal/70",
+  gold: "bg-gold text-ink",
+  outline: "border border-line/15 text-ink-muted",
 };
 
 export function Badge({

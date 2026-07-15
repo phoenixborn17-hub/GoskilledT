@@ -87,7 +87,7 @@ export function CheckoutForm({
               <Label htmlFor="course">Choose your course</Label>
               <select
                 id="course"
-                className="h-11 w-full rounded-xl border border-charcoal/15 bg-white px-4 text-base"
+                className="h-11 w-full rounded-xl border border-line/15 bg-surface-raised px-4 text-base"
                 value={chosenCourseId}
                 onChange={(e) => setChosenCourseId(e.target.value)}
                 required
@@ -147,7 +147,7 @@ export function CheckoutForm({
             />
           </div>
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-danger">
               {error}
             </p>
           )}
@@ -179,7 +179,7 @@ export function CheckoutForm({
             <p className="mt-1 text-xs text-muted">Sent to +91 {phone}</p>
           </div>
           {error && (
-            <p role="alert" className="text-sm text-red-600">
+            <p role="alert" className="text-sm text-danger">
               {error}
             </p>
           )}
@@ -202,12 +202,12 @@ export function CheckoutForm({
       {step === "created" && order && (
         <div className="space-y-2">
           <p className="text-base font-semibold text-brand">Order created ✓</p>
-          <p className="text-sm text-charcoal/70">
+          <p className="text-sm text-ink-muted">
             Payment order:{" "}
             <code className="break-all">{order.paymentOrderId}</code>
           </p>
           {order.provider === "mock" && (
-            <p className="rounded-lg bg-gold/15 p-3 text-xs text-charcoal/70">
+            <p className="rounded-lg bg-gold/15 p-3 text-xs text-ink-muted">
               Dev mock mode — complete the flow by running the webhook
               simulator:
               <br />

@@ -186,7 +186,7 @@ export function LessonPlayer({
                   setVideoError(false);
                   setAttempt((a) => a + 1);
                 }}
-                className="press rounded-xl bg-white px-4 py-2 text-small font-semibold text-ink"
+                className="press rounded-xl bg-surface-raised px-4 py-2 text-small font-semibold text-ink"
               >
                 Retry
               </button>

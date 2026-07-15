@@ -10,6 +10,7 @@ import { getKycView } from "../../../../lib/kyc/queries";
 import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
 import { KycForm } from "../../../../components/affiliate/kyc-form";
 import { Badge } from "../../../../components/ui/badge";
+import { BackLink } from "../../../../components/nav/back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,7 @@ export default async function KycPage() {
 
   return (
     <section aria-labelledby="kyc-heading" className="gs-vibrant space-y-6">
+      <BackLink href="/dashboard/profile" label="Back to Account" />
       <h1 id="kyc-heading" className="font-heading text-h1 font-bold text-ink">
         KYC verification
       </h1>
@@ -84,9 +86,9 @@ async function KycBody({ userId }: { userId: string }) {
   return (
     <>
       {kyc.uiStatus === "REJECTED" && (
-        <div className="flex items-start gap-3 rounded-gs-lg border border-red-200 bg-red-50 p-6">
+        <div className="flex items-start gap-3 rounded-gs-lg border border-danger/30 bg-danger/10 p-6">
           <ShieldX
-            className="mt-0.5 h-5 w-5 shrink-0 text-red-600"
+            className="mt-0.5 h-5 w-5 shrink-0 text-danger"
             aria-hidden
           />
           <div>

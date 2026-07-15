@@ -28,7 +28,7 @@ const blankQ = (): AdminQuestion => ({
   explanation: "",
 });
 const inputCls =
-  "w-full rounded-lg border border-charcoal/15 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+  "w-full rounded-lg border border-line px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 export function AdminQuizManager({
   courseId,
@@ -97,7 +97,7 @@ export function AdminQuizManager({
   return (
     <Card className="space-y-4">
       <div>
-        <h2 className="font-heading text-lg font-bold text-charcoal">
+        <h2 className="font-heading text-lg font-bold text-ink">
           Quizzes
         </h2>
         <p className="text-sm text-muted">
@@ -106,18 +106,18 @@ export function AdminQuizManager({
         </p>
       </div>
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}
 
-      <ul className="divide-y divide-charcoal/10">
+      <ul className="divide-y divide-line">
         {lessons.map((l) => {
           const isOpen = open === l.lessonId;
           return (
             <li key={l.lessonId} className="py-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="min-w-0 flex-1 truncate text-sm font-medium text-charcoal">
+                <span className="min-w-0 flex-1 truncate text-sm font-medium text-ink">
                   {l.lessonTitle}
                   <span className="ml-2 text-xs text-muted">
                     {l.moduleTitle}
@@ -143,7 +143,7 @@ export function AdminQuizManager({
               </div>
 
               {isOpen && draft && (
-                <div className="mt-3 space-y-4 rounded-xl border border-charcoal/10 bg-charcoal/[0.02] p-4">
+                <div className="mt-3 space-y-4 rounded-xl border border-line bg-charcoal/[0.02] p-4">
                   <div className="flex flex-wrap items-center gap-3">
                     <input
                       aria-label="Quiz title"
@@ -153,7 +153,7 @@ export function AdminQuizManager({
                         setDraft({ ...draft, title: e.target.value })
                       }
                     />
-                    <label className="flex items-center gap-1.5 text-sm text-charcoal">
+                    <label className="flex items-center gap-1.5 text-sm text-ink">
                       <input
                         type="checkbox"
                         checked={draft.isMandatory}
@@ -163,7 +163,7 @@ export function AdminQuizManager({
                       />
                       Required for certificate
                     </label>
-                    <label className="flex items-center gap-1.5 text-sm text-charcoal">
+                    <label className="flex items-center gap-1.5 text-sm text-ink">
                       Pass %
                       <input
                         type="number"
@@ -196,7 +196,7 @@ export function AdminQuizManager({
                     {draft.questions.map((q, qi) => (
                       <li
                         key={qi}
-                        className="rounded-lg border border-charcoal/10 p-3"
+                        className="rounded-lg border border-line p-3"
                       >
                         <div className="flex items-start gap-2">
                           <span className="mt-2 text-xs text-muted">
@@ -214,7 +214,7 @@ export function AdminQuizManager({
                           <button
                             type="button"
                             aria-label="Remove question"
-                            className="press mt-1 text-muted hover:text-red-600"
+                            className="press mt-1 text-muted hover:text-danger"
                             onClick={() =>
                               setDraft({
                                 ...draft,
@@ -256,7 +256,7 @@ export function AdminQuizManager({
                                 <button
                                   type="button"
                                   aria-label="Remove option"
-                                  className="press text-muted hover:text-red-600"
+                                  className="press text-muted hover:text-danger"
                                   onClick={() =>
                                     patchQ(qi, {
                                       options: q.options.filter(
@@ -313,7 +313,7 @@ export function AdminQuizManager({
                     <Plus className="h-4 w-4" /> Add question
                   </button>
 
-                  <div className="flex flex-wrap gap-2 border-t border-charcoal/10 pt-3">
+                  <div className="flex flex-wrap gap-2 border-t border-line pt-3">
                     <Button
                       className="w-auto px-4"
                       disabled={busy === "save-" + l.lessonId}

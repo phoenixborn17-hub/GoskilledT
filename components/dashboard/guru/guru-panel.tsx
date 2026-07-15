@@ -190,7 +190,7 @@ export function GuruPanel({
             className="guru-sheet absolute inset-x-0 bottom-0 flex max-h-[85vh] flex-col rounded-t-3xl bg-offwhite shadow-2xl md:inset-y-4 md:left-auto md:right-4 md:max-h-none md:w-[26rem] md:rounded-3xl"
           >
             {/* Header */}
-            <div className="flex items-center gap-3 border-b border-charcoal/10 px-5 py-4">
+            <div className="flex items-center gap-3 border-b border-line/10 px-5 py-4">
               <span
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand/10 text-brand"
                 aria-hidden
@@ -200,7 +200,7 @@ export function GuruPanel({
               <div className="min-w-0 flex-1">
                 <p
                   id="guru-title"
-                  className="font-heading font-bold text-charcoal"
+                  className="font-heading font-bold text-ink"
                 >
                   Guru
                 </p>
@@ -233,7 +233,7 @@ export function GuruPanel({
               {msgs.map((m) =>
                 m.role === "user" ? (
                   <div key={m.id} className="flex justify-end">
-                    <p className="max-w-[85%] rounded-2xl rounded-br-md bg-charcoal px-4 py-2.5 text-sm text-white">
+                    <p className="max-w-[85%] rounded-gs-lg rounded-br-md bg-charcoal px-4 py-2.5 text-sm text-white">
                       {m.text}
                     </p>
                   </div>
@@ -249,7 +249,7 @@ export function GuruPanel({
               )}
 
               {busy && (
-                <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md bg-brand/5 px-4 py-3">
+                <div className="flex items-center gap-1.5 rounded-gs-lg rounded-bl-md bg-brand/5 px-4 py-3">
                   <span className="sr-only">Guru soch raha hai…</span>
                   <span className="guru-dot h-2 w-2 rounded-full bg-brand" />
                   <span className="guru-dot h-2 w-2 rounded-full bg-brand" />
@@ -265,7 +265,7 @@ export function GuruPanel({
                   e.preventDefault();
                   void send(input);
                 }}
-                className="flex items-end gap-2 border-t border-charcoal/10 p-3"
+                className="flex items-end gap-2 border-t border-line/10 p-3"
               >
                 <label htmlFor="guru-input" className="sr-only">
                   Guru se apna sawaal poocho
@@ -284,7 +284,7 @@ export function GuruPanel({
                   rows={1}
                   maxLength={500}
                   placeholder="Apna sawaal likho…"
-                  className="max-h-28 min-h-[2.75rem] flex-1 resize-none rounded-xl border border-charcoal/15 px-3 py-2.5 text-sm text-charcoal focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  className="max-h-28 min-h-[2.75rem] flex-1 resize-none rounded-xl border border-line/15 px-3 py-2.5 text-sm text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
                 />
                 <button
                   type="submit"
@@ -296,7 +296,7 @@ export function GuruPanel({
                 </button>
               </form>
             ) : (
-              <div className="flex items-center gap-3 border-t border-charcoal/10 p-4">
+              <div className="flex items-center gap-3 border-t border-line/10 p-4">
                 <Lock className="h-5 w-5 shrink-0 text-muted" aria-hidden />
                 <p className="flex-1 text-sm text-muted">
                   Guru enrolled students ke liye hai.
@@ -326,12 +326,12 @@ function GuruEmpty({
   return (
     <div className="py-6 text-center">
       <span
-        className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand"
+        className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-gs-lg bg-brand/10 text-brand"
         aria-hidden
       >
         <Sparkles className="h-7 w-7" />
       </span>
-      <p className="font-heading font-bold text-charcoal">
+      <p className="font-heading font-bold text-ink">
         Koi doubt? Pooch lo!
       </p>
       <p className="mx-auto mt-1 max-w-xs text-sm text-muted">
@@ -375,8 +375,8 @@ function GuruBubble({
     <div className="flex flex-col items-start gap-2">
       <div
         className={cn(
-          "max-w-[90%] rounded-2xl rounded-bl-md px-4 py-2.5 text-sm",
-          answered ? "bg-brand/5 text-charcoal" : "bg-charcoal/5 text-charcoal",
+          "max-w-[90%] rounded-gs-lg rounded-bl-md px-4 py-2.5 text-sm",
+          answered ? "bg-brand/5 text-ink" : "bg-charcoal/5 text-ink",
         )}
       >
         <p className="flex items-start gap-2">
@@ -400,7 +400,7 @@ function GuruBubble({
                   `/dashboard/learn/${courseSlug}?lesson=${c.lessonId}`,
                 );
               }}
-              className="press inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1 text-[11px] font-semibold text-charcoal"
+              className="press inline-flex items-center gap-1 rounded-full bg-gold/20 px-2.5 py-1 text-[11px] font-semibold text-ink"
             >
               <BookOpen className="h-3 w-3" aria-hidden />
               Lesson {c.lessonOrder}

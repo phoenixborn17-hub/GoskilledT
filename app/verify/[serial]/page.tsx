@@ -117,26 +117,26 @@ export default async function VerifyPage({
           </CardDescription>
         </div>
 
-        <dl className="mt-6 space-y-3 border-t border-charcoal/5 pt-5 text-sm">
+        <dl className="mt-6 space-y-3 border-t border-line/5 pt-5 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Awarded to</dt>
-            <dd className="font-medium text-charcoal">
+            <dd className="font-medium text-ink">
               {result.learnerName || "GoSkilled Learner"}
             </dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Course</dt>
-            <dd className="font-medium text-charcoal">{result.courseTitle}</dd>
+            <dd className="font-medium text-ink">{result.courseTitle}</dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Issued</dt>
-            <dd className="font-medium text-charcoal">
+            <dd className="font-medium text-ink">
               {result.issuedAt ? formatDate(result.issuedAt) : "—"}
             </dd>
           </div>
           <div className="flex justify-between gap-4">
             <dt className="text-muted">Certificate ID</dt>
-            <dd className="font-mono text-charcoal">{serial}</dd>
+            <dd className="font-mono text-ink">{serial}</dd>
           </div>
         </dl>
 

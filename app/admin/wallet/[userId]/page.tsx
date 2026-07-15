@@ -25,7 +25,7 @@ export default async function AdminWalletDetailPage({
     <section className="space-y-5">
       <Link
         href="/admin/wallet"
-        className="text-sm text-muted hover:text-charcoal"
+        className="text-sm text-muted hover:text-ink"
       >
         ← Back to wallets
       </Link>
@@ -39,7 +39,7 @@ export default async function AdminWalletDetailPage({
           <p className="text-xs font-medium uppercase tracking-wide text-muted">
             Available
           </p>
-          <p className="font-heading text-xl font-bold text-charcoal">
+          <p className="font-heading text-xl font-bold text-ink">
             {formatINR(detail.summary.availableInPaise)}
           </p>
         </Card>
@@ -47,7 +47,7 @@ export default async function AdminWalletDetailPage({
           <p className="text-xs font-medium uppercase tracking-wide text-muted">
             Held
           </p>
-          <p className="font-heading text-xl font-bold text-charcoal">
+          <p className="font-heading text-xl font-bold text-ink">
             {formatINR(detail.summary.heldInPaise)}
           </p>
         </Card>
@@ -55,7 +55,7 @@ export default async function AdminWalletDetailPage({
           <p className="text-xs font-medium uppercase tracking-wide text-muted">
             Lifetime
           </p>
-          <p className="font-heading text-xl font-bold text-charcoal">
+          <p className="font-heading text-xl font-bold text-ink">
             {formatINR(detail.summary.lifetimeEarnedInPaise)}
           </p>
         </Card>
@@ -66,19 +66,19 @@ export default async function AdminWalletDetailPage({
         {detail.history.length === 0 ? (
           <p className="text-sm text-muted">No activity yet.</p>
         ) : (
-          <ul className="divide-y divide-charcoal/5 text-sm">
+          <ul className="divide-y divide-line/60 text-sm">
             {detail.history.map((h, i) => (
               <li
                 key={i}
                 className="flex items-center justify-between gap-3 py-2"
               >
-                <span className="text-charcoal">{h.label}</span>
+                <span className="text-ink">{h.label}</span>
                 <span className="flex items-center gap-3">
                   <span
                     className={
                       h.amountInPaise < 0
                         ? "text-muted"
-                        : "font-medium text-charcoal"
+                        : "font-medium text-ink"
                     }
                   >
                     {h.amountInPaise < 0 ? "−" : "+"}

@@ -9,7 +9,7 @@ import {
 } from "../../app/admin/webinar/actions";
 
 const inputCls =
-  "w-full rounded-lg border border-charcoal/20 px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
+  "w-full rounded-lg border border-line px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand";
 
 export function ScheduleWebinarForm() {
   const router = useRouter();
@@ -74,7 +74,7 @@ export function ScheduleWebinarForm() {
         </button>
         {msg && (
           <span
-            className={`text-sm ${msg.ok ? "text-brand-deep" : "text-red-600"}`}
+            className={`text-sm ${msg.ok ? "text-brand-deep" : "text-danger"}`}
           >
             {msg.text}
           </span>
@@ -105,7 +105,7 @@ export function WebinarActiveToggle({
     <button
       onClick={toggle}
       disabled={busy}
-      className="rounded-lg border border-charcoal/20 px-3 py-1.5 text-xs font-semibold text-charcoal hover:bg-charcoal/5 disabled:opacity-50"
+      className="rounded-lg border border-line px-3 py-1.5 text-xs font-semibold text-ink hover:bg-charcoal/5 disabled:opacity-50"
     >
       {isActive ? "Deactivate" : "Reactivate"}
     </button>

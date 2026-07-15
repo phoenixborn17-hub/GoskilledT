@@ -29,7 +29,7 @@ export function CardsGridSkeleton() {
             {Array.from({ length: 6 }).map((_, i) => (
               <div
                 key={i}
-                className="overflow-hidden rounded-2xl border border-charcoal/10 bg-white"
+                className="overflow-hidden rounded-gs-lg border border-line/10 bg-surface-raised"
               >
                 <Bar className="h-24 rounded-none" />
                 <div className="space-y-3 p-5">
@@ -64,7 +64,7 @@ export function DetailSkeleton() {
           <Bar className="h-40 w-full" />
         </div>
         <div>
-          <Bar className="h-72 w-full rounded-2xl" />
+          <Bar className="h-72 w-full rounded-gs-lg" />
         </div>
       </Container>
     </MarketingShell>

@@ -111,7 +111,7 @@ export default async function VibrantHomePage() {
                   Hinglish, with a verifiable certificate.
                 </p>
               </div>
-              <span className="vh-hero-chip inline-flex shrink-0 items-center gap-2 rounded-2xl px-5 py-3 text-small font-bold">
+              <span className="vh-hero-chip inline-flex shrink-0 items-center gap-2 rounded-gs-lg px-5 py-3 text-small font-bold">
                 Browse courses
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </span>
@@ -788,7 +788,7 @@ function HeroChip({
   sub: string;
 }) {
   return (
-    <span className="vh-hero-chip inline-flex items-center gap-2 rounded-2xl px-3.5 py-2">
+    <span className="vh-hero-chip inline-flex items-center gap-2 rounded-gs-lg px-3.5 py-2">
       <Icon className="h-4 w-4" aria-hidden />
       <span className="dc-number text-h4 font-bold leading-none">{label}</span>
       <span className="text-caption text-white/75">{sub}</span>
@@ -855,7 +855,7 @@ function FeedRow({
     </>
   );
   const cls =
-    "flex w-full items-start gap-3 rounded-2xl p-3 text-left transition-colors hover:bg-charcoal/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2";
+    "flex w-full items-start gap-3 rounded-gs-lg p-3 text-left transition-colors hover:bg-charcoal/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-theme focus-visible:ring-offset-2";
   return href ? (
     <Link href={href} className={cls}>
       {inner}

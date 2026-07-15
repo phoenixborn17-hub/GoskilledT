@@ -37,7 +37,7 @@ export function Milestones({
   return (
     <Card className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <h2 className="font-heading text-lg font-bold text-charcoal">
+        <h2 className="font-heading text-lg font-bold text-ink">
           Milestones
         </h2>
         {earnedCount > 0 && (
@@ -56,7 +56,7 @@ export function Milestones({
           >
             <Target className="h-5 w-5" />
           </span>
-          <p className="text-sm text-charcoal">
+          <p className="text-sm text-ink">
             Aapka pehla milestone:{" "}
             <span className="font-semibold">{next?.label}</span>. Bas ek lesson
             se shuruaat karo!
@@ -70,7 +70,7 @@ export function Milestones({
               return (
                 <li
                   key={m.id}
-                  className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1.5 text-sm font-medium text-charcoal"
+                  className="inline-flex items-center gap-1.5 rounded-full bg-brand/10 px-3 py-1.5 text-sm font-medium text-ink"
                 >
                   <Icon className="h-4 w-4 text-brand" aria-hidden />
                   {m.label}
@@ -82,7 +82,7 @@ export function Milestones({
             <p className="flex items-center gap-2 text-sm text-muted">
               <Target className="h-4 w-4 text-brand" aria-hidden />
               Next goal:{" "}
-              <span className="font-medium text-charcoal">{next.label}</span>
+              <span className="font-medium text-ink">{next.label}</span>
             </p>
           )}
         </>

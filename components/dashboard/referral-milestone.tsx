@@ -50,8 +50,8 @@ export function ReferralMilestone({ inviteCount }: { inviteCount: number }) {
                 className={cn(
                   "flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold transition-colors",
                   done
-                    ? "bg-gold text-charcoal"
-                    : "border border-charcoal/15 bg-white text-muted",
+                    ? "bg-gold text-ink"
+                    : "border border-line/15 bg-surface-raised text-muted",
                   isCurrent && "ring-2 ring-brand/40 ring-offset-1",
                 )}
                 aria-hidden
@@ -61,7 +61,7 @@ export function ReferralMilestone({ inviteCount }: { inviteCount: number }) {
               <span
                 className={cn(
                   "text-[11px] font-medium",
-                  done ? "text-charcoal" : "text-muted",
+                  done ? "text-ink" : "text-muted",
                 )}
               >
                 {tier}
@@ -72,7 +72,7 @@ export function ReferralMilestone({ inviteCount }: { inviteCount: number }) {
       </ol>
 
       {/* Status line — derived + count-only. */}
-      <p className="text-sm font-semibold text-charcoal">
+      <p className="text-sm font-semibold text-ink">
         {inviteCount === 0
           ? AFFILIATE_COPY.milestoneStart
           : next === null

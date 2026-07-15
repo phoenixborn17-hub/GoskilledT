@@ -67,7 +67,7 @@ export default async function MyLeadsPage({
                   "rounded-full px-3 py-1 font-medium " +
                   (range === r
                     ? "bg-charcoal text-white"
-                    : "bg-charcoal/5 text-charcoal/70 hover:bg-charcoal/10")
+                    : "bg-charcoal/5 text-ink-muted hover:bg-charcoal/10")
                 }
               >
                 {r === "all" ? "All" : r === "30d" ? "30d" : "90d"}
@@ -91,10 +91,10 @@ export default async function MyLeadsPage({
                   <th className="py-2 font-medium">Note</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-charcoal/5">
+              <tbody className="divide-y divide-line/5">
                 {leads.map((l) => (
                   <tr key={l.id}>
-                    <td className="py-2 pr-3 font-medium text-charcoal">
+                    <td className="py-2 pr-3 font-medium text-ink">
                       {l.name || "—"}
                     </td>
                     <td className="py-2 pr-3 text-muted">{l.phone}</td>

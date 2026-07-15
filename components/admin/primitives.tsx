@@ -17,7 +17,7 @@ export function PageHeading({
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
-        <h1 className="font-heading text-2xl font-bold text-charcoal">
+        <h1 className="font-heading text-2xl font-bold text-ink">
           {title}
         </h1>
         {subtitle && <p className="mt-1 text-sm text-muted">{subtitle}</p>}
@@ -40,11 +40,14 @@ export function StatCard({
   href?: string;
 }) {
   const body = (
-    <Card className="h-full p-4">
+    <Card
+      className="dc-enter h-full p-4"
+      elevation={href ? "interactive" : "raised"}
+    >
       <p className="text-xs font-medium uppercase tracking-wide text-muted">
         {label}
       </p>
-      <p className="mt-1 font-heading text-2xl font-extrabold text-charcoal">
+      <p className="mt-1 font-heading text-2xl font-extrabold text-ink">
         {value}
       </p>
       {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
@@ -53,7 +56,7 @@ export function StatCard({
   return href ? (
     <Link
       href={href}
-      className="block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+      className="block rounded-gs-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
     >
       {body}
     </Link>
@@ -79,14 +82,14 @@ export function QueueCard({
     <Link
       href={href}
       className={cn(
-        "block rounded-2xl border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
+        "dc-enter lift block rounded-gs-lg border p-4 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand",
         active
           ? "border-brand/30 bg-brand/5 hover:bg-brand/10"
-          : "border-charcoal/10 bg-white hover:bg-charcoal/5",
+          : "border-line bg-surface-raised hover:bg-charcoal/5",
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="text-sm font-semibold text-charcoal">{label}</span>
+        <span className="text-sm font-semibold text-ink">{label}</span>
         <span
           className={cn(
             "inline-flex min-w-7 items-center justify-center rounded-full px-2 py-0.5 text-sm font-bold",
@@ -127,9 +130,9 @@ export function DataTable<Row>({
   minWidth?: string;
 }) {
   return (
-    <div className="overflow-x-auto rounded-xl border border-charcoal/10 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-line bg-surface-raised">
       <table className="w-full text-sm" style={{ minWidth }}>
-        <thead className="border-b border-charcoal/10 text-left text-muted">
+        <thead className="border-b border-line text-left text-muted">
           <tr>
             {columns.map((c) => (
               <th
@@ -155,7 +158,7 @@ export function DataTable<Row>({
             rows.map((row) => (
               <tr
                 key={rowKey(row)}
-                className="border-b border-charcoal/5 last:border-0"
+                className="border-b border-line/60 transition-colors last:border-0 hover:bg-surface-sunken"
               >
                 {columns.map((c) => (
                   <td key={c.key} className={cn("px-4 py-3", c.className)}>

@@ -17,6 +17,10 @@ import {
   Upload,
   Wallet,
   Percent,
+  Receipt,
+  Network,
+  Trophy,
+  Gift,
   User,
   ShieldCheck,
   Lock,
@@ -86,13 +90,29 @@ export const WORKSPACES: Workspace[] = [
     items: [
       { label: "Dashboard", href: "/dashboard/earn", icon: LayoutDashboard },
       { label: "My Network", href: "/dashboard/earn/network", icon: Users },
+      {
+        label: "Referrals",
+        href: "/dashboard/earn/referrals",
+        icon: Network,
+      },
       { label: "Leads", href: "/dashboard/earn/my-leads", icon: Upload },
       { label: "Wallet", href: "/dashboard/earn/wallet", icon: Wallet },
+      {
+        label: "Commissions",
+        href: "/dashboard/earn/commissions",
+        icon: Receipt,
+      },
       {
         label: "Commission Structure",
         href: "/dashboard/earn/commission-structure",
         icon: Percent,
       },
+      {
+        label: "Leaderboard",
+        href: "/dashboard/earn/leaderboard",
+        icon: Trophy,
+      },
+      { label: "Rewards", href: "/dashboard/earn/rewards", icon: Gift },
     ],
   },
   {

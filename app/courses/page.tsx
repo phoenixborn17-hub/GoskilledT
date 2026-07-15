@@ -78,7 +78,7 @@ export default async function CoursesPage({
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
             <h2
               id="all-courses"
-              className="font-heading text-xl font-bold text-charcoal"
+              className="font-heading text-xl font-bold text-ink"
             >
               {category ? `${category} courses` : "All courses"}
             </h2>
@@ -158,7 +158,7 @@ function FilterChip({
         "rounded-full border px-4 py-1.5 text-sm font-medium transition-colors",
         active
           ? "border-brand bg-brand text-brand-fg"
-          : "border-charcoal/15 text-charcoal/70 hover:border-brand/30 hover:bg-brand/5",
+          : "border-line/15 text-ink/70 hover:border-brand/30 hover:bg-brand/5",
       )}
     >
       {children}

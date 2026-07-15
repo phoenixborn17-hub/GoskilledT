@@ -39,7 +39,7 @@ export default async function WelcomePage() {
           stays a fill, never text on light). Gentle staged entrance; static under reduced-motion. */}
       <div className="enter mx-auto mb-5">
         <span
-          className="welcome-medallion relative mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-brand/15 to-gold/25 text-charcoal"
+          className="welcome-medallion relative mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-brand/15 to-gold/25 text-ink"
           aria-hidden
         >
           <HeartHandshake className="h-9 w-9" />
@@ -48,7 +48,7 @@ export default async function WelcomePage() {
       <div className="enter enter-2 mx-auto mb-4">
         <Badge variant="gold">Founding Batch</Badge>
       </div>
-      <h1 className="enter enter-2 font-heading text-3xl font-extrabold text-charcoal">
+      <h1 className="enter enter-2 font-heading text-3xl font-extrabold text-ink">
         Welcome to GoSkilled, {name ?? "friend"} 👋
       </h1>
       <p className="enter enter-3 mx-auto mt-3 max-w-sm text-muted">

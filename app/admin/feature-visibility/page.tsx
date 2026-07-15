@@ -21,7 +21,7 @@ export default async function FeatureVisibilityPage() {
       />
 
       <Card className="border-l-4 border-l-charcoal bg-charcoal/[0.03]">
-        <p className="text-sm text-charcoal">
+        <p className="text-sm text-ink">
           <strong>What this is.</strong> The Affiliate layer is a{" "}
           <strong>legal launch-gate / staged rollout</strong> — kept disabled
           until its legal review clears, then enabled. Hiding it recomposes the

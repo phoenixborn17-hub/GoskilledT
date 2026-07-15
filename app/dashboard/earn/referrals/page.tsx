@@ -6,6 +6,7 @@ import { getReferralTree } from "../../../../lib/affiliate/referrals";
 import { AFFILIATE_COPY } from "../../../../lib/affiliate/copy";
 import { ShareBlock } from "../../../../components/affiliate/share-block";
 import { ReferralTree } from "../../../../components/affiliate/referral-tree";
+import { BackLink } from "../../../../components/nav/back-link";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export default async function ReferralsPage() {
       aria-labelledby="referrals-heading"
       className="gs-vibrant space-y-6"
     >
+      <BackLink href="/dashboard/earn" label="Back to Earn" />
       <h1
         id="referrals-heading"
         className="font-heading text-h1 font-bold text-ink"

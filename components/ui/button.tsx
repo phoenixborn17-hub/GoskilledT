@@ -7,11 +7,11 @@ type Size = "sm" | "md" | "lg";
 const variants: Record<Variant, string> = {
   primary: "bg-brand text-brand-fg hover:bg-brand/90",
   outline:
-    "border border-brand/30 bg-transparent text-charcoal hover:bg-brand/5",
-  ghost: "bg-transparent text-charcoal hover:bg-charcoal/5",
+    "border border-brand/30 bg-transparent text-ink hover:bg-brand/5",
+  ghost: "bg-transparent text-ink hover:bg-charcoal/5",
   // Gold-forward affiliate CTA — charcoal text on a gold fill (Golden Rule 14: gold is never
   // text on light; here it's a fill with dark text → AA).
-  gold: "bg-gold text-charcoal hover:bg-gold/90",
+  gold: "bg-gold text-ink hover:bg-gold/90",
 };
 
 // `md` is the historical size (h-11 / text-base) → existing buttons are unchanged.

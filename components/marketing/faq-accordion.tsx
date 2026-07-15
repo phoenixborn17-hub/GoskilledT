@@ -7,9 +7,9 @@ export function FaqAccordion({ items }: { items: FaqItem[] }) {
       {items.map((f) => (
         <details
           key={f.q}
-          className="group rounded-xl border border-charcoal/10 bg-white p-4"
+          className="group rounded-xl border border-line/10 bg-surface-raised p-4"
         >
-          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium text-charcoal [&::-webkit-details-marker]:hidden">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium text-ink [&::-webkit-details-marker]:hidden">
             {f.q}
             <span
               className="shrink-0 text-brand transition-transform group-open:rotate-45"

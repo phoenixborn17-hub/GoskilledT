@@ -23,13 +23,18 @@ function redirectTo(
 }
 
 export async function middleware(request: NextRequest) {
-  const { response, user } = await updateSession(request);
+  const { response, user, authUnavailable } = await updateSession(request);
   const path = request.nextUrl.pathname;
 
   // First-touch referral capture (DR-030 §2). Runs on every matched route so a ?ref= on ANY
   // page (marketing, /register, /login) is attributed once. Set on `response` so redirects below
   // (which return their own response) don't drop it — capture BEFORE any early return.
   captureRefFromRequest(request, response);
+
+  // Supabase couldn't be reached to verify the token — this is NOT the same as "no session"
+  // (2026-07-15 login-bounce fix). Let the request through rather than bounce a real session to
+  // /login; the dashboard/admin layout re-verifies and shows a retry screen if still down.
+  if (authUnavailable) return response;
 
   if (path.startsWith("/dashboard") && !user) {
     return redirectTo(request, "/login", response);

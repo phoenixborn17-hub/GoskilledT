@@ -212,7 +212,7 @@ export default async function CoursePlayerPage({
                             {l.title}
                           </span>
                           {l.isFreePreview && !l.completed && (
-                            <span className="shrink-0 rounded bg-gold px-1.5 py-0.5 text-[10px] font-bold text-charcoal">
+                            <span className="shrink-0 rounded bg-gold px-1.5 py-0.5 text-[10px] font-bold text-ink">
                               FREE
                             </span>
                           )}

@@ -17,7 +17,7 @@ const NAV = [
 
 export function SiteHeader() {
   return (
-    <header className="glass sticky top-0 z-30 border-b border-charcoal/10">
+    <header className="glass sticky top-0 z-30 border-b border-line/10">
       <div className="mx-auto flex h-14 w-full max-w-5xl items-center justify-between px-4">
         <Link href="/" className="font-heading text-lg font-bold text-brand">
           GoSkilled
@@ -29,13 +29,13 @@ export function SiteHeader() {
             <Link
               key={l.href}
               href={l.href}
-              className="press rounded-lg px-3 py-2 text-sm font-medium text-charcoal/70 hover:text-brand"
+              className="press rounded-lg px-3 py-2 text-sm font-medium text-ink/70 hover:text-brand"
             >
               {l.label}
             </Link>
           ))}
           <Link href="/login" className="ml-1">
-            <span className="press inline-flex h-9 items-center rounded-xl border border-brand/30 px-4 text-sm font-semibold text-charcoal hover:bg-brand/5">
+            <span className="press inline-flex h-9 items-center rounded-xl border border-brand/30 px-4 text-sm font-semibold text-ink hover:bg-brand/5">
               Log in
             </span>
           </Link>
@@ -51,25 +51,25 @@ export function SiteHeader() {
         <details className="group relative md:hidden">
           <summary
             aria-label="Open menu"
-            className="press flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg text-charcoal hover:bg-charcoal/5 [&::-webkit-details-marker]:hidden"
+            className="press flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg text-ink hover:bg-charcoal/5 [&::-webkit-details-marker]:hidden"
           >
             <Menu className="h-6 w-6 group-open:hidden" aria-hidden />
             <X className="hidden h-6 w-6 group-open:block" aria-hidden />
           </summary>
           <nav
             aria-label="Primary"
-            className="glass absolute right-0 top-12 w-56 rounded-2xl border border-charcoal/10 p-2 shadow-lg"
+            className="glass absolute right-0 top-12 w-56 rounded-gs-lg border border-line/10 p-2 shadow-lg"
           >
             {NAV.map((l) => (
               <Link
                 key={l.href}
                 href={l.href}
-                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-charcoal/80 hover:bg-brand/5 hover:text-brand"
+                className="block rounded-lg px-3 py-2.5 text-sm font-medium text-ink/80 hover:bg-brand/5 hover:text-brand"
               >
                 {l.label}
               </Link>
             ))}
-            <div className="mt-1 space-y-1 border-t border-charcoal/10 pt-2">
+            <div className="mt-1 space-y-1 border-t border-line/10 pt-2">
               <Link
                 href="/register"
                 className="block rounded-lg bg-brand px-3 py-2.5 text-center text-sm font-semibold text-brand-fg"

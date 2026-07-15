@@ -45,7 +45,7 @@ export function WelcomeActions({ needsName }: { needsName: boolean }) {
       )}
 
       {error && (
-        <p role="alert" className="text-sm text-red-600">
+        <p role="alert" className="text-sm text-danger">
           {error}
         </p>
       )}

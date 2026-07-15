@@ -35,7 +35,7 @@ export default async function KycDetailPage({
     <section className="space-y-5">
       <Link
         href="/admin/kyc"
-        className="text-sm text-muted hover:text-charcoal"
+        className="text-sm text-muted hover:text-ink"
       >
         ← Back to queue
       </Link>
@@ -50,11 +50,11 @@ export default async function KycDetailPage({
       />
 
       {detail.decryptError ? (
-        <Card className="border-red-200 bg-red-50">
-          <p className="text-sm font-semibold text-red-700">
+        <Card className="border-danger/20 bg-danger/10">
+          <p className="text-sm font-semibold text-danger">
             Could not decrypt these details.
           </p>
-          <p className="mt-1 text-sm text-red-700/80">
+          <p className="mt-1 text-sm text-danger/80">
             Do not make a decision. Check that PII_ENCRYPTION_KEY matches the
             key used at submission, then retry.
           </p>
@@ -92,7 +92,7 @@ export default async function KycDetailPage({
           </dl>
 
           {/* Documents — each open is reveal-logged (KYC_DOC_VIEWED) by the admin route. */}
-          <div className="border-t border-charcoal/10 pt-4">
+          <div className="border-t border-line pt-4">
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">
               Documents
             </p>
@@ -104,7 +104,7 @@ export default async function KycDetailPage({
                     href={`/admin/kyc/${detail.userId}/doc/${kind}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="rounded-lg border border-charcoal/20 px-3 py-1.5 font-semibold text-charcoal hover:bg-charcoal/5"
+                    className="rounded-lg border border-line px-3 py-1.5 font-semibold text-ink hover:bg-charcoal/5"
                   >
                     View {kind} doc
                   </a>
@@ -120,7 +120,7 @@ export default async function KycDetailPage({
             </div>
           </div>
 
-          <div className="border-t border-charcoal/10 pt-4">
+          <div className="border-t border-line pt-4">
             <KycReveal userId={detail.userId} />
           </div>
         </Card>
@@ -138,13 +138,13 @@ export default async function KycDetailPage({
         {detail.history.length === 0 ? (
           <p className="text-sm text-muted">No prior activity.</p>
         ) : (
-          <ul className="divide-y divide-charcoal/5 text-sm">
+          <ul className="divide-y divide-line/60 text-sm">
             {detail.history.map((h, i) => (
               <li
                 key={i}
                 className="flex flex-wrap items-center justify-between gap-2 py-2"
               >
-                <span className="font-medium text-charcoal">{h.action}</span>
+                <span className="font-medium text-ink">{h.action}</span>
                 {h.reason && <span className="text-muted">“{h.reason}”</span>}
                 <span className="text-xs text-muted">
                   {h.actorEmail ?? "—"} · {fmtDateTime(h.at)}

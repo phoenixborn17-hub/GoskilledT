@@ -113,7 +113,7 @@ export default async function CourseDetailPage({
               Courses
             </Link>
             <span aria-hidden> / </span>
-            <span className="text-charcoal/70">
+            <span className="text-ink/70">
               {course.category ?? "Course"}
             </span>
           </nav>
@@ -132,11 +132,11 @@ export default async function CourseDetailPage({
               )
             )}
           </div>
-          <h1 className="max-w-3xl font-heading text-3xl font-extrabold leading-tight text-charcoal sm:text-4xl">
+          <h1 className="max-w-3xl font-heading text-3xl font-extrabold leading-tight text-ink sm:text-4xl">
             {course.title}
           </h1>
           {course.summary && (
-            <p className="mt-3 max-w-2xl text-lg text-charcoal/70">
+            <p className="mt-3 max-w-2xl text-lg text-ink/70">
               {course.summary}
             </p>
           )}
@@ -165,7 +165,7 @@ export default async function CourseDetailPage({
           <section aria-labelledby="outcomes" className="reveal">
             <h2
               id="outcomes"
-              className="font-heading text-xl font-bold text-charcoal"
+              className="font-heading text-xl font-bold text-ink"
             >
               What you&apos;ll learn
             </h2>
@@ -173,7 +173,7 @@ export default async function CourseDetailPage({
               {OUTCOMES.map((o) => (
                 <li
                   key={o}
-                  className="flex items-start gap-2.5 text-sm text-charcoal/80"
+                  className="flex items-start gap-2.5 text-sm text-ink/80"
                 >
                   <CheckCircle2
                     className="mt-0.5 h-5 w-5 shrink-0 text-brand"
@@ -189,7 +189,7 @@ export default async function CourseDetailPage({
           <section aria-labelledby="curriculum" className="reveal mt-10">
             <h2
               id="curriculum"
-              className="font-heading text-xl font-bold text-charcoal"
+              className="font-heading text-xl font-bold text-ink"
             >
               Curriculum
             </h2>
@@ -208,14 +208,14 @@ export default async function CourseDetailPage({
                     />
                     <span
                       aria-hidden
-                      className="absolute left-0 top-0.5 flex h-6 w-6 items-center justify-center rounded-full border border-brand/25 bg-white text-xs font-bold text-brand-deep"
+                      className="absolute left-0 top-0.5 flex h-6 w-6 items-center justify-center rounded-full border border-brand/25 bg-surface-raised text-xs font-bold text-brand-deep"
                     >
                       {mi + 1}
                     </span>
-                    <p className="font-heading text-base font-bold text-charcoal">
+                    <p className="font-heading text-base font-bold text-ink">
                       {m.title}
                     </p>
-                    <ul className="mt-2 divide-y divide-charcoal/5 rounded-xl border border-charcoal/10 bg-white">
+                    <ul className="mt-2 divide-y divide-line/5 rounded-xl border border-line/10 bg-surface-raised">
                       {m.lessons.map((l) => (
                         <li
                           key={l.id}
@@ -228,11 +228,11 @@ export default async function CourseDetailPage({
                             />
                           ) : (
                             <Lock
-                              className="h-4 w-4 shrink-0 text-charcoal/30"
+                              className="h-4 w-4 shrink-0 text-ink/30"
                               aria-hidden
                             />
                           )}
-                          <span className="min-w-0 flex-1 truncate text-charcoal/80">
+                          <span className="min-w-0 flex-1 truncate text-ink/80">
                             {l.title}
                           </span>
                           {l.isFreePreview && (
@@ -259,20 +259,20 @@ export default async function CourseDetailPage({
           <section aria-labelledby="certificate" className="reveal mt-10">
             <h2
               id="certificate"
-              className="font-heading text-xl font-bold text-charcoal"
+              className="font-heading text-xl font-bold text-ink"
             >
               Earn a verifiable certificate
             </h2>
-            <div className="mt-4 overflow-hidden rounded-2xl border border-brand/20 bg-gradient-to-br from-brand/[0.05] to-gold/[0.06]">
+            <div className="mt-4 overflow-hidden rounded-gs-lg border border-brand/20 bg-gradient-to-br from-brand/[0.05] to-gold/[0.06]">
               <div className="flex items-center gap-4 p-6">
                 <div
-                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white text-brand shadow-gs-sm ring-1 ring-gold/50"
+                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-gs-lg bg-surface-raised text-brand shadow-gs-sm ring-1 ring-gold/50"
                   aria-hidden
                 >
                   <Award className="h-7 w-7" />
                 </div>
                 <div>
-                  <p className="font-heading font-bold text-charcoal">
+                  <p className="font-heading font-bold text-ink">
                     Certificate of Completion
                   </p>
                   <p className="mt-1 text-sm text-muted">
@@ -295,14 +295,14 @@ export default async function CourseDetailPage({
           <section aria-labelledby="instructor" className="reveal mt-10">
             <h2
               id="instructor"
-              className="font-heading text-xl font-bold text-charcoal"
+              className="font-heading text-xl font-bold text-ink"
             >
               Your instructor
             </h2>
             <Card className="mt-4 flex items-center gap-4">
               <Monogram name="Ashish" className="h-14 w-14 text-lg" />
               <div>
-                <p className="font-semibold text-charcoal">
+                <p className="font-semibold text-ink">
                   Ashish · Founder, GoSkilled
                 </p>
                 <p className="text-sm text-muted">
@@ -316,7 +316,7 @@ export default async function CourseDetailPage({
           <section aria-labelledby="course-faq" className="reveal mt-10">
             <h2
               id="course-faq"
-              className="font-heading text-xl font-bold text-charcoal"
+              className="font-heading text-xl font-bold text-ink"
             >
               Common questions
             </h2>
@@ -324,9 +324,9 @@ export default async function CourseDetailPage({
               {COURSE_FAQ.map((f) => (
                 <details
                   key={f.q}
-                  className="group rounded-xl border border-charcoal/10 bg-white p-4"
+                  className="group rounded-xl border border-line/10 bg-surface-raised p-4"
                 >
-                  <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-charcoal">
+                  <summary className="flex cursor-pointer list-none items-center justify-between font-medium text-ink">
                     {f.q}
                     <span
                       className="ml-2 text-brand transition-transform group-open:rotate-45"
@@ -348,7 +348,7 @@ export default async function CourseDetailPage({
             <Card className="shadow-gs">
               {comingSoon ? (
                 <>
-                  <p className="font-heading text-lg font-bold text-charcoal">
+                  <p className="font-heading text-lg font-bold text-ink">
                     Coming soon
                   </p>
                   <p className="mt-1 text-sm text-muted">
@@ -370,21 +370,21 @@ export default async function CourseDetailPage({
                 <>
                   <p className="text-sm text-muted">
                     Included in{" "}
-                    <span className="font-semibold text-charcoal">
+                    <span className="font-semibold text-ink">
                       {inPackages.length > 0
                         ? inPackages.join(" & ")
                         : "our packages"}
                     </span>
                   </p>
                   {sb && (
-                    <p className="mt-2 text-3xl font-extrabold text-charcoal">
+                    <p className="mt-2 text-3xl font-extrabold text-ink">
                       {priceLabel(sb.priceInPaise)}
                       <span className="ml-1 text-sm font-medium text-muted">
                         onwards · no hidden charges
                       </span>
                     </p>
                   )}
-                  <ul className="mt-4 space-y-2.5 text-sm text-charcoal/80">
+                  <ul className="mt-4 space-y-2.5 text-sm text-ink/80">
                     <Included icon={BookOpen}>
                       {stats.lessonCount} lessons · {stats.durationLabel}
                     </Included>
@@ -415,10 +415,10 @@ export default async function CourseDetailPage({
       </Container>
 
       {/* Sticky mobile CTA */}
-      <div className="glass fixed inset-x-0 bottom-0 z-40 border-t border-charcoal/10 px-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 lg:hidden">
+      <div className="glass fixed inset-x-0 bottom-0 z-40 border-t border-line/10 px-4 pb-[calc(0.625rem+env(safe-area-inset-bottom))] pt-2.5 lg:hidden">
         <div className="mx-auto flex max-w-md items-center gap-3">
           {sb && !comingSoon && (
-            <span className="shrink-0 text-sm font-bold text-charcoal">
+            <span className="shrink-0 text-sm font-bold text-ink">
               {priceLabel(sb.priceInPaise)}+
             </span>
           )}

@@ -33,7 +33,7 @@ export default async function AdminUsersPage({
             name="q"
             defaultValue={q ?? ""}
             placeholder="Search phone / referral code"
-            className="h-9 w-56 rounded-lg border border-charcoal/15 px-3 text-sm"
+            className="h-9 w-56 rounded-lg border border-line px-3 text-sm"
             aria-label="Search users"
           />
           <button
@@ -45,9 +45,9 @@ export default async function AdminUsersPage({
         </form>
       </div>
 
-      <div className="overflow-x-auto rounded-xl border border-charcoal/10 bg-white">
+      <div className="overflow-x-auto rounded-xl border border-line bg-surface-raised">
         <table className="w-full min-w-[40rem] text-sm">
-          <thead className="border-b border-charcoal/10 text-left text-muted">
+          <thead className="border-b border-line text-left text-muted">
             <tr>
               <th className="px-4 py-3 font-medium">Phone</th>
               <th className="px-4 py-3 font-medium">Referral code</th>
@@ -67,7 +67,7 @@ export default async function AdminUsersPage({
               rows.map((u) => (
                 <tr
                   key={u.id}
-                  className="border-b border-charcoal/5 last:border-0"
+                  className="border-b border-line/60 last:border-0"
                 >
                   <td className="px-4 py-3 font-medium">{u.phone ?? "—"}</td>
                   <td className="px-4 py-3">{u.referralCode}</td>
@@ -93,7 +93,7 @@ export default async function AdminUsersPage({
           {page > 1 && (
             <Link
               href={qs(page - 1)}
-              className="rounded-lg border border-charcoal/15 px-3 py-1.5"
+              className="rounded-lg border border-line px-3 py-1.5"
             >
               ← Prev
             </Link>
@@ -101,7 +101,7 @@ export default async function AdminUsersPage({
           {page < pageCount && (
             <Link
               href={qs(page + 1)}
-              className="rounded-lg border border-charcoal/15 px-3 py-1.5"
+              className="rounded-lg border border-line px-3 py-1.5"
             >
               Next →
             </Link>

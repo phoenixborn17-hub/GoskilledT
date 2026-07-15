@@ -20,7 +20,7 @@ export default function NotFound() {
       <main className="hero-aurora">
         <Container className="flex flex-col items-center py-24 text-center">
           <div
-            className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand/10 text-brand"
+            className="mb-5 flex h-16 w-16 items-center justify-center rounded-gs-lg bg-brand/10 text-brand"
             aria-hidden
           >
             <Compass className="h-8 w-8" />
@@ -28,7 +28,7 @@ export default function NotFound() {
           <p className="font-heading text-6xl font-extrabold text-brand-gradient">
             404
           </p>
-          <h1 className="mt-2 font-heading text-2xl font-bold text-charcoal">
+          <h1 className="mt-2 font-heading text-2xl font-bold text-ink">
             This page took a wrong turn
           </h1>
           <p className="mt-2 max-w-md text-muted">
@@ -50,7 +50,7 @@ export default function NotFound() {
               <Link
                 key={l.href}
                 href={l.href}
-                className="rounded-full border border-charcoal/15 px-4 py-1.5 text-sm font-medium text-charcoal/70 transition-colors hover:border-brand/30 hover:bg-brand/5 hover:text-brand"
+                className="rounded-full border border-line/15 px-4 py-1.5 text-sm font-medium text-ink-muted transition-colors hover:border-brand/30 hover:bg-brand/5 hover:text-brand"
               >
                 {l.label}
               </Link>

@@ -56,10 +56,10 @@ export default async function AdminRewardsPage() {
                   <th className="py-2 font-medium"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-charcoal/5">
+              <tbody className="divide-y divide-line/60">
                 {rewards.map((r) => (
                   <tr key={r.id}>
-                    <td className="py-2 pr-3 font-medium text-charcoal">
+                    <td className="py-2 pr-3 font-medium text-ink">
                       {r.title}
                     </td>
                     <td className="py-2 pr-3 text-muted">
@@ -89,7 +89,7 @@ export default async function AdminRewardsPage() {
             No completed referrals yet — nothing to rank.
           </p>
         ) : (
-          <ol className="divide-y divide-charcoal/5 text-sm">
+          <ol className="divide-y divide-line/60 text-sm">
             {board.map((e) => (
               <li
                 key={e.userId}

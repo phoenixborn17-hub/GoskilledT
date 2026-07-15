@@ -1,9 +1,10 @@
 // Account · Settings (Redesign U6 · NEW). Notification preferences (existing email opt-out) +
 // language + theme. Lean + honest: language is Hinglish (the product default) and theme is Light —
 // both shown truthfully with what's coming, never a fake toggle (D-29).
-import { Languages, Sun } from "lucide-react";
+import { Languages } from "lucide-react";
 import { getCurrentUserRecord } from "../../../../lib/auth/session";
 import { EmailPrefToggle } from "../../../../components/dashboard/email-pref-toggle";
+import { ThemeToggle } from "../../../../components/dashboard/theme-toggle";
 import {
   Card,
   CardTitle,
@@ -54,20 +55,7 @@ export default async function SettingsPage() {
 
       <Card className="space-y-3">
         <CardTitle className="text-lg">Theme</CardTitle>
-        <div className="flex items-center gap-3 rounded-gs border border-line bg-surface-sunken px-4 py-3">
-          <Sun className="h-5 w-5 shrink-0 text-ink-muted" aria-hidden />
-          <div className="min-w-0 flex-1">
-            <p className="text-small font-medium text-ink">
-              Light{" "}
-              <Badge variant="muted" className="ml-1 align-middle">
-                On
-              </Badge>
-            </p>
-            <p className="text-caption text-ink-muted">
-              A dark mode is designed and coming soon.
-            </p>
-          </div>
-        </div>
+        <ThemeToggle />
       </Card>
     </section>
   );

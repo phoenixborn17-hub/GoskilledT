@@ -40,7 +40,7 @@ export function FaqBrowser({ categories }: { categories: FaqCategory[] }) {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search questions…"
           aria-label="Search FAQs"
-          className="h-12 w-full rounded-xl border border-charcoal/15 bg-white pl-10 pr-10 text-sm text-charcoal outline-none placeholder:text-muted focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
+          className="h-12 w-full rounded-xl border border-line/15 bg-surface-raised pl-10 pr-10 text-sm text-ink outline-none placeholder:text-muted focus-visible:border-brand focus-visible:ring-2 focus-visible:ring-brand/30"
         />
         {query && (
           <button
@@ -70,7 +70,7 @@ export function FaqBrowser({ categories }: { categories: FaqCategory[] }) {
               "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors",
               active === t
                 ? "border-brand bg-brand text-brand-fg"
-                : "border-charcoal/15 text-charcoal/70 hover:border-brand/30 hover:bg-brand/5",
+                : "border-line/15 text-ink/70 hover:border-brand/30 hover:bg-brand/5",
             )}
           >
             {t}
@@ -81,8 +81,8 @@ export function FaqBrowser({ categories }: { categories: FaqCategory[] }) {
       {/* Results */}
       <div className="mt-8 space-y-10" aria-live="polite">
         {total === 0 ? (
-          <div className="rounded-2xl border border-charcoal/10 bg-white p-8 text-center">
-            <p className="font-heading text-lg font-bold text-charcoal">
+          <div className="rounded-gs-lg border border-line/10 bg-surface-raised p-8 text-center">
+            <p className="font-heading text-lg font-bold text-ink">
               No matches for “{query}”
             </p>
             <p className="mt-1 text-sm text-muted">
@@ -98,7 +98,7 @@ export function FaqBrowser({ categories }: { categories: FaqCategory[] }) {
             <section key={cat.title} aria-labelledby={`faq-${cat.title}`}>
               <h2
                 id={`faq-${cat.title}`}
-                className="mb-3 font-heading text-xl font-bold text-charcoal"
+                className="mb-3 font-heading text-xl font-bold text-ink"
               >
                 {cat.title}
               </h2>
@@ -106,9 +106,9 @@ export function FaqBrowser({ categories }: { categories: FaqCategory[] }) {
                 {cat.items.map((f) => (
                   <details
                     key={f.q}
-                    className="group rounded-xl border border-charcoal/10 bg-white p-4"
+                    className="group rounded-xl border border-line/10 bg-surface-raised p-4"
                   >
-                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium text-charcoal [&::-webkit-details-marker]:hidden">
+                    <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium text-ink [&::-webkit-details-marker]:hidden">
                       {f.q}
                       <span
                         className="shrink-0 text-brand transition-transform group-open:rotate-45"

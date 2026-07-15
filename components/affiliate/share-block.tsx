@@ -50,19 +50,19 @@ export function ShareBlock({
       <label htmlFor="ref-link" className="sr-only">
         Your referral link
       </label>
-      <div className="flex items-center gap-2 rounded-xl border border-charcoal/15 bg-white px-3 py-2">
+      <div className="flex items-center gap-2 rounded-xl border border-line/15 bg-surface-raised px-3 py-2">
         <input
           id="ref-link"
           readOnly
           value={shareUrl}
-          className="min-w-0 flex-1 truncate bg-transparent text-sm text-charcoal outline-none"
+          className="min-w-0 flex-1 truncate bg-transparent text-sm text-ink outline-none"
           onFocus={(e) => e.currentTarget.select()}
         />
         <button
           type="button"
           onClick={onCopy}
           aria-label={copied ? "Link copied" : "Copy referral link"}
-          className="press inline-flex shrink-0 items-center gap-1 rounded-lg bg-charcoal/5 px-2.5 py-1.5 text-xs font-semibold text-charcoal hover:bg-charcoal/10"
+          className="press inline-flex shrink-0 items-center gap-1 rounded-lg bg-charcoal/5 px-2.5 py-1.5 text-xs font-semibold text-ink hover:bg-charcoal/10"
         >
           {copied ? (
             <>

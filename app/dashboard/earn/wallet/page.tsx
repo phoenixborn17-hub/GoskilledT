@@ -26,6 +26,7 @@ import { WithdrawForm } from "../../../../components/affiliate/withdraw-form";
 import { PayoutStatusLine } from "../../../../components/affiliate/payout-status-line";
 import { NotifyMeToggle } from "../../../../components/affiliate/notify-me-toggle";
 import { Button } from "../../../../components/ui/button";
+import { BackLink } from "../../../../components/nav/back-link";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Wallet" };
@@ -36,6 +37,7 @@ export default async function WalletPage() {
 
   return (
     <section aria-labelledby="wallet-heading" className="gs-vibrant space-y-6">
+      <BackLink href="/dashboard/earn" label="Back to Earn" />
       <h1
         id="wallet-heading"
         className="font-heading text-h1 font-bold text-ink"

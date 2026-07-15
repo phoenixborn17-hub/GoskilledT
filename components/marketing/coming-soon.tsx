@@ -27,7 +27,7 @@ export function ComingSoon({
       <main className="mx-auto w-full max-w-3xl px-4 py-16">
         <div className="hero-aurora -mx-4 rounded-3xl px-4 py-12 text-center">
           <div
-            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-brand/10 text-brand"
+            className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-gs-lg bg-brand/10 text-brand"
             aria-hidden
           >
             <Icon className="h-7 w-7" />
