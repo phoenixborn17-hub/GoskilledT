@@ -9,6 +9,7 @@ import { Prisma } from "../generated/prisma";
 import { prisma } from "../prisma";
 import { courseProgress } from "../../modules/lms/progress";
 import { completedLessonIds } from "./queries";
+import { notifyCertificateIssued } from "../notifications/notify";
 
 const courseWithLessons = {
   modules: {
@@ -129,6 +130,13 @@ export async function issueCertificateIfEligible(
           serial: cert.serial,
         }),
       );
+      // Post-commit, fail-safe (notify() never throws) — this only runs on a FRESH create, so it
+      // fires exactly once per (user, course), matching the "immutable — never re-issue" contract.
+      const course = await prisma.course.findUnique({
+        where: { id: courseId },
+        select: { title: true },
+      });
+      await notifyCertificateIssued(userId, course?.title ?? "your course");
       return cert;
     } catch (e) {
       if (

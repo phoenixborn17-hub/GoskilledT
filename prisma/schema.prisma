@@ -71,6 +71,7 @@ model User {
   emailLogs     EmailLog[]
   contactVerifications ContactVerification[]
   affiliateLeads AffiliateLead[]
+  notifications  Notification[]
 }
 
 // ─────────────── Catalog / LMS ───────────────
@@ -606,4 +607,32 @@ model FeatureOverride {
   updatedAt  DateTime     @updatedAt
   @@unique([featureKey, scope, scopeValue])
   @@index([featureKey])
+}
+
+// ─────────────── Notifications (Feature Batch v1.0 §1) ───────────────
+// Fired server-side at the source-of-truth transition — never recomputed in the UI. Event hooks
+// are side-effect-only (lib/notifications/notify.ts is fail-safe by contract, mirrors
+// lib/analytics/track.ts / lib/email/send.ts): a failed insert NEVER blocks or reverses the
+// money/KYC transaction it rides alongside.
+enum NotificationType {
+  COMMISSION_CREDITED
+  KYC_STATUS
+  WITHDRAWAL_PAID
+  CERTIFICATE_ISSUED
+  MILESTONE
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  linkUrl   String? // INTERNAL deep-link only (e.g. /dashboard/earn/commissions) — validated
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
 }

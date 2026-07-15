@@ -20,12 +20,13 @@ import { buildClawbackTxns } from "../../modules/affiliate/clawback";
 import { canEarnCommission } from "../../modules/affiliate/eligibility";
 import { hasConfirmedPurchase } from "../affiliate/eligibility";
 import { coursesToEnroll } from "../../modules/lms/entitlement";
-import type { PackageSlug } from "../../modules/affiliate/commission";
+import { commissionForLevel, type PackageSlug } from "../../modules/affiliate/commission";
 import { executeTxSpec } from "../../modules/ledger/persist";
 import type { AccountRef, TxSpec } from "../../modules/ledger/ledger";
 import { track } from "../analytics/track";
 import type { AnalyticsEventName } from "../../modules/analytics/events";
 import { sendPurchaseReceipt } from "../email/send";
+import { notifyCommissionCredited } from "../notifications/notify";
 
 const PROVIDER = "razorpay";
 
@@ -145,11 +146,20 @@ function grantedCourseIds(order: OrderContext): string[] {
   return result.courseIds;
 }
 
+interface CreditedCommission {
+  userId: string;
+  amountInPaise: number;
+}
+
 async function executeAction(
   tx: Tx,
   action: Action,
   order: OrderContext,
   now: Date,
+  // Collects {userId, amountInPaise} for each commission credited THIS call, so the caller can
+  // fire notifyCommissionCredited AFTER the transaction commits (never inside it — notifications
+  // are side-effect-only and must never risk blocking/reversing the money tx).
+  creditedOut: CreditedCommission[],
 ): Promise<void> {
   switch (action.do) {
     case "MARK_PAID":
@@ -223,6 +233,15 @@ async function executeAction(
         uplines,
       });
       for (const spec of specs) await executeTxSpec(tx, spec);
+      for (const hop of uplines) {
+        creditedOut.push({
+          userId: hop.userId,
+          amountInPaise: commissionForLevel(
+            order.package.slug as PackageSlug,
+            hop.level,
+          ),
+        });
+      }
       return;
     }
     case "CLAWBACK_COMMISSIONS": {
@@ -327,12 +346,13 @@ export async function handleRazorpayWebhook(
     now,
   });
 
+  const creditedCommissions: CreditedCommission[] = [];
   try {
     await prisma.$transaction(
       async (tx) => {
         for (const action of decision.actions) {
           if (!order) throw new Error("action decided for a missing order"); // defensive — decide returns [] when order is null
-          await executeAction(tx, action, order, now);
+          await executeAction(tx, action, order, now, creditedCommissions);
         }
         await tx.webhookEvent.create({
           data: { provider: PROVIDER, eventId, payloadHash },
@@ -362,6 +382,11 @@ export async function handleRazorpayWebhook(
         amountInPaise: order.amountInPaise,
         paidAt: order.paidAt ?? now,
       });
+    }
+    // Commission-credited notifications: same post-commit, fail-safe contract (notify() never
+    // throws). Fires once per credited upline per order — the tx already committed successfully.
+    for (const c of creditedCommissions) {
+      await notifyCommissionCredited(c.userId, c.amountInPaise);
     }
   }
 

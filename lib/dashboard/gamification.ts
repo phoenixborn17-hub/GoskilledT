@@ -10,6 +10,7 @@ import {
   type StreakView,
   type Milestone,
 } from "../../modules/lms/gamification";
+import { notifyMilestoneIfNew } from "../notifications/notify";
 
 /** Calendar day (Asia/Kolkata) for a timestamp — a "learning day" is one IST day with activity. */
 function istDay(d: Date): string {
@@ -58,6 +59,16 @@ export async function getGamification(
     certificateCount,
     longestStreak: streak.longest,
   });
+
+  // MILESTONE notifications (Feature Batch v1.0 §1): milestones are DERIVED, never stored, so this
+  // recomputation IS the source of truth — notifyMilestoneIfNew dedupes against the Notification
+  // row itself (see lib/notifications/notify.ts) rather than a separate tracking table. Awaited
+  // (not fire-and-forget): a detached promise isn't guaranteed to finish once a serverless request
+  // handler returns. Cheap in practice — an already-notified milestone short-circuits on its dedup
+  // lookup, and notify() itself never throws (fail-safe by contract).
+  for (const m of milestones.filter((m) => m.achieved)) {
+    await notifyMilestoneIfNew(userId, m.label);
+  }
 
   return {
     streak,
