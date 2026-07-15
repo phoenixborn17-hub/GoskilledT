@@ -7,6 +7,7 @@ import { decryptPii, maskLast4 } from "../pii";
 import { payoutsEnabled } from "../env";
 import type { AdminIdentity } from "../auth/admin";
 import { recordAdminAction } from "./audit";
+import { notifyWithdrawalPaid } from "../notifications/notify";
 import { availableBalanceOf } from "../../modules/ledger/ledger";
 import { executeTxSpec } from "../../modules/ledger/persist";
 import {
@@ -148,8 +149,12 @@ export async function markWithdrawalPaid(
   actor: AdminIdentity,
   withdrawalId: string,
 ): Promise<MarkPaidResult> {
+  // Captured inside the tx for the post-commit notification (never fired from inside the money
+  // tx itself — same discipline as the webhook's post-commit analytics/receipt/notify calls).
+  const notifyTargets: { userId: string; amountInPaise: number }[] = [];
+  let result: MarkPaidResult;
   try {
-    return await prisma.$transaction(async (tx) => {
+    result = await prisma.$transaction(async (tx) => {
       const w = await tx.withdrawal.findUnique({
         where: { id: withdrawalId },
         select: { id: true, userId: true, amountInPaise: true, status: true },
@@ -202,6 +207,7 @@ export async function markWithdrawalPaid(
           idempotent: exec.skipped,
         },
       });
+      notifyTargets.push({ userId: w.userId, amountInPaise: w.amountInPaise });
       return {
         ok: true as const,
         ledgerTxId: exec.transactionId ?? null,
@@ -211,6 +217,10 @@ export async function markWithdrawalPaid(
   } catch {
     return { ok: false, error: "Could not mark paid. Please retry." };
   }
+  if (result.ok && notifyTargets[0]) {
+    await notifyWithdrawalPaid(notifyTargets[0].userId, notifyTargets[0].amountInPaise);
+  }
+  return result;
 }
 
 export type InProgressResult = { ok: true } | { ok: false; error: string };

@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, Bell, Share2, LogOut, ArrowLeft } from "lucide-react";
+import { Menu, Share2, LogOut, ArrowLeft } from "lucide-react";
 import { cn } from "../../lib/utils";
 import {
   visibleWorkspaces,
@@ -22,6 +22,7 @@ import { Avatar } from "../ui/avatar";
 import { Popover } from "../ui/popover";
 import { Drawer } from "../ui/drawer";
 import { ShareWidget } from "../cards/share-widget";
+import { NotificationBell } from "./notification-bell";
 
 export interface AppShellProps {
   userName: string;
@@ -303,9 +304,7 @@ export function AppShell({
                   <Share2 className="h-5 w-5" aria-hidden />
                 </IconButton>
               )}
-              <IconButton aria-label="Notifications">
-                <Bell className="h-5 w-5" aria-hidden />
-              </IconButton>
+              <NotificationBell />
               <Popover
                 align="end"
                 trigger={

@@ -71,6 +71,7 @@ model User {
   emailLogs     EmailLog[]
   contactVerifications ContactVerification[]
   affiliateLeads AffiliateLead[]
+  notifications  Notification[]
 }
 
 // ─────────────── Catalog / LMS ───────────────
@@ -243,6 +244,19 @@ model Referral {
   createdAt      DateTime       @default(now())
   @@unique([uplineUserId, downlineUserId, level])
   @@index([downlineUserId])
+}
+
+// Referral click tracking (Feature Batch v1.0 §3). Unique click = cookie visitorId + 24h dedup —
+// deliberately NO IP, NO user-agent (privacy-friendly). Conversion (paid-vs-signup) is computed
+// read-only by joining this + the existing User.referredById graph + Order — no new money path.
+model ReferralClick {
+  id        String   @id @default(cuid())
+  code      String // referral code that was hit
+  visitorId String // random UUID from a first-party cookie — NO PII, NO IP, NO UA
+  createdAt DateTime @default(now())
+
+  @@index([code, createdAt])
+  @@index([visitorId, code, createdAt]) // supports the 24h dedup lookup
 }
 
 // ─────────────── Double-entry Ledger ───────────────
@@ -593,4 +607,63 @@ model FeatureOverride {
   updatedAt  DateTime     @updatedAt
   @@unique([featureKey, scope, scopeValue])
   @@index([featureKey])
+}
+
+// ─────────────── Notifications (Feature Batch v1.0 §1) ───────────────
+// Fired server-side at the source-of-truth transition — never recomputed in the UI. Event hooks
+// are side-effect-only (lib/notifications/notify.ts is fail-safe by contract, mirrors
+// lib/analytics/track.ts / lib/email/send.ts): a failed insert NEVER blocks or reverses the
+// money/KYC transaction it rides alongside.
+enum NotificationType {
+  COMMISSION_CREDITED
+  KYC_STATUS
+  WITHDRAWAL_PAID
+  CERTIFICATE_ISSUED
+  MILESTONE
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  body      String
+  linkUrl   String? // INTERNAL deep-link only (e.g. /dashboard/earn/commissions) — validated
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt])
+  @@index([userId, createdAt])
+}
+
+// ─────────────── Admin Promo Banner (Feature Batch v1.0 §2) ───────────────
+// Learner Home slot. IMAGE/GIF = real upload to Supabase Storage (lib/storage/banner-media.ts,
+// server-side type + byte-size + dimension validation). VIDEO = a hosted Cloudflare Stream id/url
+// — NEVER a raw video upload — rendered click-to-play with a required poster, never autoplay; a
+// low-tier device renders the poster only. linkUrl is validated via safeBannerLink
+// (lib/auth/post-auth.ts) — internal paths + an explicit external allowlist only.
+enum BannerMediaType {
+  IMAGE
+  GIF
+  VIDEO
+}
+
+model PromoBanner {
+  id        String          @id @default(cuid())
+  mediaType BannerMediaType
+  mediaKey  String? // Supabase Storage key — IMAGE/GIF
+  streamId  String? // Cloudflare Stream id/url — VIDEO (hosted)
+  posterKey String? // required when mediaType == VIDEO
+  headline  String?
+  linkUrl   String? // internal path OR allowlisted external — validated (see above)
+  startAt   DateTime?
+  endAt     DateTime?
+  active    Boolean         @default(true)
+  order     Int             @default(0) // rotation order within the active window
+  createdBy String
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([active, startAt, endAt])
 }

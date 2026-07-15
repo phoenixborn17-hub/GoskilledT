@@ -19,8 +19,10 @@ const CONFIRM = process.argv.includes("--confirm");
 
 // Documented test-data markers (see tests/*.integration.test.ts run-id generators):
 //   referralCode = `${runId}${tag}`.toUpperCase() → "IT…" (money-flow), "T3…" (checkout),
-//   "LMS…" (lms), "REF…" (user-sync). supabaseId → "sb_…" / "admin_…" (never a real UUID).
-const REFERRAL_PREFIXES = ["IT", "T3", "LMS", "REF"];
+//   "LMS…" (lms), "REF…" (user-sync), "RC…" (referral-click). supabaseId → "sb_…" / "admin_…"
+//   (never a real UUID). ReferralClick rows themselves are NOT user-linked (no FK) — they use the
+//   same "RC…" code prefix and are cheap, unattributable analytics rows; left for manual review.
+const REFERRAL_PREFIXES = ["IT", "T3", "LMS", "REF", "RC"];
 const SUPABASE_PREFIXES = ["sb_", "admin_"];
 // Leads aren't FK-linked to a user; match by test-only source prefixes or the test users' phones.
 const LEAD_SOURCE_PREFIXES = ["t3", "t6-", "it", "lms"];

@@ -7,6 +7,7 @@ import { decryptPii, maskLast4 } from "../pii";
 import type { AdminIdentity } from "../auth/admin";
 import { recordAdminAction } from "./audit";
 import { decideKycReview, type KycDecision } from "../../modules/admin/review";
+import { notifyKycStatus } from "../notifications/notify";
 
 export interface KycQueueRow {
   userId: string;
@@ -239,5 +240,7 @@ export async function reviewKyc(
       meta: reason?.trim() ? { reason: reason.trim() } : undefined,
     });
   });
+  // Post-commit, fail-safe (notify() never throws) — same discipline as the webhook's notifications.
+  await notifyKycStatus(userId, verdict.nextStatus);
   return { ok: true, status: verdict.nextStatus };
 }
